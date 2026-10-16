@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="res_config_settings_view_form" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.easycrm</field>
+        <field name="model">res.config.settings</field>
+        <field name="priority" eval="95"/>
+        <field name="inherit_id" ref="base.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form" position="inside">
+                <app data-string="EasyCRM" string="EasyCRM" name="easycrm" groups="easycrm.group_admin">
+                    <block title="General" name="easycrm_general">
+                        <setting string="Company" help="Name used in WhatsApp messages.">
+                            <field name="easycrm_company"/>
+                        </setting>
+                        <setting string="Country of phone numbers"
+                                 help="Determines how phone numbers are validated and normalized.">
+                            <field name="easycrm_country"/>
+                            <div class="row mt8">
+                                <label class="col-lg-4 o_light_label" for="easycrm_cc"/>
+                                <field name="easycrm_cc"/>
+                            </div>
+                            <div class="row mt8">
+                                <label class="col-lg-4 o_light_label" for="easycrm_trunk"/>
+                                <field name="easycrm_trunk"/>
+                            </div>
+                        </setting>
+                    </block>
+                </app>
+            </xpath>
+        </field>
+    </record>
+    <record id="action_config_settings" model="ir.actions.act_window">
+        <field name="name">Settings</field>
+        <field name="res_model">res.config.settings</field>
+        <field name="view_mode">form</field>
+        <field name="target">inline</field>
+        <field name="context">{'module': 'easycrm', 'bin_size': False}</field>
+    </record>
+</odoo>

@@ -1,0 +1,28 @@
+#easycrm{max-width:1100px;margin:0 auto;padding:12px;box-sizing:border-box}
+#easycrm .nav{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;padding-left:44px}
+#easycrm .nav button.on{background:var(--color-primary-element);color:var(--color-primary-element-text)}
+#easycrm .bar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+#easycrm .bar input,#easycrm .bar select{flex:1;min-width:120px}
+#easycrm .row{display:flex;justify-content:space-between;gap:8px;padding:10px;border-bottom:1px solid var(--color-border);cursor:pointer;border-radius:6px}
+#easycrm .row:hover{background:var(--color-background-hover)}
+#easycrm .badge{padding:2px 8px;border-radius:10px;font-size:12px;background:var(--color-background-dark);white-space:nowrap}
+#easycrm .badge.interesse{background:#2e9e55;color:#fff}#easycrm .badge.pas_interesse{background:#888;color:#fff}
+#easycrm .badge.injoignable,#easycrm .badge.rappel{background:#e9a100;color:#000}
+#easycrm .late{color:#d12;font-weight:bold}
+#easycrm .big{display:block;text-align:center;padding:14px;font-size:18px;border-radius:10px;margin:10px 0;background:var(--color-primary-element);color:var(--color-primary-element-text);text-decoration:none}
+#easycrm .res{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
+#easycrm .res button{padding:14px 6px;font-size:15px}
+#easycrm .res button.on{outline:3px solid var(--color-primary-element)}
+#easycrm .card{padding:10px;border:1px solid var(--color-border);border-radius:8px;margin:10px 0}
+#easycrm textarea,#easycrm input[type=datetime-local]{width:100%;box-sizing:border-box}
+#easycrm .err{color:#d12}#easycrm .muted{color:var(--color-text-maxcontrast);font-size:13px}
+#easycrm .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+#easycrm .g2{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
+#easycrm .g2 .full{grid-column:1/-1}
+#easycrm .cols h2{margin:6px 0}
+@media(max-width:760px){#easycrm .cols,#easycrm .g2{grid-template-columns:1fr}}
+.ccp-bg{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:100000;display:flex;align-items:center;justify-content:center}
+.ccp{background:var(--color-main-background);color:var(--color-main-text);padding:20px;border-radius:12px;max-width:380px;width:90%}
+.ccp button{display:block;width:100%;margin-top:6px}
+#easycrm .badge.non_eligible{background:#8a4b9d;color:#fff}
+#easycrm .badge.faux_numero{background:#c0392b;color:#fff}

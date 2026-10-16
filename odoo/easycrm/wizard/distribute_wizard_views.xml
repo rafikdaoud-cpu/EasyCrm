@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_distribute_wizard_form" model="ir.ui.view">
+        <field name="name">easycrm.distribute.wizard.form</field>
+        <field name="model">easycrm.distribute.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Distribute prospects">
+                <group>
+                    <field name="prospect_ids" widget="many2many_tags" invisible="not prospect_ids"/>
+                    <field name="category_ids" widget="many2many_tags" options="{'no_create': True}"
+                           invisible="prospect_ids"/>
+                    <field name="user_ids" widget="many2many_tags_avatar" options="{'no_create': True}"/>
+                    <field name="only_unassigned"/>
+                    <field name="only_queue"/>
+                    <field name="count"/>
+                </group>
+                <footer>
+                    <button name="action_distribute" type="object" string="Distribute" class="btn-primary"/>
+                    <button string="Cancel" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+    <record id="action_distribute_wizard" model="ir.actions.act_window">
+        <field name="name">Distribute prospects</field>
+        <field name="res_model">easycrm.distribute.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+</odoo>

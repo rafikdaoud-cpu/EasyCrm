@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem id="menu_root" name="EasyCRM" sequence="45" web_icon="easycrm,static/description/icon.png"
+              groups="group_lecture,group_commercial"/>
+
+    <menuitem id="menu_next" name="Call next" parent="menu_root" sequence="1"
+              action="action_next" groups="group_commercial"/>
+
+    <menuitem id="menu_prospects" name="Prospects" parent="menu_root" sequence="10"/>
+    <menuitem id="menu_prospect_mine" name="My prospects" parent="menu_prospects" sequence="1"
+              action="action_prospect_mine" groups="group_commercial"/>
+    <menuitem id="menu_prospect_due" name="To call back" parent="menu_prospects" sequence="2"
+              action="action_prospect_due"/>
+    <menuitem id="menu_prospect_clients" name="Customers" parent="menu_prospects" sequence="3"
+              action="action_prospect_clients"/>
+    <menuitem id="menu_prospect_lost" name="Not interested" parent="menu_prospects" sequence="4"
+              action="action_prospect_lost"/>
+    <menuitem id="menu_prospect_all" name="All prospects" parent="menu_prospects" sequence="5"
+              action="action_prospect"/>
+
+    <menuitem id="menu_calls" name="Call log" parent="menu_root" sequence="20" action="action_call"/>
+
+    <menuitem id="menu_stats" name="Statistics" parent="menu_root" sequence="30"/>
+    <menuitem id="menu_stat_day" name="Calls by day" parent="menu_stats" sequence="1" action="action_stat_day"/>
+    <menuitem id="menu_stat_hour" name="Calls by hour" parent="menu_stats" sequence="2" action="action_stat_hour"/>
+    <menuitem id="menu_stat_status" name="Calls by response" parent="menu_stats" sequence="3" action="action_stat_status"/>
+    <menuitem id="menu_stat_user" name="Calls by salesperson" parent="menu_stats" sequence="4" action="action_stat_user"/>
+    <menuitem id="menu_stat_category" name="Calls by category" parent="menu_stats" sequence="5" action="action_stat_category"/>
+    <menuitem id="menu_stat_prospect" name="Prospects by category" parent="menu_stats" sequence="6" action="action_prospect_stats"/>
+
+    <menuitem id="menu_tools" name="Tools" parent="menu_root" sequence="40" groups="group_superviseur"/>
+    <menuitem id="menu_import" name="Import (Excel / CSV)" parent="menu_tools" sequence="1"
+              action="action_import_wizard" groups="group_superviseur"/>
+    <menuitem id="menu_distribute" name="Distribute prospects" parent="menu_tools" sequence="2"
+              action="action_distribute_wizard" groups="group_superviseur"/>
+
+    <menuitem id="menu_config" name="Configuration" parent="menu_root" sequence="90" groups="group_admin"/>
+    <menuitem id="menu_config_settings" name="Settings" parent="menu_config" sequence="1"
+              action="action_config_settings" groups="group_admin"/>
+    <menuitem id="menu_config_status" name="Call responses" parent="menu_config" sequence="2" action="action_status"/>
+    <menuitem id="menu_config_category" name="Categories" parent="menu_config" sequence="3" action="action_category"/>
+    <menuitem id="menu_config_team" name="Teams" parent="menu_config" sequence="4" action="action_team"/>
+    <menuitem id="menu_config_field" name="Custom fields" parent="menu_config" sequence="5" action="action_field"/>
+</odoo>

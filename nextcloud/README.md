@@ -1,0 +1,73 @@
+# EasyCrm
+
+Mini CRM et centre d'appels pour Nextcloud : prospection téléphonique, suivi des appels et des rappels, statistiques, import Excel.
+
+Licence : AGPL-3.0 (voir `LICENSE`). Le fichier `js/xlsx.js` (SheetJS) est sous licence Apache-2.0 (`js/xlsx.LICENSE.txt`).
+
+## Fonctionnalités
+
+- Liste de prospects : pagination (10 / 20 / 30), recherche, tri, filtres par statut et par commercial.
+- Fiche client : appel et WhatsApp en un clic, historique des appels, notes, rappels avec alerte.
+- Import Excel (.xlsx, .xls) ou CSV : nettoyage, suppression des doublons de numéros, correction des numéros et des valeurs de listes.
+- Réponses d'appel (statuts) configurables : libellé, couleur, rappel obligatoire, note obligatoire, activation, ordre.
+- Champs de la fiche configurables : texte, nombre, date, e-mail, oui/non, liste, liste à choix multiples. Seul « Nom et prénom » est toujours obligatoire.
+- Équipes et catégories : répartition automatique des prospects (par catégorie, équitable, ou vers un groupe précis) et réaffectation des prospects orphelins.
+- Statistiques : prospects par statut, appels par heure, appels par commercial, journal des appels paginé avec recherche et tri, export Excel.
+- Rôles : administrateur, superviseur, commercial, lecture seule.
+- Invitation des commerciaux par e-mail.
+- Saisie des appels différée si la connexion est coupée (envoi automatique au retour du réseau).
+- Enregistrements d'appels (envoi par une application mobile via l'API).
+
+## Installation
+
+Prérequis : Nextcloud 28 à 40, PHP 8.1 ou plus.
+
+1. Décompressez `easycrm.zip` dans le dossier `apps` (ou `custom_apps`) de Nextcloud : le dossier doit s'appeler `easycrm`.
+2. Donnez les droits au propriétaire du serveur web : `chown -R <utilisateur>:<groupe> easycrm`.
+3. Activez l'application : `occ app:enable easycrm` (ou Administration → Applications).
+
+L'activation crée les tables `easycrm_*` et les quatre groupes d'accès `easycrm_admin`, `easycrm_superviseur`, `easycrm_commercial`, `easycrm_lecture`.
+
+## Premiers pas (menu EasyCrm → Administration)
+
+1. **Général** : nom de l'entreprise, pays (format des téléphones et de WhatsApp : Algérie, Maroc, Tunisie, France, ou autre avec indicatif), et groupes d'accès. Chaque rôle peut utiliser un groupe Nextcloud existant ou un groupe de votre annuaire LDAP / AD.
+2. **Équipes et catégories** : créez vos équipes (un groupe de commerciaux chacune) et rattachez-leur vos catégories de produits ou de services.
+3. **Champs de la fiche client** : renommez, masquez, ajoutez des champs, choisissez leur type.
+4. **Réponses d'appel / statuts** : adaptez les réponses proposées au commercial.
+5. Ajoutez les utilisateurs aux groupes : chaque commercial dans le groupe « Commerciaux » et dans le groupe de son équipe.
+6. **Importer des prospects** : choisissez le fichier et le mode de répartition.
+7. Option : **Inviter les commerciaux par e-mail** (nécessite un serveur de messagerie configuré dans Nextcloud).
+
+## Rôles
+
+| Rôle | Appeler | Voir tous les prospects | Importer, répartir | Administration |
+|---|---|---|---|---|
+| Administrateur (admin Nextcloud ou groupe `easycrm_admin`) | oui | oui | oui | oui |
+| Superviseur | non | oui | oui | consultation |
+| Commercial | oui (ses prospects) | non | non | non |
+| Lecture seule | non | oui | non | non |
+
+Les commerciaux ne voient que leurs prospects et leurs propres statistiques.
+
+## Format d'import
+
+Colonnes, dans cet ordre : Nom et prénom ; Téléphone ; Région ; Catégorie ; Profession ; Revenu ; Commentaire (les libellés suivent vos réglages). Pour un fichier Excel, les colonnes sont reconnues par leur titre, y compris celles de vos champs personnalisés. La première ligne (en-tête) est ignorée. Les numéros invalides ou déjà présents ne sont pas importés ; les valeurs de liste non reconnues sont recopiées dans le commentaire.
+
+## Sauvegarde et désinstallation
+
+Sauvegardez la base de données Nextcloud : les données se trouvent dans les tables `easycrm_prospects`, `easycrm_calls` et `easycrm_recordings`, et les enregistrements audio dans le stockage de l'application. La désinstallation (`occ app:remove easycrm`) ne supprime pas les tables : supprimez-les vous-même si vous le souhaitez.
+
+## Limites de cette version
+
+- Interface en français uniquement.
+- Aucune application Android n'est fournie ; l'API d'envoi des enregistrements est disponible (`POST /apps/easycrm/api/recordings`).
+- Les listes (région, catégories) sont des listes de choix : pas de hiérarchie.
+
+---
+
+## English summary
+
+EasyCrm is a lightweight CRM / call-center app for Nextcloud (AGPL-3.0): prospect lists with pagination, search and sorting; Excel/CSV import with de-duplication; one-tap call and WhatsApp; configurable call outcomes and customer-record fields; teams and categories with automatic lead distribution; roles (admin, supervisor, sales agent, read-only) mapped to Nextcloud or LDAP groups; statistics and call log; offline-tolerant call logging. Install by unzipping into `apps/easycrm`, then `occ app:enable easycrm`, and configure everything under EasyCrm → Administration. The interface is currently French only.
+
+## Languages
+The interface is available in French, English, Arabic (right-to-left), Spanish, Italian and German. The language follows the Nextcloud user language (unsupported languages fall back to English). Translations live in `js/i18n.js` (UI) and `lib/Service/Tr.php` (Excel export headers). Machine-quality translations: have a native speaker review them before a commercial release.

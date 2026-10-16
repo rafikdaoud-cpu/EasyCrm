@@ -1,0 +1,26 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_prospect_lecture,prospect lecture,model_easycrm_prospect,group_lecture,1,0,0,0
+access_prospect_commercial,prospect commercial,model_easycrm_prospect,group_commercial,1,1,1,0
+access_prospect_superviseur,prospect superviseur,model_easycrm_prospect,group_superviseur,1,1,1,1
+access_call_lecture,call lecture,model_easycrm_call,group_lecture,1,0,0,0
+access_call_commercial,call commercial,model_easycrm_call,group_commercial,1,0,1,0
+access_call_superviseur,call superviseur,model_easycrm_call,group_superviseur,1,1,1,1
+access_status_lecture,status lecture,model_easycrm_status,group_lecture,1,0,0,0
+access_status_commercial,status commercial,model_easycrm_status,group_commercial,1,0,0,0
+access_status_admin,status admin,model_easycrm_status,group_admin,1,1,1,1
+access_category_lecture,category lecture,model_easycrm_category,group_lecture,1,0,0,0
+access_category_commercial,category commercial,model_easycrm_category,group_commercial,1,0,0,0
+access_category_superviseur,category superviseur,model_easycrm_category,group_superviseur,1,1,1,0
+access_category_admin,category admin,model_easycrm_category,group_admin,1,1,1,1
+access_team_lecture,team lecture,model_easycrm_team,group_lecture,1,0,0,0
+access_team_commercial,team commercial,model_easycrm_team,group_commercial,1,0,0,0
+access_team_admin,team admin,model_easycrm_team,group_admin,1,1,1,1
+access_field_lecture,field lecture,model_easycrm_field,group_lecture,1,0,0,0
+access_field_commercial,field commercial,model_easycrm_field,group_commercial,1,0,0,0
+access_field_admin,field admin,model_easycrm_field,group_admin,1,1,1,1
+access_tag_lecture,tag lecture,model_easycrm_tag,group_lecture,1,0,0,0
+access_tag_commercial,tag commercial,model_easycrm_tag,group_commercial,1,0,0,0
+access_tag_admin,tag admin,model_easycrm_tag,group_admin,1,1,1,1
+access_callwizard_commercial,call wizard,model_easycrm_call_wizard,group_commercial,1,1,1,1
+access_importwizard_superviseur,import wizard,model_easycrm_import_wizard,group_superviseur,1,1,1,1
+access_distwizard_superviseur,distribute wizard,model_easycrm_distribute_wizard,group_superviseur,1,1,1,1

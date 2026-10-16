@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_call_list" model="ir.ui.view">
+        <field name="name">easycrm.call.list</field>
+        <field name="model">easycrm.call</field>
+        <field name="arch" type="xml">
+            <list string="Calls" create="0">
+                <field name="date"/>
+                <field name="user_id" widget="many2one_avatar_user"/>
+                <field name="prospect_id"/>
+                <field name="prospect_phone" widget="phone"/>
+                <field name="category_id" optional="show"/>
+                <field name="status_id" widget="badge"/>
+                <field name="note"/>
+                <field name="callback_date" optional="show"/>
+                <field name="duration" optional="hide"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_call_form" model="ir.ui.view">
+        <field name="name">easycrm.call.form</field>
+        <field name="model">easycrm.call</field>
+        <field name="arch" type="xml">
+            <form string="Call">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="prospect_id"/>
+                            <field name="user_id"/>
+                            <field name="date"/>
+                            <field name="duration"/>
+                        </group>
+                        <group>
+                            <field name="status_id"/>
+                            <field name="callback_date"/>
+                            <field name="category_id"/>
+                        </group>
+                    </group>
+                    <field name="note" placeholder="Note…"/>
+                    <field name="attachment_ids" widget="many2many_binary"/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="view_call_search" model="ir.ui.view">
+        <field name="name">easycrm.call.search</field>
+        <field name="model">easycrm.call</field>
+        <field name="arch" type="xml">
+            <search string="Calls">
+                <field name="prospect_id"/>
+                <field name="prospect_phone"/>
+                <field name="user_id"/>
+                <field name="status_id"/>
+                <field name="category_id"/>
+                <filter name="mine" string="My calls" domain="[('user_id', '=', uid)]"/>
+                <filter name="today" string="Today" domain="[('day', '=', context_today().strftime('%Y-%m-%d'))]"/>
+                <filter name="week" string="Last 7 days"
+                        domain="[('date', '&gt;=', (context_today() - relativedelta(days=7)).strftime('%Y-%m-%d'))]"/>
+                <filter name="clients" string="Customers won" domain="[('is_client', '=', True)]"/>
+                <group expand="0" string="Group by">
+                    <filter name="g_user" string="Salesperson" context="{'group_by': 'user_id'}"/>
+                    <filter name="g_status" string="Response" context="{'group_by': 'status_id'}"/>
+                    <filter name="g_category" string="Category" context="{'group_by': 'category_id'}"/>
+                    <filter name="g_day" string="Day" context="{'group_by': 'day:day'}"/>
+                    <filter name="g_month" string="Month" context="{'group_by': 'day:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+    <record id="view_call_pivot" model="ir.ui.view">
+        <field name="name">easycrm.call.pivot</field>
+        <field name="model">easycrm.call</field>
+        <field name="arch" type="xml">
+            <pivot string="Calls">
+                <field name="user_id" type="row"/>
+                <field name="status_id" type="col"/>
+            </pivot>
+        </field>
+    </record>
+    <record id="view_call_graph" model="ir.ui.view">
+        <field name="name">easycrm.call.graph</field>
+        <field name="model">easycrm.call</field>
+        <field name="arch" type="xml">
+            <graph string="Calls" type="bar">
+                <field name="day" interval="day"/>
+            </graph>
+        </field>
+    </record>
+
+    <record id="action_call" model="ir.actions.act_window">
+        <field name="name">Call log</field>
+        <field name="res_model">easycrm.call</field>
+        <field name="view_mode">list,form,pivot,graph</field>
+        <field name="search_view_id" ref="view_call_search"/>
+    </record>
+    <record id="action_stat_day" model="ir.actions.act_window">
+        <field name="name">Calls by day</field>
+        <field name="res_model">easycrm.call</field>
+        <field name="view_mode">graph,pivot,list</field>
+        <field name="context">{'search_default_week': 1}</field>
+        <field name="search_view_id" ref="view_call_search"/>
+    </record>
+    <record id="action_stat_hour" model="ir.actions.act_window">
+        <field name="name">Calls by hour</field>
+        <field name="res_model">easycrm.call</field>
+        <field name="view_mode">graph,pivot</field>
+        <field name="context">{'graph_groupbys': ['hour'], 'pivot_row_groupby': ['hour'], 'pivot_column_groupby': ['user_id']}</field>
+        <field name="search_view_id" ref="view_call_search"/>
+    </record>
+    <record id="action_stat_status" model="ir.actions.act_window">
+        <field name="name">Calls by response</field>
+        <field name="res_model">easycrm.call</field>
+        <field name="view_mode">graph,pivot</field>
+        <field name="context">{'graph_groupbys': ['status_id'], 'pivot_row_groupby': ['status_id'], 'pivot_column_groupby': ['category_id']}</field>
+        <field name="search_view_id" ref="view_call_search"/>
+    </record>
+    <record id="action_stat_user" model="ir.actions.act_window">
+        <field name="name">Calls by salesperson</field>
+        <field name="res_model">easycrm.call</field>
+        <field name="view_mode">pivot,graph</field>
+        <field name="context">{'graph_groupbys': ['user_id'], 'pivot_row_groupby': ['user_id'], 'pivot_column_groupby': ['status_id']}</field>
+        <field name="search_view_id" ref="view_call_search"/>
+    </record>
+    <record id="action_stat_category" model="ir.actions.act_window">
+        <field name="name">Calls by category</field>
+        <field name="res_model">easycrm.call</field>
+        <field name="view_mode">pivot,graph</field>
+        <field name="context">{'graph_groupbys': ['category_id'], 'pivot_row_groupby': ['category_id'], 'pivot_column_groupby': ['status_id']}</field>
+        <field name="search_view_id" ref="view_call_search"/>
+    </record>
+</odoo>

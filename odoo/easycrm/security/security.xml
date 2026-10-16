@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="module_category_easycrm" model="ir.module.category">
+        <field name="name">EasyCRM</field>
+        <field name="sequence">40</field>
+    </record>
+
+    <record id="group_lecture" model="res.groups">
+        <field name="name">Read-only</field>
+        <field name="category_id" ref="module_category_easycrm"/>
+        <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+    <record id="group_commercial" model="res.groups">
+        <field name="name">Salesperson</field>
+        <field name="category_id" ref="module_category_easycrm"/>
+        <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+    <record id="group_superviseur" model="res.groups">
+        <field name="name">Supervisor</field>
+        <field name="category_id" ref="module_category_easycrm"/>
+        <field name="implied_ids" eval="[(4, ref('group_commercial'))]"/>
+    </record>
+    <record id="group_admin" model="res.groups">
+        <field name="name">Administrator</field>
+        <field name="category_id" ref="module_category_easycrm"/>
+        <field name="implied_ids" eval="[(4, ref('group_superviseur'))]"/>
+        <field name="users" eval="[(4, ref('base.user_root')), (4, ref('base.user_admin'))]"/>
+    </record>
+
+    <!-- Prospects -->
+    <record id="rule_prospect_commercial" model="ir.rule">
+        <field name="name">EasyCRM: salespeople see their prospects and their team's unassigned pool</field>
+        <field name="model_id" ref="model_easycrm_prospect"/>
+        <field name="groups" eval="[(4, ref('group_commercial'))]"/>
+        <field name="domain_force">['|', ('user_id', '=', user.id), '&amp;', ('user_id', '=', False), ('category_id.team_ids.member_ids', 'in', [user.id])]</field>
+    </record>
+    <record id="rule_prospect_superviseur" model="ir.rule">
+        <field name="name">EasyCRM : le superviseur voit tous les prospects</field>
+        <field name="model_id" ref="model_easycrm_prospect"/>
+        <field name="groups" eval="[(4, ref('group_superviseur'))]"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+    </record>
+    <record id="rule_prospect_lecture" model="ir.rule">
+        <field name="name">EasyCRM : lecture seule sur tous les prospects</field>
+        <field name="model_id" ref="model_easycrm_prospect"/>
+        <field name="groups" eval="[(4, ref('group_lecture'))]"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+
+    <!-- Appels -->
+    <record id="rule_call_commercial" model="ir.rule">
+        <field name="name">EasyCRM : le commercial voit ses appels</field>
+        <field name="model_id" ref="model_easycrm_call"/>
+        <field name="groups" eval="[(4, ref('group_commercial'))]"/>
+        <field name="domain_force">[('user_id', '=', user.id)]</field>
+    </record>
+    <record id="rule_call_superviseur" model="ir.rule">
+        <field name="name">EasyCRM : le superviseur voit tous les appels</field>
+        <field name="model_id" ref="model_easycrm_call"/>
+        <field name="groups" eval="[(4, ref('group_superviseur'))]"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+    </record>
+    <record id="rule_call_lecture" model="ir.rule">
+        <field name="name">EasyCRM : lecture seule sur tous les appels</field>
+        <field name="model_id" ref="model_easycrm_call"/>
+        <field name="groups" eval="[(4, ref('group_lecture'))]"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+</odoo>

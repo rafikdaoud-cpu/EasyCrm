@@ -1,0 +1,246 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_prospect_form" model="ir.ui.view">
+        <field name="name">easycrm.prospect.form</field>
+        <field name="model">easycrm.prospect</field>
+        <field name="arch" type="xml">
+            <form string="Prospect">
+                <header>
+                    <button name="action_log_call" type="object" string="Log the call"
+                            class="btn-primary" icon="fa-phone"
+                            invisible="not id or is_client"/>
+                    <button name="action_whatsapp" type="object" string="WhatsApp" icon="fa-whatsapp"
+                            invisible="not phone"/>
+                    <field name="status_id" widget="statusbar" options="{'clickable': False}"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_calls" type="object" class="oe_stat_button" icon="fa-phone">
+                            <field name="call_count" widget="statinfo" string="Calls"/>
+                        </button>
+                        <button name="action_view_duplicates" type="object" class="oe_stat_button"
+                                icon="fa-clone" invisible="duplicate_count == 0">
+                            <field name="duplicate_count" widget="statinfo" string="Duplicates"/>
+                        </button>
+                    </div>
+                    <widget name="web_ribbon" title="Customer" bg_color="text-bg-success" invisible="not is_client"/>
+                    <field name="active" invisible="1"/>
+                    <field name="is_client" invisible="1"/>
+                    <field name="phone_valid" invisible="1"/>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="Full name"/></h1>
+                    </div>
+                    <group>
+                        <group name="contact" string="Contact">
+                            <field name="phone" widget="phone"/>
+                            <div class="text-danger" colspan="2" invisible="phone_valid or not phone">
+                                Number to check
+                            </div>
+                            <field name="phone2" widget="phone"/>
+                            <field name="email" widget="email"/>
+                            <field name="gender"/>
+                            <field name="region"/>
+                        </group>
+                        <group name="suivi" string="Follow-up">
+                            <field name="category_id" options="{'no_create': True}"/>
+                            <field name="user_id" options="{'no_create': True}"/>
+                            <field name="callback_date"/>
+                            <field name="last_call_date"/>
+                            <field name="import_batch" readonly="1" invisible="not import_batch"/>
+                        </group>
+                    </group>
+                    <group name="custom_fields" string="Additional information"/>
+                    <group>
+                        <field name="note" placeholder="Remark…"/>
+                    </group>
+                    <notebook>
+                        <page string="Calls" name="calls">
+                            <field name="call_ids" readonly="1">
+                                <list>
+                                    <field name="date"/>
+                                    <field name="user_id" widget="many2one_avatar_user"/>
+                                    <field name="status_id"/>
+                                    <field name="note"/>
+                                    <field name="callback_date"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_prospect_list" model="ir.ui.view">
+        <field name="name">easycrm.prospect.list</field>
+        <field name="model">easycrm.prospect</field>
+        <field name="arch" type="xml">
+            <list string="Prospects" decoration-danger="not phone_valid"
+                  decoration-muted="not active" multi_edit="1">
+                <field name="name"/>
+                <field name="phone" widget="phone"/>
+                <field name="phone_valid" column_invisible="1"/>
+                <field name="active" column_invisible="1"/>
+                <field name="region" optional="show"/>
+                <field name="category_id" optional="show"/>
+                <field name="status_id" widget="badge" decoration-info="1"/>
+                <field name="user_id" widget="many2one_avatar_user" optional="show"/>
+                <field name="callback_date" optional="show"/>
+                <field name="last_call_date" optional="show"/>
+                <field name="call_count" optional="show"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_prospect_kanban" model="ir.ui.view">
+        <field name="name">easycrm.prospect.kanban</field>
+        <field name="model">easycrm.prospect</field>
+        <field name="arch" type="xml">
+            <kanban default_group_by="status_id" group_create="0" group_delete="0" group_edit="0"
+                    quick_create="0" records_draggable="0">
+                <field name="status_id"/>
+                <templates>
+                    <t t-name="card">
+                        <field name="name" class="fw-bold fs-5"/>
+                        <field name="phone" widget="phone"/>
+                        <div class="text-muted"><field name="region"/> <field name="category_id"/></div>
+                        <div class="d-flex justify-content-between mt-1">
+                            <field name="callback_date" widget="remaining_days" invisible="not callback_date"/>
+                            <field name="user_id" widget="many2one_avatar_user"/>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <record id="view_prospect_calendar" model="ir.ui.view">
+        <field name="name">easycrm.prospect.calendar</field>
+        <field name="model">easycrm.prospect</field>
+        <field name="arch" type="xml">
+            <calendar string="Callbacks" date_start="callback_date" color="user_id" mode="week" quick_create="0">
+                <field name="name"/>
+                <field name="phone"/>
+                <field name="status_id"/>
+            </calendar>
+        </field>
+    </record>
+
+    <record id="view_prospect_search" model="ir.ui.view">
+        <field name="name">easycrm.prospect.search</field>
+        <field name="model">easycrm.prospect</field>
+        <field name="arch" type="xml">
+            <search string="Prospects">
+                <field name="name" filter_domain="['|', '|', ('name', 'ilike', self), ('phone', 'ilike', self), ('email', 'ilike', self)]" string="Name / phone / email"/>
+                <field name="phone"/>
+                <field name="region"/>
+                <field name="category_id"/>
+                <field name="status_id"/>
+                <field name="user_id"/>
+                <field name="import_batch"/>
+                <filter name="mine" string="My prospects" domain="[('user_id', '=', uid)]"/>
+                <filter name="unassigned" string="Unassigned" domain="[('user_id', '=', False)]"/>
+                <separator/>
+                <filter name="todo" string="To call" domain="[('status_id.in_queue', '=', True)]"/>
+                <filter name="due" string="Callbacks due"
+                        domain="[('callback_date', '!=', False), ('callback_date', '&lt;=', datetime.datetime.now())]"/>
+                <filter name="clients" string="Customers" domain="[('is_client', '=', True)]"/>
+                <filter name="lost" string="Not interested" domain="[('is_lost', '=', True)]"/>
+                <separator/>
+                <filter name="invalid" string="Invalid numbers" domain="[('phone_valid', '=', False)]"/>
+                <filter name="never_called" string="Never called" domain="[('call_count', '=', 0)]"/>
+                <filter name="archived" string="Archived" domain="[('active', '=', False)]"/>
+                <group expand="0" string="Group by">
+                    <filter name="g_status" string="Status" context="{'group_by': 'status_id'}"/>
+                    <filter name="g_category" string="Category" context="{'group_by': 'category_id'}"/>
+                    <filter name="g_user" string="Salesperson" context="{'group_by': 'user_id'}"/>
+                    <filter name="g_region" string="Region / Wilaya" context="{'group_by': 'region'}"/>
+                    <filter name="g_batch" string="Import batch" context="{'group_by': 'import_batch'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="view_prospect_pivot" model="ir.ui.view">
+        <field name="name">easycrm.prospect.pivot</field>
+        <field name="model">easycrm.prospect</field>
+        <field name="arch" type="xml">
+            <pivot string="Prospects">
+                <field name="category_id" type="row"/>
+                <field name="status_id" type="col"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="view_prospect_graph" model="ir.ui.view">
+        <field name="name">easycrm.prospect.graph</field>
+        <field name="model">easycrm.prospect</field>
+        <field name="arch" type="xml">
+            <graph string="Prospects by status" type="pie">
+                <field name="status_id"/>
+            </graph>
+        </field>
+    </record>
+
+    <record id="action_prospect" model="ir.actions.act_window">
+        <field name="name">All prospects</field>
+        <field name="res_model">easycrm.prospect</field>
+        <field name="view_mode">list,kanban,form,pivot,graph</field>
+        <field name="search_view_id" ref="view_prospect_search"/>
+    </record>
+    <record id="action_prospect_mine" model="ir.actions.act_window">
+        <field name="name">My prospects</field>
+        <field name="res_model">easycrm.prospect</field>
+        <field name="view_mode">list,kanban,form</field>
+        <field name="domain">[('user_id', '=', uid)]</field>
+        <field name="context">{'search_default_todo': 1, 'default_user_id': uid}</field>
+        <field name="search_view_id" ref="view_prospect_search"/>
+    </record>
+    <record id="action_prospect_due" model="ir.actions.act_window">
+        <field name="name">To call back</field>
+        <field name="res_model">easycrm.prospect</field>
+        <field name="view_mode">list,calendar,form</field>
+        <field name="domain">[('callback_date', '!=', False)]</field>
+        <field name="context">{'search_default_mine': 1, 'search_default_due': 1}</field>
+        <field name="search_view_id" ref="view_prospect_search"/>
+    </record>
+    <record id="action_prospect_clients" model="ir.actions.act_window">
+        <field name="name">Customers</field>
+        <field name="res_model">easycrm.prospect</field>
+        <field name="view_mode">list,form,pivot</field>
+        <field name="context">{'search_default_clients': 1}</field>
+        <field name="search_view_id" ref="view_prospect_search"/>
+    </record>
+    <record id="action_prospect_lost" model="ir.actions.act_window">
+        <field name="name">Not interested</field>
+        <field name="res_model">easycrm.prospect</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_lost': 1}</field>
+        <field name="search_view_id" ref="view_prospect_search"/>
+    </record>
+    <record id="action_prospect_stats" model="ir.actions.act_window">
+        <field name="name">Prospects by category and status</field>
+        <field name="res_model">easycrm.prospect</field>
+        <field name="view_mode">pivot,graph,list</field>
+        <field name="search_view_id" ref="view_prospect_search"/>
+    </record>
+
+    <record id="action_next" model="ir.actions.server">
+        <field name="name">Call next</field>
+        <field name="model_id" ref="model_easycrm_prospect"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_next()</field>
+    </record>
+
+    <!-- Action « Attribuer / répartir » depuis les listes -->
+    <record id="action_assign_selected" model="ir.actions.server">
+        <field name="name">Assign / distribute…</field>
+        <field name="model_id" ref="model_easycrm_prospect"/>
+        <field name="binding_model_id" ref="model_easycrm_prospect"/>
+        <field name="binding_view_types">list</field>
+        <field name="groups_id" eval="[(4, ref('group_superviseur'))]"/>
+        <field name="state">code</field>
+        <field name="code">action = records.action_assign_wizard()</field>
+    </record>
+</odoo>

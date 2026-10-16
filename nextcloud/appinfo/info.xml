@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<info xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
+	<id>easycrm</id>
+	<name>EasyCrm</name>
+	<summary>Prospection téléphonique et centre de contact simple, dans Nextcloud</summary>
+	<description><![CDATA[EasyCrm transforme votre Nextcloud en mini CRM / centre d'appels :
+
+* Liste de prospects avec pagination, recherche et tri
+* Import Excel / CSV avec nettoyage des doublons et correction automatique des numéros
+* Appel et WhatsApp en un clic depuis le smartphone, résultats d'appel et rappels
+* Réponses d'appel (statuts) et champs de la fiche client entièrement configurables
+* Équipes et catégories : répartition automatique des prospects entre les commerciaux
+* Rôles : administrateur, superviseur, commercial, lecture seule (groupes Nextcloud ou annuaire LDAP / AD)
+* Statistiques et graphiques (statuts, appels par heure), journal des appels, export Excel
+* Enregistrements d'appels, invitation des commerciaux par e-mail
+* Saisie des appels différée en cas de coupure réseau]]></description>
+	<version>1.0.0</version>
+	<licence>agpl</licence>
+	<author>Rafik</author>
+	<namespace>EasyCrm</namespace>
+	<category>office</category>
+	<category>organization</category>
+	<dependencies><nextcloud min-version="28" max-version="40"/></dependencies>
+	<repair-steps><post-migration><step>OCA\EasyCrm\Migration\CreateGroups</step></post-migration><install><step>OCA\EasyCrm\Migration\CreateGroups</step></install></repair-steps>
+	<navigations><navigation><name>EasyCrm</name><route>easycrm.page.index</route></navigation></navigations>
+</info>

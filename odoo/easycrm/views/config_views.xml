@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Statuts -->
+    <record id="view_status_list" model="ir.ui.view">
+        <field name="name">easycrm.status.list</field>
+        <field name="model">easycrm.status</field>
+        <field name="arch" type="xml">
+            <list string="Call responses" editable="bottom" default_order="sequence">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="color" widget="color_picker"/>
+                <field name="in_queue"/>
+                <field name="is_callback"/>
+                <field name="require_note"/>
+                <field name="retry_hours"/>
+                <field name="is_client"/>
+                <field name="is_lost"/>
+                <field name="prospect_count"/>
+                <field name="builtin" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+    <record id="action_status" model="ir.actions.act_window">
+        <field name="name">Call responses</field>
+        <field name="res_model">easycrm.status</field>
+        <field name="view_mode">list</field>
+    </record>
+
+    <!-- Catégories -->
+    <record id="view_category_list" model="ir.ui.view">
+        <field name="name">easycrm.category.list</field>
+        <field name="model">easycrm.category</field>
+        <field name="arch" type="xml">
+            <list string="Categories" editable="bottom">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="team_ids" widget="many2many_tags"/>
+                <field name="prospect_count"/>
+            </list>
+        </field>
+    </record>
+    <record id="action_category" model="ir.actions.act_window">
+        <field name="name">Categories</field>
+        <field name="res_model">easycrm.category</field>
+        <field name="view_mode">list</field>
+    </record>
+
+    <!-- Équipes -->
+    <record id="view_team_form" model="ir.ui.view">
+        <field name="name">easycrm.team.form</field>
+        <field name="model">easycrm.team</field>
+        <field name="arch" type="xml">
+            <form string="Team">
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="category_ids" widget="many2many_tags"/>
+                        <field name="member_ids" widget="many2many_tags_avatar"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="view_team_list" model="ir.ui.view">
+        <field name="name">easycrm.team.list</field>
+        <field name="model">easycrm.team</field>
+        <field name="arch" type="xml">
+            <list string="Teams">
+                <field name="name"/>
+                <field name="category_ids" widget="many2many_tags"/>
+                <field name="member_ids" widget="many2many_tags"/>
+            </list>
+        </field>
+    </record>
+    <record id="action_team" model="ir.actions.act_window">
+        <field name="name">Teams</field>
+        <field name="res_model">easycrm.team</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <!-- Champs personnalisés -->
+    <record id="view_field_list" model="ir.ui.view">
+        <field name="name">easycrm.field.list</field>
+        <field name="model">easycrm.field</field>
+        <field name="arch" type="xml">
+            <list string="Custom fields">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="ftype"/>
+                <field name="show_in_list"/>
+                <field name="active" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_field_form" model="ir.ui.view">
+        <field name="name">easycrm.field.form</field>
+        <field name="model">easycrm.field</field>
+        <field name="arch" type="xml">
+            <form string="Custom field">
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="ftype" readonly="technical_name"/>
+                        <field name="options" invisible="ftype not in ('selection', 'tags')"
+                               placeholder="One option per line"/>
+                        <field name="show_in_list"/>
+                        <field name="active"/>
+                        <field name="technical_name" groups="base.group_no_one"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="action_field" model="ir.actions.act_window">
+        <field name="name">Custom fields</field>
+        <field name="res_model">easycrm.field</field>
+        <field name="view_mode">list,form</field>
+    </record>
+</odoo>

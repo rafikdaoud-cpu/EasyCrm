@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Ces vues sont régénérées automatiquement quand on gère les champs personnalisés
+         (noupdate : une mise à jour du module ne les écrase pas). -->
+    <data noupdate="1">
+        <record id="view_prospect_form_custom" model="ir.ui.view">
+            <field name="name">easycrm.prospect.form.custom</field>
+            <field name="model">easycrm.prospect</field>
+            <field name="inherit_id" ref="easycrm.view_prospect_form"/>
+            <field name="arch" type="xml">
+                <xpath expr="//group[@name='custom_fields']" position="inside"/>
+            </field>
+        </record>
+        <record id="view_prospect_list_custom" model="ir.ui.view">
+            <field name="name">easycrm.prospect.list.custom</field>
+            <field name="model">easycrm.prospect</field>
+            <field name="inherit_id" ref="easycrm.view_prospect_list"/>
+            <field name="arch" type="xml">
+                <xpath expr="//list" position="inside"/>
+            </field>
+        </record>
+        <record id="view_prospect_search_custom" model="ir.ui.view">
+            <field name="name">easycrm.prospect.search.custom</field>
+            <field name="model">easycrm.prospect</field>
+            <field name="inherit_id" ref="easycrm.view_prospect_search"/>
+            <field name="arch" type="xml">
+                <xpath expr="//search" position="inside"/>
+            </field>
+        </record>
+    </data>
+</odoo>

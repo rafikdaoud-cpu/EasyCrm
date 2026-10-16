@@ -1,0 +1,1402 @@
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 18.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-10-16 13:17+0000\n"
+"PO-Revision-Date: 2026-10-16 13:17+0000\n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Language: de\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: \n"
+
+#. module: easycrm
+#. odoo-python
+#: code:addons/easycrm/wizard/distribute_wizard.py:0
+msgid "%d prospect(s) distributed among %d salesperson(s)."
+msgstr "%d Prospect(s) auf %d Vertriebsmitarbeiter verteilt."
+
+#. module: easycrm
+#. odoo-python
+#: code:addons/easycrm/wizard/import_wizard.py:0
+msgid ""
+"%d prospect(s) imported\n"
+"%d duplicate(s) skipped\n"
+"%d row(s) without number\n"
+"%d empty row(s)\n"
+"%s"
+msgstr ""
+"%d Prospect(s) importiert\n"
+"%d Duplikat(e) übersprungen\n"
+"%d Zeile(n) ohne Nummer\n"
+"%d leere Zeile(n)\n"
+"%s"
+
+#. module: easycrm
+#. odoo-python
+#: code:addons/easycrm/models/prospect.py:0
+msgid "%s is contacting you."
+msgstr "%s nimmt Kontakt mit Ihnen auf."
+
+#. module: easycrm
+#: model:ir.model.fields,help:easycrm.field_easycrm_status__retry_hours
+msgid "0 = no automatic rescheduling."
+msgstr "0 = keine automatische Neuplanung."
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__message_needaction
+msgid "Action Needed"
+msgstr "Aktion notwendig"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_category__active
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_field__active
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__active
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_status__active
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_team__active
+msgid "Active"
+msgstr "Aktiv"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__activity_ids
+msgid "Activities"
+msgstr "Aktivitäten"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__activity_exception_decoration
+msgid "Activity Exception Decoration"
+msgstr "Aktivitätsausnahme-Dekoration"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__activity_state
+msgid "Activity State"
+msgstr "Status der Aktivität"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__activity_type_icon
+msgid "Activity Type Icon"
+msgstr "Symbol des Aktivitätstyps"
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.view_prospect_form
+msgid "Additional information"
+msgstr "Zusätzliche Informationen"
+
+#. module: easycrm
+#: model:res.groups,name:easycrm.group_admin
+msgid "Administrator"
+msgstr "Administrator"
+
+#. module: easycrm
+#: model:ir.model.fields.selection,name:easycrm.selection__res_config_settings__easycrm_country__dz
+msgid "Algeria"
+msgstr "Algerien"
+
+#. module: easycrm
+#: model:ir.actions.act_window,name:easycrm.action_prospect
+#: model:ir.ui.menu,name:easycrm.menu_prospect_all
+msgid "All prospects"
+msgstr "Alle Prospects"
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.view_prospect_search
+msgid "Archived"
+msgstr "Archiviert"
+
+#. module: easycrm
+#. odoo-python
+#: code:addons/easycrm/models/prospect.py:0
+msgid "Assign / distribute"
+msgstr "Zuweisen / verteilen"
+
+#. module: easycrm
+#: model:ir.actions.server,name:easycrm.action_assign_selected
+msgid "Assign / distribute…"
+msgstr "Zuweisen / verteilen…"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_import_wizard__user_id
+msgid "Assign to"
+msgstr "Zuweisen an"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__user_id
+msgid "Assigned to"
+msgstr "Zugewiesen an"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__message_attachment_count
+msgid "Attachment Count"
+msgstr "Anzahl Anhänge"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_import_wizard__batch
+msgid "Batch"
+msgstr ""
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_status__builtin
+msgid "Built-in status"
+msgstr "Mitgelieferter Status"
+
+#. module: easycrm
+#. odoo-python
+#: code:addons/easycrm/models/status.py:0
+msgid "Built-in statuses cannot be deleted: archive them instead."
+msgstr ""
+"Mitgelieferte Status können nicht gelöscht werden: Archivieren Sie sie "
+"stattdessen."
+
+#. module: easycrm
+#: model:ir.model,name:easycrm.model_easycrm_call
+#: model_terms:ir.ui.view,arch_db:easycrm.view_call_form
+msgid "Call"
+msgstr "Anruf"
+
+#. module: easycrm
+#. odoo-python
+#: code:addons/easycrm/models/call.py:0
+msgid "Call back %s"
+msgstr "%s zurückrufen"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_status__retry_hours
+msgid "Call back automatically after (hours)"
+msgstr "Automatisch zurückrufen nach (Stunden)"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_call_wizard__callback_date
+msgid "Call back on"
+msgstr "Rückruf am"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_call__date
+msgid "Call date"
+msgstr "Anrufdatum"
+
+#. module: easycrm
+#: model:ir.actions.act_window,name:easycrm.action_call
+#: model:ir.ui.menu,name:easycrm.menu_calls
+msgid "Call log"
+msgstr "Anrufprotokoll"
+
+#. module: easycrm
+#: model:ir.actions.server,name:easycrm.action_next
+#: model:ir.ui.menu,name:easycrm.menu_next
+msgid "Call next"
+msgstr "Nächsten anrufen"
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.view_call_wizard_form
+msgid "Call note…"
+msgstr "Anrufnotiz…"
+
+#. module: easycrm
+#: model:ir.model,name:easycrm.model_easycrm_status
+msgid "Call response / status"
+msgstr "Anrufantwort / -status"
+
+#. module: easycrm
+#: model:ir.actions.act_window,name:easycrm.action_status
+#: model:ir.ui.menu,name:easycrm.menu_config_status
+#: model_terms:ir.ui.view,arch_db:easycrm.view_status_list
+msgid "Call responses"
+msgstr "Anrufantworten"
+
+#. module: easycrm
+#. odoo-python
+#: code:addons/easycrm/models/call.py:0
+msgid "Call: <b>%s</b>%s"
+msgstr "Anruf: <b>%s</b>%s"
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.view_prospect_calendar
+msgid "Callbacks"
+msgstr "Rückrufe"
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.view_prospect_search
+msgid "Callbacks due"
+msgstr "Fällige Rückrufe"
+
+#. module: easycrm
+#. odoo-python
+#: code:addons/easycrm/models/prospect.py:0
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__call_ids
+#: model_terms:ir.ui.view,arch_db:easycrm.view_call_graph
+#: model_terms:ir.ui.view,arch_db:easycrm.view_call_list
+#: model_terms:ir.ui.view,arch_db:easycrm.view_call_pivot
+#: model_terms:ir.ui.view,arch_db:easycrm.view_call_search
+#: model_terms:ir.ui.view,arch_db:easycrm.view_prospect_form
+msgid "Calls"
+msgstr "Anrufe"
+
+#. module: easycrm
+#: model:ir.actions.act_window,name:easycrm.action_stat_category
+#: model:ir.ui.menu,name:easycrm.menu_stat_category
+msgid "Calls by category"
+msgstr "Anrufe nach Kategorie"
+
+#. module: easycrm
+#: model:ir.actions.act_window,name:easycrm.action_stat_day
+#: model:ir.ui.menu,name:easycrm.menu_stat_day
+msgid "Calls by day"
+msgstr "Anrufe nach Tag"
+
+#. module: easycrm
+#: model:ir.actions.act_window,name:easycrm.action_stat_hour
+#: model:ir.ui.menu,name:easycrm.menu_stat_hour
+msgid "Calls by hour"
+msgstr "Anrufe nach Stunde"
+
+#. module: easycrm
+#: model:ir.actions.act_window,name:easycrm.action_stat_status
+#: model:ir.ui.menu,name:easycrm.menu_stat_status
+msgid "Calls by response"
+msgstr "Anrufe nach Antwort"
+
+#. module: easycrm
+#: model:ir.actions.act_window,name:easycrm.action_stat_user
+#: model:ir.ui.menu,name:easycrm.menu_stat_user
+msgid "Calls by salesperson"
+msgstr "Anrufe nach Vertriebsmitarbeiter"
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.view_call_wizard_form
+#: model_terms:ir.ui.view,arch_db:easycrm.view_distribute_wizard_form
+msgid "Cancel"
+msgstr "Abbrechen"
+
+#. module: easycrm
+#: model:ir.actions.act_window,name:easycrm.action_category
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_distribute_wizard__category_ids
+#: model:ir.ui.menu,name:easycrm.menu_config_category
+#: model_terms:ir.ui.view,arch_db:easycrm.view_category_list
+msgid "Categories"
+msgstr "Kategorien"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_call__category_id
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_category__name
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__category_id
+#: model_terms:ir.ui.view,arch_db:easycrm.view_call_search
+#: model_terms:ir.ui.view,arch_db:easycrm.view_prospect_search
+msgid "Category"
+msgstr "Kategorie"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_field__options
+msgid "Choices (one per line)"
+msgstr "Auswahl (eine pro Zeile)"
+
+#. module: easycrm
+#. odoo-python
+#: code:addons/easycrm/wizard/distribute_wizard.py:0
+msgid "Choose at least one salesperson."
+msgstr "Wählen Sie mindestens einen Vertriebsmitarbeiter."
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.view_import_wizard_form
+msgid "Close"
+msgstr "Schließen"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_category__color
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__status_color
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_status__color
+msgid "Color"
+msgstr "Farbe"
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.res_config_settings_view_form
+msgid "Company"
+msgstr "Unternehmen"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_res_config_settings__easycrm_company
+msgid "Company name (EasyCRM)"
+msgstr "Firmenname (EasyCRM)"
+
+#. module: easycrm
+#: model:ir.model,name:easycrm.model_res_config_settings
+msgid "Config Settings"
+msgstr "Konfigurationseinstellungen"
+
+#. module: easycrm
+#: model:ir.ui.menu,name:easycrm.menu_config
+msgid "Configuration"
+msgstr "Konfiguration"
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.view_prospect_form
+msgid "Contact"
+msgstr "Kontakt"
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.res_config_settings_view_form
+msgid "Country of phone numbers"
+msgstr "Land der Telefonnummern"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_call__is_client
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__is_client
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_status__is_client
+msgid "Counts as customer"
+msgstr "Zählt als Kunde"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__is_lost
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_status__is_lost
+msgid "Counts as lost / refusal"
+msgstr "Zählt als verloren / Ablehnung"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_call__create_uid
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_call_wizard__create_uid
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_category__create_uid
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_distribute_wizard__create_uid
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_field__create_uid
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_import_wizard__create_uid
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__create_uid
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_status__create_uid
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_tag__create_uid
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_team__create_uid
+msgid "Created by"
+msgstr "Erstellt von"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_call__create_date
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_call_wizard__create_date
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_category__create_date
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_distribute_wizard__create_date
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_field__create_date
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_import_wizard__create_date
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__create_date
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_status__create_date
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_tag__create_date
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_team__create_date
+msgid "Created on"
+msgstr "Erstellt am"
+
+#. module: easycrm
+#: model:ir.model,name:easycrm.model_easycrm_field
+#: model_terms:ir.ui.view,arch_db:easycrm.view_field_form
+msgid "Custom field"
+msgstr "Benutzerdefiniertes Feld"
+
+#. module: easycrm
+#: model:ir.actions.act_window,name:easycrm.action_field
+#: model:ir.ui.menu,name:easycrm.menu_config_field
+#: model_terms:ir.ui.view,arch_db:easycrm.view_field_list
+msgid "Custom fields"
+msgstr "Benutzerdefinierte Felder"
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.view_prospect_form
+msgid "Customer"
+msgstr "Kunde"
+
+#. module: easycrm
+#: model:ir.actions.act_window,name:easycrm.action_prospect_clients
+#: model:ir.ui.menu,name:easycrm.menu_prospect_clients
+#: model_terms:ir.ui.view,arch_db:easycrm.view_prospect_search
+msgid "Customers"
+msgstr "Kunden"
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.view_call_search
+msgid "Customers won"
+msgstr "Gewonnene Kunden"
+
+#. module: easycrm
+#: model:ir.model.fields.selection,name:easycrm.selection__easycrm_field__ftype__date
+msgid "Date"
+msgstr "Datum"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_call__day
+#: model_terms:ir.ui.view,arch_db:easycrm.view_call_search
+msgid "Day"
+msgstr "Tag"
+
+#. module: easycrm
+#: model:ir.model.fields.selection,name:easycrm.selection__easycrm_field__ftype__float
+msgid "Decimal number"
+msgstr "Dezimalzahl"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_import_wizard__category_id
+msgid "Default category"
+msgstr "Standardkategorie"
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.res_config_settings_view_form
+msgid "Determines how phone numbers are validated and normalized."
+msgstr "Legt fest, wie Rufnummern validiert und normalisiert werden."
+
+#. module: easycrm
+#: model:ir.model.fields,help:easycrm.field_res_config_settings__easycrm_trunk
+msgid "Digit preceding national numbers (0 in Algeria, Morocco, France)."
+msgstr "Ziffer vor nationalen Nummern (0 in Algerien, Marokko, Frankreich)."
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_call__display_name
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_call_wizard__display_name
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_category__display_name
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_distribute_wizard__display_name
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_field__display_name
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_import_wizard__display_name
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__display_name
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_status__display_name
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_tag__display_name
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_team__display_name
+msgid "Display Name"
+msgstr "Anzeigename"
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.view_distribute_wizard_form
+msgid "Distribute"
+msgstr "Verteilen"
+
+#. module: easycrm
+#: model:ir.actions.act_window,name:easycrm.action_distribute_wizard
+#: model:ir.ui.menu,name:easycrm.menu_distribute
+#: model_terms:ir.ui.view,arch_db:easycrm.view_distribute_wizard_form
+msgid "Distribute prospects"
+msgstr "Prospects verteilen"
+
+#. module: easycrm
+#: model:ir.model,name:easycrm.model_easycrm_distribute_wizard
+msgid "Distribute prospects among salespeople"
+msgstr "Prospects auf Vertriebsmitarbeiter verteilen"
+
+#. module: easycrm
+#. odoo-python
+#: code:addons/easycrm/wizard/distribute_wizard.py:0
+msgid "Distribution completed"
+msgstr "Verteilung abgeschlossen"
+
+#. module: easycrm
+#: model:ir.model.fields.selection,name:easycrm.selection__easycrm_import_wizard__state__done
+msgid "Done"
+msgstr "Erledigt"
+
+#. module: easycrm
+#. odoo-python
+#: code:addons/easycrm/models/prospect.py:0
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__duplicate_count
+#: model_terms:ir.ui.view,arch_db:easycrm.view_prospect_form
+msgid "Duplicates"
+msgstr "Duplikate"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_call__duration
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_call_wizard__duration
+msgid "Duration (min)"
+msgstr "Dauer (Min.)"
+
+#. module: easycrm
+#: model:ir.module.category,name:easycrm.module_category_easycrm
+#: model:ir.ui.menu,name:easycrm.menu_root
+#: model_terms:ir.ui.view,arch_db:easycrm.res_config_settings_view_form
+msgid "EasyCRM"
+msgstr "EasyCRM"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__email
+msgid "Email"
+msgstr "E-Mail"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_import_wizard__file
+msgid "Excel or CSV file"
+msgstr "Excel- oder CSV-Datei"
+
+#. module: easycrm
+#: model:ir.model.fields.selection,name:easycrm.selection__easycrm_prospect__gender__f
+msgid "Female"
+msgstr "Weiblich"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_tag__field_id
+msgid "Field"
+msgstr "Feld"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_import_wizard__filename
+msgid "Filename"
+msgstr ""
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.view_prospect_form
+msgid "Follow-up"
+msgstr "Nachverfolgung"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__message_follower_ids
+msgid "Followers"
+msgstr "Follower"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__message_partner_ids
+msgid "Followers (Partners)"
+msgstr "Follower (Partner)"
+
+#. module: easycrm
+#: model:ir.model.fields,help:easycrm.field_easycrm_prospect__activity_type_icon
+msgid "Font awesome icon e.g. fa-tasks"
+msgstr "FontAwesome-Icon, z. B. fa-tasks"
+
+#. module: easycrm
+#: model:ir.model.fields.selection,name:easycrm.selection__res_config_settings__easycrm_country__fr
+msgid "France"
+msgstr "Frankreich"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_call_wizard__prospect_name
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__name
+#: model_terms:ir.ui.view,arch_db:easycrm.view_prospect_form
+msgid "Full name"
+msgstr "Vollständiger Name"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__gender
+msgid "Gender"
+msgstr "Geschlecht"
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.res_config_settings_view_form
+msgid "General"
+msgstr "Allgemein"
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.view_call_search
+#: model_terms:ir.ui.view,arch_db:easycrm.view_prospect_search
+msgid "Group by"
+msgstr "Gruppieren nach"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__has_message
+msgid "Has Message"
+msgstr "Hat eine Nachricht"
+
+#. module: easycrm
+#. odoo-python
+#: code:addons/easycrm/models/prospect.py:0
+msgid "Hello %s,"
+msgstr "Guten Tag %s,"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_call__hour
+msgid "Hour"
+msgstr "Stunde"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_call__id
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_call_wizard__id
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_category__id
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_distribute_wizard__id
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_field__id
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_import_wizard__id
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__id
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_status__id
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_tag__id
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_team__id
+msgid "ID"
+msgstr "ID"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__activity_exception_icon
+msgid "Icon"
+msgstr "Icon"
+
+#. module: easycrm
+#: model:ir.model.fields,help:easycrm.field_easycrm_prospect__activity_exception_icon
+msgid "Icon to indicate an exception activity."
+msgstr "Icon, um eine Ausnahmeaktivität anzuzeigen."
+
+#. module: easycrm
+#: model:ir.model.fields,help:easycrm.field_easycrm_prospect__message_needaction
+msgid "If checked, new messages require your attention."
+msgstr "Falls markiert, erfordern neue Nachrichten Ihre Aufmerksamkeit."
+
+#. module: easycrm
+#: model:ir.model.fields,help:easycrm.field_easycrm_prospect__message_has_error
+msgid "If checked, some messages have a delivery error."
+msgstr ""
+"Falls markiert, weisen einige Nachrichten einen Zustellungsfehler auf."
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.view_import_wizard_form
+msgid "Import"
+msgstr "Importieren"
+
+#. module: easycrm
+#: model:ir.actions.act_window,name:easycrm.action_import_wizard
+#: model:ir.ui.menu,name:easycrm.menu_import
+msgid "Import (Excel / CSV)"
+msgstr "Importieren (Excel / CSV)"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__import_batch
+#: model_terms:ir.ui.view,arch_db:easycrm.view_prospect_search
+msgid "Import batch"
+msgstr "Importcharge"
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.view_import_wizard_form
+msgid "Import prospects"
+msgstr "Prospects importieren"
+
+#. module: easycrm
+#. odoo-python
+#: code:addons/easycrm/wizard/import_wizard.py:0
+msgid "Imported prospects"
+msgstr "Importierte Prospects"
+
+#. module: easycrm
+#: model:ir.model.fields.selection,name:easycrm.selection__easycrm_field__ftype__integer
+msgid "Integer"
+msgstr "Ganzzahl"
+
+#. module: easycrm
+#: model:easycrm.status,name:easycrm.status_interesse
+msgid "Interested / customer"
+msgstr "Interessiert / Kunde"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_status__code
+msgid "Internal code"
+msgstr "Interner Code"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_res_config_settings__easycrm_cc
+msgid "International dialing code"
+msgstr "Internationale Vorwahl"
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.view_prospect_search
+msgid "Invalid numbers"
+msgstr "Ungültige Nummern"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_field__ir_field_id
+msgid "Ir Field"
+msgstr ""
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__message_is_follower
+msgid "Is Follower"
+msgstr "Ist Follower"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_field__name
+msgid "Label"
+msgstr "Bezeichnung"
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.view_call_search
+msgid "Last 7 days"
+msgstr "Letzte 7 Tage"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_call__write_uid
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_call_wizard__write_uid
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_category__write_uid
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_distribute_wizard__write_uid
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_field__write_uid
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_import_wizard__write_uid
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__write_uid
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_status__write_uid
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_tag__write_uid
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_team__write_uid
+msgid "Last Updated by"
+msgstr "Zuletzt aktualisiert von"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_call__write_date
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_call_wizard__write_date
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_category__write_date
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_distribute_wizard__write_date
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_field__write_date
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_import_wizard__write_date
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__write_date
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_status__write_date
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_tag__write_date
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_team__write_date
+msgid "Last Updated on"
+msgstr "Zuletzt aktualisiert am"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__last_call_date
+msgid "Last call"
+msgstr "Letzter Anruf"
+
+#. module: easycrm
+#: model:ir.model.fields,help:easycrm.field_easycrm_import_wizard__user_id
+msgid "Leave empty to import without assignment, then distribute."
+msgstr ""
+"Leer lassen, um ohne Zuweisung zu importieren und danach zu verteilen."
+
+#. module: easycrm
+#: model:ir.model.fields.selection,name:easycrm.selection__easycrm_field__ftype__tags
+msgid "List (multiple choices)"
+msgstr "Liste (Mehrfachauswahl)"
+
+#. module: easycrm
+#: model:ir.model.fields.selection,name:easycrm.selection__easycrm_field__ftype__selection
+msgid "List (single choice)"
+msgstr "Liste (Einzelauswahl)"
+
+#. module: easycrm
+#. odoo-python
+#: code:addons/easycrm/models/prospect.py:0
+msgid "List completed"
+msgstr "Liste abgeschlossen"
+
+#. module: easycrm
+#: model:ir.model,name:easycrm.model_easycrm_call_wizard
+msgid "Log a call"
+msgstr "Einen Anruf erfassen"
+
+#. module: easycrm
+#. odoo-python
+#: code:addons/easycrm/models/prospect.py:0
+#: model_terms:ir.ui.view,arch_db:easycrm.view_call_wizard_form
+#: model_terms:ir.ui.view,arch_db:easycrm.view_prospect_form
+msgid "Log the call"
+msgstr "Anruf erfassen"
+
+#. module: easycrm
+#: model:ir.model.fields.selection,name:easycrm.selection__easycrm_field__ftype__text
+msgid "Long text"
+msgstr "Langer Text"
+
+#. module: easycrm
+#: model:ir.model.fields.selection,name:easycrm.selection__easycrm_prospect__gender__m
+msgid "Male"
+msgstr "Männlich"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_team__category_ids
+msgid "Managed categories"
+msgstr "Verwaltete Kategorien"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__message_has_error
+msgid "Message Delivery error"
+msgstr "Nachricht mit Zustellungsfehler"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__message_ids
+msgid "Messages"
+msgstr "Nachrichten"
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.view_call_search
+msgid "Month"
+msgstr "Monat"
+
+#. module: easycrm
+#: model:ir.model.fields.selection,name:easycrm.selection__res_config_settings__easycrm_country__ma
+msgid "Morocco"
+msgstr "Marokko"
+
+#. module: easycrm
+#: model:ir.model,name:easycrm.model_easycrm_tag
+msgid "Multiple-choice field option"
+msgstr "Option eines Mehrfachauswahlfelds"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__my_activity_date_deadline
+msgid "My Activity Deadline"
+msgstr "Frist für meine Aktivitäten"
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.view_call_search
+msgid "My calls"
+msgstr "Meine Anrufe"
+
+#. module: easycrm
+#: model:ir.actions.act_window,name:easycrm.action_prospect_mine
+#: model:ir.ui.menu,name:easycrm.menu_prospect_mine
+#: model_terms:ir.ui.view,arch_db:easycrm.view_prospect_search
+msgid "My prospects"
+msgstr "Meine Prospects"
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.view_prospect_search
+msgid "Name / phone / email"
+msgstr "Name / Telefon / E-Mail"
+
+#. module: easycrm
+#. odoo-python
+#: code:addons/easycrm/wizard/import_wizard.py:0
+msgid "Name column not found. Headers read: %s"
+msgstr "Namensspalte nicht gefunden. Gelesene Kopfzeilen: %s"
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.res_config_settings_view_form
+msgid "Name used in WhatsApp messages."
+msgstr "Name, der in WhatsApp-Nachrichten verwendet wird."
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_res_config_settings__easycrm_trunk
+msgid "National prefix"
+msgstr "Nationale Vorwahl"
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.view_prospect_search
+msgid "Never called"
+msgstr "Nie angerufen"
+
+#. module: easycrm
+#: model:easycrm.status,name:easycrm.status_nouveau
+msgid "New"
+msgstr "Neu"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__activity_date_deadline
+msgid "Next Activity Deadline"
+msgstr "Nächste Aktivitätsfrist"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__activity_summary
+msgid "Next Activity Summary"
+msgstr "Zusammenfassung der nächsten Aktivität"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__activity_type_id
+msgid "Next Activity Type"
+msgstr "Nächster Aktivitätstyp"
+
+#. module: easycrm
+#. odoo-python
+#: code:addons/easycrm/models/prospect.py:0
+msgid "No prospect to call at the moment."
+msgstr "Im Moment gibt es keinen Prospect zum Anrufen."
+
+#. module: easycrm
+#. odoo-python
+#: code:addons/easycrm/wizard/distribute_wizard.py:0
+msgid "No prospect to distribute with these criteria."
+msgstr "Keine Prospects zum Verteilen mit diesen Kriterien."
+
+#. module: easycrm
+#: model:easycrm.status,name:easycrm.status_non_eligible
+msgid "Not eligible"
+msgstr "Nicht berechtigt"
+
+#. module: easycrm
+#: model:easycrm.status,name:easycrm.status_pas_interesse
+#: model:ir.actions.act_window,name:easycrm.action_prospect_lost
+#: model:ir.ui.menu,name:easycrm.menu_prospect_lost
+#: model_terms:ir.ui.view,arch_db:easycrm.view_prospect_search
+msgid "Not interested"
+msgstr "Nicht interessiert"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_call__note
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_call_wizard__note
+msgid "Note"
+msgstr "Notiz"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_call_wizard__require_note
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_status__require_note
+msgid "Note required"
+msgstr "Notiz erforderlich"
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.view_call_form
+msgid "Note…"
+msgstr "Notiz…"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_res_config_settings__easycrm_country
+msgid "Number country"
+msgstr "Land der Nummern"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__message_needaction_counter
+msgid "Number of Actions"
+msgstr "Anzahl der Aktionen"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__call_count
+msgid "Number of calls"
+msgstr "Anzahl Anrufe"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__message_has_error_counter
+msgid "Number of errors"
+msgstr "Anzahl der Fehler"
+
+#. module: easycrm
+#: model:ir.model.fields,help:easycrm.field_easycrm_prospect__message_needaction_counter
+msgid "Number of messages requiring action"
+msgstr "Anzahl der Nachrichten, die eine Aktion erfordern"
+
+#. module: easycrm
+#: model:ir.model.fields,help:easycrm.field_easycrm_prospect__message_has_error_counter
+msgid "Number of messages with delivery error"
+msgstr "Anzahl der Nachrichten mit Zustellungsfehler."
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.view_prospect_form
+msgid "Number to check"
+msgstr "Nummer prüfen"
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.view_field_form
+msgid "One option per line"
+msgstr "Eine Option pro Zeile"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_distribute_wizard__only_queue
+msgid "Only those still to be called"
+msgstr "Nur noch anzurufende"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_distribute_wizard__only_unassigned
+msgid "Only unassigned prospects"
+msgstr "Nur nicht zugewiesene Prospects"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_tag__name
+msgid "Option"
+msgstr "Option"
+
+#. module: easycrm
+#: model:ir.model.fields.selection,name:easycrm.selection__res_config_settings__easycrm_country__other
+msgid "Other country"
+msgstr "Anderes Land"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_call__prospect_phone
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_call_wizard__prospect_phone
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__phone
+msgid "Phone"
+msgstr "Telefon"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__phone2
+msgid "Phone 2"
+msgstr "Telefon 2"
+
+#. module: easycrm
+#. odoo-python
+#: code:addons/easycrm/wizard/import_wizard.py:0
+msgid "Phone column not found. Headers read: %s"
+msgstr "Telefonspalte nicht gefunden. Gelesene Kopfzeilen: %s"
+
+#. module: easycrm
+#: model:ir.model.fields.selection,name:easycrm.selection__easycrm_import_wizard__state__draft
+msgid "Preparation"
+msgstr "Vorbereitung"
+
+#. module: easycrm
+#: model:ir.model,name:easycrm.model_easycrm_prospect
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_call__prospect_id
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_call_wizard__prospect_id
+#: model_terms:ir.ui.view,arch_db:easycrm.view_prospect_form
+msgid "Prospect"
+msgstr "Prospect"
+
+#. module: easycrm
+#: model:ir.model,name:easycrm.model_easycrm_category
+msgid "Prospect category"
+msgstr "Prospect-Kategorie"
+
+#. module: easycrm
+#: model:ir.model,name:easycrm.model_easycrm_import_wizard
+msgid "Prospect import (Excel / CSV)"
+msgstr "Prospect-Import (Excel / CSV)"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_category__prospect_count
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_status__prospect_count
+#: model:ir.ui.menu,name:easycrm.menu_prospects
+#: model_terms:ir.ui.view,arch_db:easycrm.view_prospect_list
+#: model_terms:ir.ui.view,arch_db:easycrm.view_prospect_pivot
+#: model_terms:ir.ui.view,arch_db:easycrm.view_prospect_search
+msgid "Prospects"
+msgstr "Prospects"
+
+#. module: easycrm
+#: model:ir.ui.menu,name:easycrm.menu_stat_prospect
+msgid "Prospects by category"
+msgstr "Prospects nach Kategorie"
+
+#. module: easycrm
+#: model:ir.actions.act_window,name:easycrm.action_prospect_stats
+msgid "Prospects by category and status"
+msgstr "Prospects nach Kategorie und Status"
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.view_prospect_graph
+msgid "Prospects by status"
+msgstr "Prospects nach Status"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_distribute_wizard__count
+msgid "Prospects concerned"
+msgstr "Betroffene Prospects"
+
+#. module: easycrm
+#: model:ir.model.fields,help:easycrm.field_easycrm_status__in_queue
+msgid "Prospects with this status are offered by \"Call next\"."
+msgstr ""
+"Prospects mit diesem Status werden über „Nächsten anrufen“ vorgeschlagen."
+
+#. module: easycrm
+#: model:res.groups,name:easycrm.group_lecture
+msgid "Read-only"
+msgstr "Nur Lesen"
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.view_import_wizard_form
+msgid ""
+"Recognized columns: <b>Full name</b> (or Last name + First name), <b>Phone</b>, Phone 2,\n"
+"                    Email, Gender, Wilaya / Region, Category, Remark, as well as the labels of your custom\n"
+"                    fields. Phone numbers are normalized according to the configured country."
+msgstr ""
+"Erkannte Spalten: <b>Vollständiger Name</b> (oder Nachname + Vorname), <b>Telefon</b>, Telefon 2,\n"
+"                    E-Mail, Geschlecht, Wilaya / Region, Kategorie, Bemerkung sowie die Bezeichnungen Ihrer\n"
+"                    benutzerdefinierten Felder. Rufnummern werden entsprechend dem konfigurierten Land normalisiert."
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_call_wizard__attachment_ids
+msgid "Recording"
+msgstr "Aufnahme"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_call__attachment_ids
+msgid "Recording / attachments"
+msgstr "Aufnahme / Anhänge"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__region
+#: model_terms:ir.ui.view,arch_db:easycrm.view_prospect_search
+msgid "Region / Wilaya"
+msgstr "Region / Wilaya"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__note
+msgid "Remark"
+msgstr "Bemerkung"
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.view_prospect_form
+msgid "Remark…"
+msgstr "Bemerkung…"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_call_wizard__is_callback
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_status__is_callback
+msgid "Requires a callback date"
+msgstr "Erfordert ein Rückrufdatum"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_call__status_id
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_call_wizard__status_id
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_status__name
+#: model_terms:ir.ui.view,arch_db:easycrm.view_call_search
+msgid "Response"
+msgstr "Antwort"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__activity_user_id
+msgid "Responsible User"
+msgstr "Verantwortlicher Benutzer"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_import_wizard__result
+msgid "Result"
+msgstr "Ergebnis"
+
+#. module: easycrm
+#. odoo-python
+#: code:addons/easycrm/wizard/import_wizard.py:0
+msgid "Row %d: missing number (%s)"
+msgstr "Zeile %d: Nummer fehlt (%s)"
+
+#. module: easycrm
+#. odoo-python
+#: code:addons/easycrm/wizard/import_wizard.py:0
+msgid "Row %d: number to check (%s → %s)"
+msgstr "Zeile %d: Nummer prüfen (%s → %s)"
+
+#. module: easycrm
+#: model:ir.model,name:easycrm.model_easycrm_team
+msgid "Sales team"
+msgstr "Vertriebsteam"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_distribute_wizard__user_ids
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_team__member_ids
+msgid "Salespeople"
+msgstr "Vertriebsmitarbeiter"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_call__user_id
+#: model:res.groups,name:easycrm.group_commercial
+#: model_terms:ir.ui.view,arch_db:easycrm.view_call_search
+#: model_terms:ir.ui.view,arch_db:easycrm.view_prospect_search
+msgid "Salesperson"
+msgstr "Vertriebsmitarbeiter"
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.view_call_wizard_form
+msgid "Save"
+msgstr "Speichern"
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.view_call_wizard_form
+msgid "Save & next"
+msgstr "Speichern & weiter"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_call__callback_date
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__callback_date
+msgid "Scheduled callback"
+msgstr "Geplanter Rückruf"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_distribute_wizard__prospect_ids
+msgid "Selected prospects"
+msgstr "Ausgewählte Prospects"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_category__sequence
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_field__sequence
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_status__sequence
+msgid "Sequence"
+msgstr "Sequenz"
+
+#. module: easycrm
+#: model:ir.actions.act_window,name:easycrm.action_config_settings
+#: model:ir.ui.menu,name:easycrm.menu_config_settings
+msgid "Settings"
+msgstr "Einstellungen"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_field__show_in_list
+msgid "Show in list"
+msgstr "In Liste anzeigen"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_import_wizard__skip_duplicates
+msgid "Skip duplicates (same number)"
+msgstr "Duplikate überspringen (gleiche Nummer)"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_import_wizard__state
+msgid "State"
+msgstr "Status"
+
+#. module: easycrm
+#: model:ir.ui.menu,name:easycrm.menu_stats
+msgid "Statistics"
+msgstr "Statistiken"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__status_id
+#: model_terms:ir.ui.view,arch_db:easycrm.view_prospect_search
+msgid "Status"
+msgstr "Status"
+
+#. module: easycrm
+#: model:ir.model.fields,help:easycrm.field_easycrm_prospect__activity_state
+msgid ""
+"Status based on activities\n"
+"Overdue: Due date is already passed\n"
+"Today: Activity date is today\n"
+"Planned: Future activities."
+msgstr ""
+"Status basierend auf Aktivitäten\n"
+"Überfällig: Fälligkeitsdatum bereits überschritten\n"
+"Heute: Aktivität ist für heute geplant\n"
+"Geplant: zukünftige Aktivitäten."
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_status__in_queue
+msgid "Stays in the call queue"
+msgstr "Bleibt in der Anrufwarteschlange"
+
+#. module: easycrm
+#: model:res.groups,name:easycrm.group_superviseur
+msgid "Supervisor"
+msgstr "Vorgesetzter"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_team__name
+#: model_terms:ir.ui.view,arch_db:easycrm.view_team_form
+msgid "Team"
+msgstr "Team"
+
+#. module: easycrm
+#: model:ir.actions.act_window,name:easycrm.action_team
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_category__team_ids
+#: model:ir.ui.menu,name:easycrm.menu_config_team
+#: model_terms:ir.ui.view,arch_db:easycrm.view_team_list
+msgid "Teams"
+msgstr "Teams"
+
+#. module: easycrm
+#: model:ir.model.fields,help:easycrm.field_easycrm_status__code
+msgid "Technical identifier (optional)."
+msgstr "Technischer Bezeichner (optional)."
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_field__technical_name
+msgid "Technical name"
+msgstr "Technischer Name"
+
+#. module: easycrm
+#: model:ir.model.fields.selection,name:easycrm.selection__easycrm_field__ftype__char
+msgid "Text"
+msgstr "Text"
+
+#. module: easycrm
+#. odoo-python
+#: code:addons/easycrm/wizard/import_wizard.py:0
+msgid "The .xls format is not supported here: save the file as .xlsx or .csv."
+msgstr ""
+"Das Format .xls wird hier nicht unterstützt: Speichern Sie die Datei als "
+".xlsx oder .csv."
+
+#. module: easycrm
+#. odoo-python
+#: code:addons/easycrm/wizard/import_wizard.py:0
+msgid "The Python library openpyxl is required to read .xlsx files."
+msgstr ""
+"Die Python-Bibliothek openpyxl wird zum Lesen von .xlsx-Dateien benötigt."
+
+#. module: easycrm
+#. odoo-python
+#: code:addons/easycrm/wizard/import_wizard.py:0
+msgid "The file must contain a header row and at least one data row."
+msgstr ""
+"Die Datei muss eine Kopfzeile und mindestens eine Datenzeile enthalten."
+
+#. module: easycrm
+#. odoo-python
+#: code:addons/easycrm/models/call.py:0
+msgid "The response \"%s\" requires a callback date."
+msgstr "Die Antwort „%s“ erfordert ein Rückrufdatum."
+
+#. module: easycrm
+#. odoo-python
+#: code:addons/easycrm/models/call.py:0
+msgid "The response \"%s\" requires a note."
+msgstr "Die Antwort „%s“ erfordert eine Notiz."
+
+#. module: easycrm
+#. odoo-python
+#: code:addons/easycrm/models/custom_field.py:0
+msgid "The type of an existing field cannot be changed: create a new field."
+msgstr ""
+"Der Typ eines bestehenden Feldes kann nicht geändert werden: Legen Sie ein "
+"neues Feld an."
+
+#. module: easycrm
+#: model:ir.model.constraint,message:easycrm.constraint_easycrm_category_name_uniq
+msgid "This category already exists."
+msgstr "Diese Kategorie existiert bereits."
+
+#. module: easycrm
+#. odoo-python
+#: code:addons/easycrm/models/prospect.py:0
+msgid "This prospect has no phone number."
+msgstr "Dieser Prospect hat keine Telefonnummer."
+
+#. module: easycrm
+#: model:ir.model.constraint,message:easycrm.constraint_easycrm_team_name_uniq
+msgid "This team already exists."
+msgstr "Dieses Team existiert bereits."
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.view_prospect_search
+msgid "To call"
+msgstr "Anzurufen"
+
+#. module: easycrm
+#: model:easycrm.status,name:easycrm.status_rappel
+#: model:ir.actions.act_window,name:easycrm.action_prospect_due
+#: model:ir.ui.menu,name:easycrm.menu_prospect_due
+msgid "To call back"
+msgstr "Zurückzurufen"
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.view_call_search
+msgid "Today"
+msgstr "Heute"
+
+#. module: easycrm
+#: model:ir.ui.menu,name:easycrm.menu_tools
+msgid "Tools"
+msgstr "Werkzeuge"
+
+#. module: easycrm
+#: model:ir.model.fields.selection,name:easycrm.selection__res_config_settings__easycrm_country__tn
+msgid "Tunisia"
+msgstr "Tunesien"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_field__ftype
+msgid "Type"
+msgstr "Typ"
+
+#. module: easycrm
+#: model:ir.model.fields,help:easycrm.field_easycrm_prospect__activity_exception_decoration
+msgid "Type of the exception activity on record."
+msgstr "Typ der Ausnahmeaktivität im Datensatz."
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.view_prospect_search
+msgid "Unassigned"
+msgstr "Nicht zugewiesen"
+
+#. module: easycrm
+#: model:easycrm.status,name:easycrm.status_injoignable
+msgid "Unreachable"
+msgstr "Nicht erreichbar"
+
+#. module: easycrm
+#: model:ir.model.fields,help:easycrm.field_easycrm_import_wizard__category_id
+msgid "Used when the file has no category column."
+msgstr "Wird verwendet, wenn die Datei keine Kategoriespalte hat."
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__phone_valid
+msgid "Valid number"
+msgstr "Gültige Nummer"
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.view_import_wizard_form
+msgid "View imported prospects"
+msgstr "Importierte Prospects anzeigen"
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.view_prospect_form
+msgid "WhatsApp"
+msgstr "WhatsApp"
+
+#. module: easycrm
+#: model:ir.model.fields,help:easycrm.field_res_config_settings__easycrm_cc
+msgid "Without \"+\", e.g. 213 for Algeria."
+msgstr "Ohne „+“, z. B. 213 für Algerien."
+
+#. module: easycrm
+#: model:easycrm.status,name:easycrm.status_faux_numero
+msgid "Wrong number"
+msgstr "Falsche Nummer"
+
+#. module: easycrm
+#: model:ir.model.fields.selection,name:easycrm.selection__easycrm_field__ftype__boolean
+msgid "Yes / No"
+msgstr "Ja / Nein"
