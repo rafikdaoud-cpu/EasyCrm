@@ -6,3 +6,4 @@ from . import status
 from . import custom_field
 from . import prospect
 from . import call
+from . import res_users

@@ -9,8 +9,14 @@
                     <button name="action_log_call" type="object" string="Log the call"
                             class="btn-primary" icon="fa-phone"
                             invisible="not id or is_client"/>
+                    <button name="action_pbx_call" type="object" string="Call via PBX" icon="fa-headphones"
+                            invisible="not id or not phone or pbx_mode == 'none'"/>
                     <button name="action_whatsapp" type="object" string="WhatsApp" icon="fa-whatsapp"
-                            invisible="not phone"/>
+                            invisible="not phone or wa_mode == 'api'"/>
+                    <button name="action_wa_send" type="object" string="WhatsApp" icon="fa-whatsapp"
+                            invisible="not id or not phone or wa_mode != 'api'"/>
+                    <field name="pbx_mode" invisible="1"/>
+                    <field name="wa_mode" invisible="1"/>
                     <field name="status_id" widget="statusbar" options="{'clickable': False}"/>
                 </header>
                 <sheet>

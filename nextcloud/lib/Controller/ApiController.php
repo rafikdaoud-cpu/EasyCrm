@@ -9,6 +9,7 @@ use OCA\EasyCrm\Service\Phone;
 use OCA\EasyCrm\Service\Teams;
 use OCA\EasyCrm\Service\Lookup;
 use OCA\EasyCrm\Service\Store;
+use OCA\EasyCrm\Service\Telephony;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
@@ -102,7 +103,7 @@ class ApiController extends Controller {
 		if (!$this->a->can('view')) { return $this->deny(); }
 		$can = [];
 		foreach (['call', 'assign', 'create', 'import', 'invite', 'fields', 'delete', 'all'] as $k) { $can[$k] = $this->a->can($k); }
-		return new JSONResponse(['statuses' => Statuses::all(), 'fields' => Fields::all(), 'role' => $this->a->role(), 'uid' => $this->a->uid(), 'settings' => Settings::get(), 'phone' => Phone::info(), 'options' => ['c2' => Teams::categories()], 'teams' => $this->getTeams(), 'groups' => array_map(fn($g, $n) => ['id' => $g, 'name' => $n, 'cats' => array_keys(array_filter(Access::cats(), fn($x) => $x === $g))], array_keys(Access::teams()), array_values(Access::teams())), 'commerciaux' => $this->commerciaux(), 'can' => $can] + ($this->a->can('fields') ? ['admin' => ['countries' => Settings::COUNTRIES, 'teams' => Teams::all(), 'extra' => Teams::extra(), 'roles' => Access::groups()]] : []));
+		return new JSONResponse(['statuses' => Statuses::all(), 'fields' => Fields::all(), 'role' => $this->a->role(), 'uid' => $this->a->uid(), 'settings' => Settings::get(), 'phone' => Phone::info(), 'options' => ['c2' => Teams::categories()], 'teams' => $this->getTeams(), 'groups' => array_map(fn($g, $n) => ['id' => $g, 'name' => $n, 'cats' => array_keys(array_filter(Access::cats(), fn($x) => $x === $g))], array_keys(Access::teams()), array_values(Access::teams())), 'commerciaux' => $this->commerciaux(), 'can' => $can, 'tel' => Telephony::mode() + ['ext' => Telephony::extension($this->a->uid())]] + ($this->a->can('fields') ? ['admin' => ['telephony' => Telephony::forAdmin() + ['url_pbx' => $this->hookUrl('pbx'), 'url_wa' => $this->hookUrl('wa'), 'ext' => $this->extensions()], 'countries' => Settings::COUNTRIES, 'teams' => Teams::all(), 'extra' => Teams::extra(), 'roles' => Access::groups()]] : []));
 	}
 
 	#[NoAdminRequired]
@@ -395,6 +396,75 @@ class ApiController extends Controller {
 		$v['extra'] = $extra ? json_encode($extra, JSON_UNESCAPED_UNICODE) : null;
 		$this->s->update($id, $v);
 		return new JSONResponse(['ok' => true]);
+	}
+
+	private function hookUrl(string $k): string { return $this->urlGen->getAbsoluteURL($this->urlGen->linkToRoute('easycrm.hook.' . $k)); }
+	private function extensions(): array {
+		$o = []; foreach ($this->commerciaux() as $u) { $o[$u['uid']] = Telephony::extension($u['uid']); } return $o;
+	}
+	private function dialFor(string $national): string {
+		$c = Telephony::get()['sip']; [$cc, $trunk] = Phone::rules();
+		return Telephony::dialNumber($national, $cc, $trunk, (string)($c['dial_format'] ?? 'national'), (string)($c['dial_prefix'] ?? ''));
+	}
+	private function callable(int $id): array {
+		if (!$this->a->can('call')) { return [null, $this->deny()]; }
+		$p = $this->visible($id);
+		if (!$p) { return [null, $this->err('Introuvable', Http::STATUS_NOT_FOUND)]; }
+		if ($this->a->role() === 'commercial' && $p['assigned_to'] !== $this->a->uid()) { return [null, $this->deny()]; }
+		if (empty($p['phone'])) { return [null, $this->err('Aucun numéro de téléphone renseigné.')]; }
+		return [$p, null];
+	}
+
+	#[NoAdminRequired]
+	public function pbxCall(int $id): JSONResponse {
+		[$p, $e] = $this->callable($id); if ($e) { return $e; }
+		$c = Telephony::get()['sip'];
+		$num = $this->dialFor((string)$p['phone']);
+		if ($c['provider'] === 'none') { return $this->err('Aucun standard téléphonique configuré.'); }
+		if ($c['provider'] === 'uri') { return new JSONResponse(['url' => ($c['uri_scheme'] ?: 'tel') . ':' . $num]); }
+		[$ok, $msg] = Telephony::sipDial($c, Telephony::extension($this->a->uid()), $num);
+		return $ok ? new JSONResponse(['ok' => true, 'message' => $msg]) : $this->err($msg);
+	}
+
+	#[NoAdminRequired]
+	public function waSend(int $id): JSONResponse {
+		[$p, $e] = $this->callable($id); if ($e) { return $e; }
+		$c = Telephony::get()['wa'];
+		if ($c['provider'] === 'link') { return $this->err('Aucune API WhatsApp configurée.'); }
+		$text = trim((string)$this->request->getParam('text', ''));
+		if ($text === '') { return $this->err('Message vide'); }
+		[$ok, $msg] = Telephony::waSend($c, Phone::whatsapp((string)$p['phone']), mb_substr($text, 0, 4000), (string)($p['firstname'] ?? ''));
+		if (!$ok) { return $this->err($msg); }
+		$this->s->insert('easycrm_calls', ['prospect_id' => $id, 'user_id' => $this->a->uid(), 'result' => $p['status'], 'note' => '💬 WhatsApp : ' . mb_substr($text, 0, 500), 'callback_at' => null, 'created_at' => time()]);
+		return new JSONResponse(['ok' => true, 'message' => $msg]);
+	}
+
+	#[NoAdminRequired]
+	public function saveTelephony(): JSONResponse {
+		if (!$this->a->can('fields')) { return $this->deny(); }
+		Telephony::save((array)$this->request->getParam('telephony', []));
+		foreach ((array)$this->request->getParam('ext', []) as $uid => $ext) {
+			if ($this->um->userExists((string)$uid)) { Telephony::setExtension((string)$uid, (string)$ext); }
+		}
+		return new JSONResponse(['telephony' => Telephony::forAdmin() + ['url_pbx' => $this->hookUrl('pbx'), 'url_wa' => $this->hookUrl('wa'), 'ext' => $this->extensions()]]);
+	}
+	#[NoAdminRequired]
+	public function testTelephony(): JSONResponse {
+		if (!$this->a->can('fields')) { return $this->deny(); }
+		$c = Telephony::get();
+		[$ok, $msg] = (string)$this->request->getParam('kind', 'sip') === 'wa' ? Telephony::waTest($c['wa']) : Telephony::sipTest($c['sip']);
+		return new JSONResponse(['ok' => $ok, 'message' => $msg]);
+	}
+	#[NoAdminRequired]
+	public function newHookSecret(): JSONResponse {
+		if (!$this->a->can('fields')) { return $this->deny(); }
+		return new JSONResponse(['secret' => Telephony::newSecret()]);
+	}
+	#[NoAdminRequired]
+	public function saveExtension(): JSONResponse {
+		if (!$this->a->can('call')) { return $this->deny(); }
+		Telephony::setExtension($this->a->uid(), (string)$this->request->getParam('ext', ''));
+		return new JSONResponse(['ext' => Telephony::extension($this->a->uid())]);
 	}
 
 	#[NoAdminRequired]

@@ -24,3 +24,4 @@ access_tag_admin,tag admin,model_easycrm_tag,group_admin,1,1,1,1
 access_callwizard_commercial,call wizard,model_easycrm_call_wizard,group_commercial,1,1,1,1
 access_importwizard_superviseur,import wizard,model_easycrm_import_wizard,group_superviseur,1,1,1,1
 access_distwizard_superviseur,distribute wizard,model_easycrm_distribute_wizard,group_superviseur,1,1,1,1
+access_wawizard_commercial,whatsapp wizard,model_easycrm_wa_wizard,group_commercial,1,1,1,1

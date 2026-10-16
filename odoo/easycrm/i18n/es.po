@@ -3,8 +3,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 18.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-16 13:17+0000\n"
-"PO-Revision-Date: 2026-10-16 13:17+0000\n"
+"POT-Creation-Date: 2026-10-16 19:58+0000\n"
+"PO-Revision-Date: 2026-10-16 19:58+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "Language: es\n"
@@ -45,6 +45,42 @@ msgstr "%s se pone en contacto con usted."
 #: model:ir.model.fields,help:easycrm.field_easycrm_status__retry_hours
 msgid "0 = no automatic rescheduling."
 msgstr "0 = sin reprogramación automática."
+
+#. module: easycrm
+#: model:ir.model.fields.selection,name:easycrm.selection__res_config_settings__easycrm_wa_provider__360dialog
+msgid "360dialog (WhatsApp Business API)"
+msgstr "360dialog (WhatsApp Business API)"
+
+#. module: easycrm
+#: model:ir.model.fields.selection,name:easycrm.selection__res_config_settings__easycrm_sip_provider__3cx
+msgid "3CX (Call Control API)"
+msgstr "3CX (Call Control API)"
+
+#. module: easycrm
+#: model:ir.model.fields.selection,name:easycrm.selection__easycrm_prospect__wa_mode__api
+msgid "API"
+msgstr ""
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_res_config_settings__easycrm_sip_url
+#: model:ir.model.fields,field_description:easycrm.field_res_config_settings__easycrm_wa_url
+msgid "API URL"
+msgstr "URL de la API"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_res_config_settings__easycrm_wa_api_version
+msgid "API version"
+msgstr "Versión de la API"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_res_config_settings__easycrm_wa_token
+msgid "Access token / API key"
+msgstr "Token de acceso / clave API"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_res_config_settings__easycrm_wa_account_sid
+msgid "Account SID"
+msgstr "Account SID"
 
 #. module: easycrm
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__message_needaction
@@ -91,6 +127,11 @@ msgid "Administrator"
 msgstr "Administrador"
 
 #. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_res_config_settings__easycrm_sip_channel
+msgid "Agent channel"
+msgstr "Canal del agente"
+
+#. module: easycrm
 #: model:ir.model.fields.selection,name:easycrm.selection__res_config_settings__easycrm_country__dz
 msgid "Algeria"
 msgstr "Argelia"
@@ -105,6 +146,11 @@ msgstr "Todos los prospectos"
 #: model_terms:ir.ui.view,arch_db:easycrm.view_prospect_search
 msgid "Archived"
 msgstr "Archivados"
+
+#. module: easycrm
+#: model:ir.model.fields.selection,name:easycrm.selection__res_config_settings__easycrm_sip_dial_format__raw
+msgid "As stored"
+msgstr "Tal como está almacenado"
 
 #. module: easycrm
 #. odoo-python
@@ -126,6 +172,11 @@ msgstr "Asignar a"
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__user_id
 msgid "Assigned to"
 msgstr "Asignado a"
+
+#. module: easycrm
+#: model:ir.model.fields.selection,name:easycrm.selection__res_config_settings__easycrm_sip_provider__asterisk
+msgid "Asterisk / FreePBX / Issabel (AMI)"
+msgstr "Asterisk / FreePBX / Issabel (AMI)"
 
 #. module: easycrm
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__message_attachment_count
@@ -205,6 +256,22 @@ msgid "Call responses"
 msgstr "Respuestas de llamada"
 
 #. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.res_config_settings_view_form
+msgid "Call result"
+msgstr ""
+
+#. module: easycrm
+#. odoo-python
+#: code:addons/easycrm/models/prospect.py:0
+msgid "Call started through the PBX (extension %(ext)s → %(number)s)."
+msgstr "Llamada iniciada por la centralita (extensión %(ext)s → %(number)s)."
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.view_prospect_form
+msgid "Call via PBX"
+msgstr "Llamar por la centralita"
+
+#. module: easycrm
 #. odoo-python
 #: code:addons/easycrm/models/call.py:0
 msgid "Call: <b>%s</b>%s"
@@ -219,6 +286,12 @@ msgstr "Rellamadas"
 #: model_terms:ir.ui.view,arch_db:easycrm.view_prospect_search
 msgid "Callbacks due"
 msgstr "Rellamadas pendientes"
+
+#. module: easycrm
+#. odoo-python
+#: code:addons/easycrm/models/prospect.py:0
+msgid "Calling…"
+msgstr "Llamando…"
 
 #. module: easycrm
 #. odoo-python
@@ -265,6 +338,7 @@ msgstr "Llamadas por comercial"
 #. module: easycrm
 #: model_terms:ir.ui.view,arch_db:easycrm.view_call_wizard_form
 #: model_terms:ir.ui.view,arch_db:easycrm.view_distribute_wizard_form
+#: model_terms:ir.ui.view,arch_db:easycrm.view_wa_wizard_form
 msgid "Cancel"
 msgstr "Cancelar"
 
@@ -297,6 +371,15 @@ msgid "Choose at least one salesperson."
 msgstr "Elija al menos un comercial."
 
 #. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.res_config_settings_view_form
+msgid ""
+"Choose your phone system. Each user sets their own extension in their "
+"preferences."
+msgstr ""
+"Elija su sistema telefónico. Cada usuario define su propia extensión en sus "
+"preferencias."
+
+#. module: easycrm
 #: model_terms:ir.ui.view,arch_db:easycrm.view_import_wizard_form
 msgid "Close"
 msgstr "Cerrar"
@@ -327,6 +410,12 @@ msgstr "Ajustes de configuración"
 #: model:ir.ui.menu,name:easycrm.menu_config
 msgid "Configuration"
 msgstr "Configuración"
+
+#. module: easycrm
+#. odoo-python
+#: code:addons/easycrm/models/settings.py:0
+msgid "Connection test"
+msgstr "Prueba de conexión"
 
 #. module: easycrm
 #: model_terms:ir.ui.view,arch_db:easycrm.view_prospect_form
@@ -362,6 +451,7 @@ msgstr "Cuenta como perdido / rechazo"
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_status__create_uid
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_tag__create_uid
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_team__create_uid
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_wa_wizard__create_uid
 msgid "Created by"
 msgstr "Creado por"
 
@@ -376,6 +466,7 @@ msgstr "Creado por"
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_status__create_date
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_tag__create_date
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_team__create_date
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_wa_wizard__create_date
 msgid "Created on"
 msgstr "Creado el"
 
@@ -431,9 +522,20 @@ msgid "Default category"
 msgstr "Categoría por defecto"
 
 #. module: easycrm
+#. odoo-python
+#: code:addons/easycrm/models/prospect.py:0
+msgid "Define your PBX extension in your user preferences first."
+msgstr "Defina primero su extensión en sus preferencias de usuario."
+
+#. module: easycrm
 #: model_terms:ir.ui.view,arch_db:easycrm.res_config_settings_view_form
 msgid "Determines how phone numbers are validated and normalized."
 msgstr "Determina la validación y normalización de los números."
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_res_config_settings__easycrm_sip_context
+msgid "Dialplan context"
+msgstr "Contexto del plan de marcación"
 
 #. module: easycrm
 #: model:ir.model.fields,help:easycrm.field_res_config_settings__easycrm_trunk
@@ -441,6 +543,21 @@ msgid "Digit preceding national numbers (0 in Algeria, Morocco, France)."
 msgstr ""
 "Dígito que precede a los números nacionales (0 en Argelia, Marruecos, "
 "Francia)."
+
+#. module: easycrm
+#: model:ir.model.fields,help:easycrm.field_res_config_settings__easycrm_sip_dial_prefix
+msgid "Digit(s) your PBX requires to get an outside line (e.g. 0 or 9)."
+msgstr "Dígito(s) que su centralita exige para línea exterior (p. ej. 0 o 9)."
+
+#. module: easycrm
+#: model:ir.model.fields.selection,name:easycrm.selection__easycrm_prospect__pbx_mode__none
+msgid "Disabled"
+msgstr ""
+
+#. module: easycrm
+#: model:ir.model.fields.selection,name:easycrm.selection__res_config_settings__easycrm_sip_provider__none
+msgid "Disabled (call from the smartphone)"
+msgstr "Desactivado (llamar desde el smartphone)"
 
 #. module: easycrm
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_call__display_name
@@ -453,6 +570,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_status__display_name
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_tag__display_name
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_team__display_name
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_wa_wizard__display_name
 msgid "Display Name"
 msgstr "Nombre para mostrar"
 
@@ -502,6 +620,8 @@ msgstr "Duración (min)"
 #: model:ir.module.category,name:easycrm.module_category_easycrm
 #: model:ir.ui.menu,name:easycrm.menu_root
 #: model_terms:ir.ui.view,arch_db:easycrm.res_config_settings_view_form
+#: model_terms:ir.ui.view,arch_db:easycrm.view_users_form_easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.view_users_form_simple_modif_easycrm
 msgid "EasyCRM"
 msgstr "EasyCRM"
 
@@ -558,9 +678,16 @@ msgstr "Francia"
 #. module: easycrm
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_call_wizard__prospect_name
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__name
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_wa_wizard__prospect_name
 #: model_terms:ir.ui.view,arch_db:easycrm.view_prospect_form
 msgid "Full name"
 msgstr "Nombre completo"
+
+#. module: easycrm
+#: model:ir.model.fields.selection,name:easycrm.selection__res_config_settings__easycrm_sip_http_method__get
+#: model:ir.model.fields.selection,name:easycrm.selection__res_config_settings__easycrm_wa_http_method__get
+msgid "GET"
+msgstr ""
 
 #. module: easycrm
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__gender
@@ -573,10 +700,43 @@ msgid "General"
 msgstr "General"
 
 #. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.res_config_settings_view_form
+msgid "Generate a new secret"
+msgstr "Generar un nuevo secreto"
+
+#. module: easycrm
+#: model:ir.model.fields.selection,name:easycrm.selection__res_config_settings__easycrm_sip_provider__http
+msgid "Generic HTTP API (any PBX)"
+msgstr "API HTTP genérica (cualquier centralita)"
+
+#. module: easycrm
+#: model:ir.model.fields.selection,name:easycrm.selection__res_config_settings__easycrm_wa_provider__http
+msgid "Generic HTTP API (any gateway)"
+msgstr "API HTTP genérica (cualquier pasarela)"
+
+#. module: easycrm
 #: model_terms:ir.ui.view,arch_db:easycrm.view_call_search
 #: model_terms:ir.ui.view,arch_db:easycrm.view_prospect_search
 msgid "Group by"
 msgstr "Agrupar por"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_res_config_settings__easycrm_sip_http_body
+#: model:ir.model.fields,field_description:easycrm.field_res_config_settings__easycrm_wa_http_body
+msgid "HTTP body"
+msgstr "Cuerpo HTTP"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_res_config_settings__easycrm_sip_http_headers
+#: model:ir.model.fields,field_description:easycrm.field_res_config_settings__easycrm_wa_http_headers
+msgid "HTTP headers (JSON)"
+msgstr "Cabeceras HTTP (JSON)"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_res_config_settings__easycrm_sip_http_method
+#: model:ir.model.fields,field_description:easycrm.field_res_config_settings__easycrm_wa_http_method
+msgid "HTTP method"
+msgstr "Método HTTP"
 
 #. module: easycrm
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__has_message
@@ -605,6 +765,7 @@ msgstr "Hora"
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_status__id
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_tag__id
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_team__id
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_wa_wizard__id
 msgid "ID"
 msgstr "ID"
 
@@ -677,6 +838,21 @@ msgid "International dialing code"
 msgstr "Prefijo internacional"
 
 #. module: easycrm
+#: model:ir.model.fields.selection,name:easycrm.selection__res_config_settings__easycrm_sip_dial_format__e164
+msgid "International with + (+213555…)"
+msgstr "Internacional con + (+213555…)"
+
+#. module: easycrm
+#: model:ir.model.fields.selection,name:easycrm.selection__res_config_settings__easycrm_sip_dial_format__intl00
+msgid "International with 00 (00213555…)"
+msgstr "Internacional con 00 (00213555…)"
+
+#. module: easycrm
+#: model:ir.model.fields.selection,name:easycrm.selection__res_config_settings__easycrm_sip_dial_format__intl
+msgid "International without + (213555…)"
+msgstr "Internacional sin + (213555…)"
+
+#. module: easycrm
 #: model_terms:ir.ui.view,arch_db:easycrm.view_prospect_search
 msgid "Invalid numbers"
 msgstr "Números no válidos"
@@ -712,6 +888,7 @@ msgstr "Últimos 7 días"
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_status__write_uid
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_tag__write_uid
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_team__write_uid
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_wa_wizard__write_uid
 msgid "Last Updated by"
 msgstr "Última actualización por"
 
@@ -726,6 +903,7 @@ msgstr "Última actualización por"
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_status__write_date
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_tag__write_date
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_team__write_date
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_wa_wizard__write_date
 msgid "Last Updated on"
 msgstr "Última actualización el"
 
@@ -738,6 +916,17 @@ msgstr "Última llamada"
 #: model:ir.model.fields,help:easycrm.field_easycrm_import_wizard__user_id
 msgid "Leave empty to import without assignment, then distribute."
 msgstr "Dejar vacío para importar sin asignar y luego repartir."
+
+#. module: easycrm
+#: model:ir.model.fields.selection,name:easycrm.selection__easycrm_prospect__pbx_mode__uri
+#: model:ir.model.fields.selection,name:easycrm.selection__easycrm_prospect__wa_mode__link
+msgid "Link"
+msgstr "Enlace"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_res_config_settings__easycrm_sip_uri_scheme
+msgid "Link type"
+msgstr "Tipo de enlace"
 
 #. module: easycrm
 #: model:ir.model.fields.selection,name:easycrm.selection__easycrm_field__ftype__tags
@@ -784,14 +973,35 @@ msgid "Managed categories"
 msgstr "Categorías gestionadas"
 
 #. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_wa_wizard__text
+msgid "Message"
+msgstr "Mensaje"
+
+#. module: easycrm
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__message_has_error
 msgid "Message Delivery error"
 msgstr "Error de envío de mensaje"
 
 #. module: easycrm
+#. odoo-python
+#: code:addons/easycrm/wizard/wa_wizard.py:0
+msgid "Message sent."
+msgstr "Mensaje enviado."
+
+#. module: easycrm
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__message_ids
 msgid "Messages"
 msgstr "Mensajes"
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.view_wa_wizard_form
+msgid "Message…"
+msgstr "Mensaje…"
+
+#. module: easycrm
+#: model:ir.model.fields.selection,name:easycrm.selection__res_config_settings__easycrm_wa_provider__cloud
+msgid "Meta WhatsApp Cloud API (official)"
+msgstr "Meta WhatsApp Cloud API (oficial)"
 
 #. module: easycrm
 #: model_terms:ir.ui.view,arch_db:easycrm.view_call_search
@@ -842,6 +1052,11 @@ msgid "Name used in WhatsApp messages."
 msgstr "Nombre utilizado en los mensajes de WhatsApp."
 
 #. module: easycrm
+#: model:ir.model.fields.selection,name:easycrm.selection__res_config_settings__easycrm_sip_dial_format__national
+msgid "National (0555…)"
+msgstr "Nacional (0555…)"
+
+#. module: easycrm
 #: model:ir.model.fields,field_description:easycrm.field_res_config_settings__easycrm_trunk
 msgid "National prefix"
 msgstr "Prefijo nacional"
@@ -870,6 +1085,20 @@ msgstr "Resumen de la siguiente actividad"
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__activity_type_id
 msgid "Next Activity Type"
 msgstr "Tipo de la siguiente actividad"
+
+#. module: easycrm
+#. odoo-python
+#: code:addons/easycrm/models/prospect.py:0
+msgid "No PBX is configured: set one up in EasyCRM settings."
+msgstr ""
+"No hay centralita configurada: configure una en los ajustes de EasyCRM."
+
+#. module: easycrm
+#. odoo-python
+#: code:addons/easycrm/wizard/wa_wizard.py:0
+msgid "No WhatsApp API is configured: set one up in EasyCRM settings."
+msgstr ""
+"No hay API de WhatsApp configurada: configure una en los ajustes de EasyCRM."
 
 #. module: easycrm
 #. odoo-python
@@ -917,6 +1146,11 @@ msgstr "Nota…"
 #: model:ir.model.fields,field_description:easycrm.field_res_config_settings__easycrm_country
 msgid "Number country"
 msgstr "País de los números"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_res_config_settings__easycrm_sip_dial_format
+msgid "Number format sent to the PBX"
+msgstr "Formato del número enviado a la centralita"
 
 #. module: easycrm
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__message_needaction_counter
@@ -969,14 +1203,86 @@ msgid "Option"
 msgstr "Opción"
 
 #. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.res_config_settings_view_form
+msgid ""
+"Optional: response logged automatically when the PBX reports the call "
+"result."
+msgstr ""
+"Opcional: respuesta registrada automáticamente cuando la centralita informa "
+"del resultado."
+
+#. module: easycrm
 #: model:ir.model.fields.selection,name:easycrm.selection__res_config_settings__easycrm_country__other
 msgid "Other country"
 msgstr "Otro país"
 
 #. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_res_config_settings__easycrm_sip_dial_prefix
+msgid "Outgoing prefix"
+msgstr "Prefijo de salida"
+
+#. module: easycrm
+#: model:ir.model.fields.selection,name:easycrm.selection__easycrm_prospect__pbx_mode__api
+msgid "PBX"
+msgstr "Centralita"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_res_config_settings__easycrm_sip_provider
+#: model_terms:ir.ui.view,arch_db:easycrm.res_config_settings_view_form
+msgid "PBX / SIP provider"
+msgstr "Centralita / proveedor SIP"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_res_users__easycrm_extension
+msgid "PBX extension"
+msgstr "Extensión en la centralita"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_res_config_settings__easycrm_sip_host
+msgid "PBX host"
+msgstr "Host de la centralita"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_res_config_settings__easycrm_pbx_webhook_url
+msgid "PBX webhook URL"
+msgstr "URL del webhook de la centralita"
+
+#. module: easycrm
+#: model:ir.model.fields.selection,name:easycrm.selection__res_config_settings__easycrm_sip_http_method__post
+#: model:ir.model.fields.selection,name:easycrm.selection__res_config_settings__easycrm_wa_http_method__post
+msgid "POST"
+msgstr ""
+
+#. module: easycrm
+#: model:ir.model.fields.selection,name:easycrm.selection__res_config_settings__easycrm_sip_http_method__put
+#: model:ir.model.fields.selection,name:easycrm.selection__res_config_settings__easycrm_wa_http_method__put
+msgid "PUT"
+msgstr ""
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_res_config_settings__easycrm_sip_secret
+msgid "Password / secret"
+msgstr "Contraseña / secreto"
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.res_config_settings_view_form
+msgid ""
+"Paste these addresses into your PBX / WhatsApp provider. Keep the secret "
+"private."
+msgstr ""
+"Pegue estas direcciones en su centralita / proveedor de WhatsApp. Mantenga "
+"el secreto en privado."
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__pbx_mode
+msgid "Pbx Mode"
+msgstr ""
+
+#. module: easycrm
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_call__prospect_phone
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_call_wizard__prospect_phone
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__phone
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_wa_wizard__prospect_phone
 msgid "Phone"
 msgstr "Teléfono"
 
@@ -992,6 +1298,26 @@ msgid "Phone column not found. Headers read: %s"
 msgstr "Columna de teléfono no encontrada. Encabezados leídos: %s"
 
 #. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_res_config_settings__easycrm_wa_phone_id
+msgid "Phone number ID"
+msgstr "ID del número de teléfono"
+
+#. module: easycrm
+#: model:ir.model.fields,help:easycrm.field_res_config_settings__easycrm_sip_http_body
+msgid "Placeholders: {ext} (agent extension), {number} (number to dial)."
+msgstr "Variables: {ext} (extensión del agente), {number} (número a marcar)."
+
+#. module: easycrm
+#: model:ir.model.fields,help:easycrm.field_res_config_settings__easycrm_wa_http_body
+msgid "Placeholders: {number} (international digits), {text}, {name}."
+msgstr "Variables: {number} (dígitos internacionales), {text}, {name}."
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_res_config_settings__easycrm_sip_port
+msgid "Port"
+msgstr "Puerto"
+
+#. module: easycrm
 #: model:ir.model.fields.selection,name:easycrm.selection__easycrm_import_wizard__state__draft
 msgid "Preparation"
 msgstr "Preparación"
@@ -1000,6 +1326,7 @@ msgstr "Preparación"
 #: model:ir.model,name:easycrm.model_easycrm_prospect
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_call__prospect_id
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_call_wizard__prospect_id
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_wa_wizard__prospect_id
 #: model_terms:ir.ui.view,arch_db:easycrm.view_prospect_form
 msgid "Prospect"
 msgstr "Prospecto"
@@ -1093,6 +1420,15 @@ msgid "Remark…"
 msgstr "Observación…"
 
 #. module: easycrm
+#: model:ir.model.fields,help:easycrm.field_res_config_settings__easycrm_wa_template
+msgid ""
+"Required by WhatsApp to contact someone first. Leave empty to send free text"
+" (only allowed within 24 h of the customer's last message)."
+msgstr ""
+"Exigido por WhatsApp para contactar primero. Déjelo vacío para texto libre "
+"(solo dentro de las 24 h del último mensaje del cliente)."
+
+#. module: easycrm
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_call_wizard__is_callback
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_status__is_callback
 msgid "Requires a callback date"
@@ -1105,6 +1441,16 @@ msgstr "Requiere fecha de rellamada"
 #: model_terms:ir.ui.view,arch_db:easycrm.view_call_search
 msgid "Response"
 msgstr "Respuesta"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_res_config_settings__easycrm_pbx_status_answered
+msgid "Response when the call is answered"
+msgstr "Respuesta cuando se atiende la llamada"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_res_config_settings__easycrm_pbx_status_missed
+msgid "Response when the call is not answered"
+msgstr "Respuesta cuando no se atiende la llamada"
 
 #. module: easycrm
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__activity_user_id
@@ -1169,6 +1515,23 @@ msgid "Selected prospects"
 msgstr "Prospectos seleccionados"
 
 #. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.view_wa_wizard_form
+msgid "Send"
+msgstr "Enviar"
+
+#. module: easycrm
+#. odoo-python
+#: code:addons/easycrm/models/prospect.py:0
+#: model_terms:ir.ui.view,arch_db:easycrm.view_wa_wizard_form
+msgid "Send a WhatsApp message"
+msgstr "Enviar un mensaje de WhatsApp"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_res_config_settings__easycrm_wa_from_number
+msgid "Sender number"
+msgstr "Número remitente"
+
+#. module: easycrm
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_category__sequence
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_field__sequence
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_status__sequence
@@ -1190,6 +1553,11 @@ msgstr "Mostrar en la lista"
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_import_wizard__skip_duplicates
 msgid "Skip duplicates (same number)"
 msgstr "Ignorar duplicados (mismo número)"
+
+#. module: easycrm
+#: model:ir.model.fields.selection,name:easycrm.selection__res_config_settings__easycrm_sip_provider__uri
+msgid "Softphone link (tel: / sip: / callto:)"
+msgstr "Enlace de softphone (tel: / sip: / callto:)"
 
 #. module: easycrm
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_import_wizard__state
@@ -1255,6 +1623,26 @@ msgid "Technical name"
 msgstr "Nombre técnico"
 
 #. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.res_config_settings_view_form
+msgid "Telephony (PBX / SIP)"
+msgstr "Telefonía (centralita / SIP)"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_res_config_settings__easycrm_wa_language
+msgid "Template language"
+msgstr "Idioma de la plantilla"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_res_config_settings__easycrm_wa_template
+msgid "Template name (optional)"
+msgstr "Nombre de la plantilla (opcional)"
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.res_config_settings_view_form
+msgid "Test the connection"
+msgstr "Probar la conexión"
+
+#. module: easycrm
 #: model:ir.model.fields.selection,name:easycrm.selection__easycrm_field__ftype__char
 msgid "Text"
 msgstr "Texto"
@@ -1279,6 +1667,15 @@ msgid "The file must contain a header row and at least one data row."
 msgstr ""
 "El archivo debe contener una fila de encabezados y al menos una fila de "
 "datos."
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.res_config_settings_view_form
+msgid ""
+"The link only opens WhatsApp with a pre-filled message. The APIs send "
+"messages from EasyCRM."
+msgstr ""
+"El enlace solo abre WhatsApp con un mensaje rellenado. Las API envían los "
+"mensajes desde EasyCRM."
 
 #. module: easycrm
 #. odoo-python
@@ -1343,6 +1740,11 @@ msgid "Tunisia"
 msgstr "Túnez"
 
 #. module: easycrm
+#: model:ir.model.fields.selection,name:easycrm.selection__res_config_settings__easycrm_wa_provider__twilio
+msgid "Twilio WhatsApp"
+msgstr "Twilio WhatsApp"
+
+#. module: easycrm
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_field__ftype
 msgid "Type"
 msgstr "Tipo"
@@ -1363,9 +1765,24 @@ msgid "Unreachable"
 msgstr "Ilocalizable"
 
 #. module: easycrm
+#: model:ir.model.fields,help:easycrm.field_res_config_settings__easycrm_sip_channel
+msgid "Use {ext} for the user's extension, e.g. PJSIP/{ext}."
+msgstr "Use {ext} para la extensión del usuario, p. ej. PJSIP/{ext}."
+
+#. module: easycrm
 #: model:ir.model.fields,help:easycrm.field_easycrm_import_wizard__category_id
 msgid "Used when the file has no category column."
 msgstr "Se usa cuando el archivo no tiene columna de categoría."
+
+#. module: easycrm
+#: model:ir.model,name:easycrm.model_res_users
+msgid "User"
+msgstr "Usuario"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_res_config_settings__easycrm_sip_user
+msgid "User / client ID"
+msgstr "Usuario / ID de cliente"
 
 #. module: easycrm
 #: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__phone_valid
@@ -1373,14 +1790,65 @@ msgid "Valid number"
 msgstr "Número válido"
 
 #. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_res_config_settings__easycrm_sip_verify_ssl
+msgid "Verify the TLS certificate"
+msgstr "Verificar el certificado TLS"
+
+#. module: easycrm
 #: model_terms:ir.ui.view,arch_db:easycrm.view_import_wizard_form
 msgid "View imported prospects"
 msgstr "Ver prospectos importados"
 
 #. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_easycrm_prospect__wa_mode
+msgid "Wa Mode"
+msgstr ""
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_res_config_settings__easycrm_webhook_secret
+#: model_terms:ir.ui.view,arch_db:easycrm.res_config_settings_view_form
+msgid "Webhook secret"
+msgstr "Secreto del webhook"
+
+#. module: easycrm
+#: model_terms:ir.ui.view,arch_db:easycrm.res_config_settings_view_form
+msgid "Webhooks (call results and incoming messages)"
+msgstr "Webhooks (resultados de llamadas y mensajes entrantes)"
+
+#. module: easycrm
+#. odoo-python
+#: code:addons/easycrm/wizard/wa_wizard.py:0
+#: model_terms:ir.ui.view,arch_db:easycrm.res_config_settings_view_form
 #: model_terms:ir.ui.view,arch_db:easycrm.view_prospect_form
 msgid "WhatsApp"
 msgstr "WhatsApp"
+
+#. module: easycrm
+#: model:ir.model.fields.selection,name:easycrm.selection__res_config_settings__easycrm_wa_provider__link
+msgid "WhatsApp link (wa.me — message sent manually)"
+msgstr "Enlace de WhatsApp (wa.me — mensaje enviado manualmente)"
+
+#. module: easycrm
+#: model:ir.model,name:easycrm.model_easycrm_wa_wizard
+msgid "WhatsApp message"
+msgstr "Mensaje de WhatsApp"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_res_config_settings__easycrm_wa_provider
+#: model_terms:ir.ui.view,arch_db:easycrm.res_config_settings_view_form
+msgid "WhatsApp provider"
+msgstr "Proveedor de WhatsApp"
+
+#. module: easycrm
+#. odoo-python
+#: code:addons/easycrm/wizard/wa_wizard.py:0
+msgid "WhatsApp sent: %s"
+msgstr "WhatsApp enviado: %s"
+
+#. module: easycrm
+#: model:ir.model.fields,field_description:easycrm.field_res_config_settings__easycrm_wa_webhook_url
+msgid "WhatsApp webhook URL"
+msgstr "URL del webhook de WhatsApp"
 
 #. module: easycrm
 #: model:ir.model.fields,help:easycrm.field_res_config_settings__easycrm_cc
@@ -1393,6 +1861,41 @@ msgid "Wrong number"
 msgstr "Número equivocado"
 
 #. module: easycrm
+#: model:ir.model.fields.selection,name:easycrm.selection__res_config_settings__easycrm_sip_provider__yeastar
+msgid "Yeastar P-Series (OpenAPI)"
+msgstr "Yeastar P-Series (OpenAPI)"
+
+#. module: easycrm
 #: model:ir.model.fields.selection,name:easycrm.selection__easycrm_field__ftype__boolean
 msgid "Yes / No"
 msgstr "Sí / No"
+
+#. module: easycrm
+#: model:ir.model.fields,help:easycrm.field_res_users__easycrm_extension
+msgid ""
+"Your extension on the phone system (e.g. 1001). EasyCRM rings this extension"
+" first when you click Call."
+msgstr ""
+"Su extensión en el sistema telefónico (p. ej. 1001). EasyCRM hace sonar esta"
+" extensión primero al pulsar Llamar."
+
+#. module: easycrm
+#. odoo-python
+#: code:addons/easycrm/models/prospect.py:0
+msgid "Your phone (extension %s) is ringing."
+msgstr "Su teléfono (extensión %s) está sonando."
+
+#. module: easycrm
+#: model:ir.model.fields.selection,name:easycrm.selection__res_config_settings__easycrm_sip_uri_scheme__callto
+msgid "callto:"
+msgstr ""
+
+#. module: easycrm
+#: model:ir.model.fields.selection,name:easycrm.selection__res_config_settings__easycrm_sip_uri_scheme__sip
+msgid "sip:"
+msgstr ""
+
+#. module: easycrm
+#: model:ir.model.fields.selection,name:easycrm.selection__res_config_settings__easycrm_sip_uri_scheme__tel
+msgid "tel:"
+msgstr ""

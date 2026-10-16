@@ -5,6 +5,8 @@ from urllib.parse import quote
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
+from . import telephony as tel
+from .settings import get_sip, get_wa
 from .utils import get_cfg, normalize_phone, normalize_region, wa_number
 
 
@@ -81,6 +83,61 @@ class EasyCrmProspect(models.Model):
 
     def write(self, vals):
         return super().write(self._clean_vals(dict(vals)))
+
+    # ------------------------------------------------------------------ telephony / WhatsApp
+    pbx_mode = fields.Selection([('none', "Disabled"), ('uri', "Link"), ('api', "PBX")],
+                                compute='_compute_integration_modes')
+    wa_mode = fields.Selection([('link', "Link"), ('api', "API")], compute='_compute_integration_modes')
+
+    @api.depends_context('uid')
+    def _compute_integration_modes(self):
+        icp = self.env['ir.config_parameter'].sudo()
+        sip = icp.get_param('easycrm.sip.provider') or 'none'
+        wa = icp.get_param('easycrm.wa.provider') or 'link'
+        for r in self:
+            r.pbx_mode = sip if sip in ('none', 'uri') else 'api'
+            r.wa_mode = 'link' if wa == 'link' else 'api'
+
+    def _dial_number(self, cfg):
+        cc = get_cfg(self.env)
+        return tel.dial_number(self.phone, cc['cc'], cc['trunk'], cfg.get('dial_format') or 'national',
+                               cfg.get('dial_prefix') or '')
+
+    def action_pbx_call(self):
+        """Click-to-call through the configured PBX (or softphone link)."""
+        self.ensure_one()
+        if not self.phone:
+            raise UserError(_("This prospect has no phone number."))
+        prov, cfg = get_sip(self.env)
+        if prov == 'none':
+            raise UserError(_("No PBX is configured: set one up in EasyCRM settings."))
+        number = self._dial_number(cfg)
+        if prov == 'uri':
+            return {'type': 'ir.actions.act_url', 'target': 'self',
+                    'url': "%s:%s" % (cfg.get('uri_scheme') or 'tel', number)}
+        ext = (self.env.user.easycrm_extension or '').strip()
+        if not ext:
+            raise UserError(_("Define your PBX extension in your user preferences first."))
+        ok, msg = tel.sip_dial(prov, cfg, ext, number)
+        if not ok:
+            raise UserError(msg)
+        self.message_post(body=_("Call started through the PBX (extension %(ext)s → %(number)s).",
+                                 ext=ext, number=number), subtype_xmlid='mail.mt_note')
+        return {'type': 'ir.actions.client', 'tag': 'display_notification', 'params': {
+            'title': _("Calling…"), 'message': _("Your phone (extension %s) is ringing.") % ext,
+            'type': 'success', 'sticky': False}}
+
+    def action_wa_send(self):
+        self.ensure_one()
+        if not self.phone:
+            raise UserError(_("This prospect has no phone number."))
+        company = get_cfg(self.env)['company']
+        txt = _("Hello %s,") % self.name + " " + (_("%s is contacting you.") % company if company else "")
+        return {
+            'type': 'ir.actions.act_window', 'name': _("Send a WhatsApp message"),
+            'res_model': 'easycrm.wa.wizard', 'view_mode': 'form', 'target': 'new',
+            'context': {'default_prospect_id': self.id, 'default_text': txt.strip()},
+        }
 
     # ------------------------------------------------------------------ actions
     def action_log_call(self):

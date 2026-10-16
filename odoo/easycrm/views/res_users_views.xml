@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_users_form_easycrm" model="ir.ui.view">
+        <field name="name">res.users.form.easycrm</field>
+        <field name="model">res.users</field>
+        <field name="inherit_id" ref="base.view_users_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page string="EasyCRM" name="easycrm_page">
+                    <group>
+                        <field name="easycrm_extension"/>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+    <record id="view_users_form_simple_modif_easycrm" model="ir.ui.view">
+        <field name="name">res.users.preferences.form.easycrm</field>
+        <field name="model">res.users</field>
+        <field name="inherit_id" ref="base.view_users_form_simple_modif"/>
+        <field name="arch" type="xml">
+            <xpath expr="//group[@name='preferences']" position="after">
+                <group name="easycrm" string="EasyCRM">
+                    <field name="easycrm_extension" readonly="0"/>
+                </group>
+            </xpath>
+        </field>
+    </record>
+</odoo>

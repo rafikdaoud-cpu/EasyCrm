@@ -70,6 +70,15 @@ class Store {
 			$qb->delete($t)->where($qb->expr()->eq($c, $qb->createNamedParameter($id)))->executeStatement();
 		}
 	}
+	/** Retrouve un prospect par les 8 derniers chiffres de son numéro */
+	public function prospectByTail(string $digits): ?array {
+		$t = substr(preg_replace('/\D+/', '', $digits), -8);
+		if (strlen($t) < 6) { return null; }
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('*')->from('easycrm_prospects')->where($qb->expr()->like('phone', $qb->createNamedParameter('%' . $this->db->escapeLikeParameter($t))))->setMaxResults(1);
+		$r = $qb->executeQuery()->fetch();
+		return $r ?: null;
+	}
 	public function prospectByPhone(string $p): ?array {
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('*')->from('easycrm_prospects')->where($qb->expr()->eq('phone', $qb->createNamedParameter($p)))->setMaxResults(1);

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_wa_wizard_form" model="ir.ui.view">
+        <field name="name">easycrm.wa.wizard.form</field>
+        <field name="model">easycrm.wa.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Send a WhatsApp message">
+                <field name="prospect_id" invisible="1"/>
+                <h2><field name="prospect_name" readonly="1"/></h2>
+                <div class="mb-3"><field name="prospect_phone" readonly="1"/></div>
+                <field name="text" placeholder="Message…"/>
+                <footer>
+                    <button name="action_send" type="object" string="Send" class="btn-primary"/>
+                    <button string="Cancel" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>

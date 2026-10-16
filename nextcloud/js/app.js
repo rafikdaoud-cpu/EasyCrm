@@ -255,8 +255,10 @@ async function detail(id) {
       h('div', {},
         h('h2', {}, nm(p)), badge(p.status),
         p.callback_at ? h('div', {}, T('⏰ Rappel : ') + fmt(Number(p.callback_at))) : '',
-        p.phone ? h('a', {class:'big', href:'tel:' + p.phone}, T('📞 Appeler ') + p.phone) : h('p', {class:'muted'}, T('Aucun numéro de téléphone renseigné.')),
-        p.phone ? h('a', {class:'big', style:'background:#25D366;color:#fff', target:'_blank', rel:'noopener noreferrer', href:'https://wa.me/' + waNum(p.phone)}, T('💬 WhatsApp ') + p.phone) : '',
+        p.phone ? (TEL.pbx === 'none' ? h('a', {class:'big', href:'tel:' + p.phone}, T('📞 Appeler ') + p.phone)
+          : h('button', {class:'big', onclick: () => pbxCall(id)}, T('📞 Appeler via le standard ') + p.phone)) : h('p', {class:'muted'}, T('Aucun numéro de téléphone renseigné.')),
+        p.phone ? (TEL.wa === 'link' ? h('a', {class:'big', style:'background:#25D366;color:#fff', target:'_blank', rel:'noopener noreferrer', href:'https://wa.me/' + waNum(p.phone)}, T('💬 WhatsApp ') + p.phone)
+          : h('button', {class:'big', style:'background:#25D366;color:#fff', onclick: () => waSend(id, p)}, T('💬 Envoyer un WhatsApp ') + p.phone)) : '',
         me.can.call ? h('div', {class:'res'}, RES.map(r => h('button', {'data-r': r, onclick: () => pick(r)}, ST[r]))) : h('p', {class:'muted'}, T('Consultation seule.')),
         form, asg,
         d.recordings && d.recordings.length ? [h('h3', {}, T('Enregistrements')), d.recordings.map(recRow)] : '',
@@ -267,6 +269,19 @@ async function detail(id) {
         me.can.delete ? h('button', {onclick: async () => { if (confirm(T('Supprimer ce prospect ?'))) { await api('/prospects/' + id + '/delete', {method:'POST'}); go('tous'); } }}, T('Supprimer')) : '')));
 }
 
+const TEL = new Proxy({}, {get: (_, k) => ((me && me.tel) || {pbx:'none', wa:'link'})[k]});
+async function pbxCall(id) {
+  try {
+    const r = await api('/prospects/' + id + '/pbxcall', {method:'POST'});
+    if (r.url) { location.href = r.url; } else { alert(T(r.message)); }
+  } catch (e) { alert(e.message); }
+}
+async function waSend(id, p) {
+  const t = prompt(T('Message WhatsApp à envoyer'), TF('Bonjour {0}, ', p.firstname || ''));
+  if (!t) return;
+  try { const r = await api('/prospects/' + id + '/wasend', {method:'POST', body:{text:t}}); alert(T(r.message)); detail(id); }
+  catch (e) { alert(e.message); }
+}
 function multi(label, opts) {
   const boxes = opts.map(o => h('label', {style:'display:block;padding:3px 10px;white-space:nowrap'}, h('input', {type:'checkbox', value:o.v}), ' ' + o.t));
   const sum = h('summary', {style:'cursor:pointer;padding:6px 10px;border:1px solid var(--color-border);border-radius:6px'}, label);
@@ -509,6 +524,90 @@ function generalCard() {
         catch (e) { out.textContent = e.message; }
       }}, T('Enregistrer')), out));
 }
+function telephonyCard() {
+  const A = (me.admin || {}).telephony;
+  if (!A) return '';
+  const FL = {host:T('Serveur (IP ou nom d’hôte)'), port:T('Port'), user:T('Utilisateur / identifiant API'), secret:T('Mot de passe / secret'), url:T('URL du serveur'),
+    channel:T('Canal du poste appelant'), context:T('Contexte de numérotation'), dial_format:T('Format du numéro envoyé'), dial_prefix:T('Préfixe de sortie (ex. 0 ou 9)'),
+    uri_scheme:T('Type de lien'), verify_ssl:T('Vérifier le certificat SSL'), http_method:T('Méthode HTTP'), http_headers:T('En-têtes HTTP (JSON)'), http_body:T('Corps de la requête'),
+    phone_id:T('Phone Number ID'), token:T('Jeton d’accès / clé API'), template:T('Modèle de message (facultatif)'), language:T('Langue du modèle'),
+    api_version:T('Version de l’API'), account_sid:T('Account SID'), from_number:T('Numéro expéditeur')};
+  const FMT = [['national', T('National (0555…)')], ['e164', T('E.164 (+213555…)')], ['intl', T('International (213555…)')], ['intl00', T('International 00 (00213555…)')], ['raw', T('Tel quel')]];
+  const HINT = {asterisk:T('Compte AMI défini dans manager.conf (FreePBX : Paramètres → Utilisateurs Asterisk Manager). Variable : {ext} = poste de l’utilisateur.'),
+    yeastar:T('Utilisateur et mot de passe de l’application API créée dans Yeastar (Intégrations → API).'),
+    '3cx':T('Utilisateur = Client ID, secret = Client Secret de l’application créée dans la console 3CX (Intégrations → API).'),
+    http:T('Variables disponibles : {ext} (poste), {number} (numéro), {text} (message), {name} (prénom).'),
+    cloud:T('Identifiants Meta for Developers → WhatsApp → Configuration de l’API. Avec un modèle, le prénom du prospect est injecté dans {{1}}.'),
+    '360dialog':T('Clé API de votre canal 360dialog.'), twilio:T('Numéro expéditeur au format international (ex. 14155238886). Modèle = Content SID (HX…).')};
+  const out = h('span', {class:'muted'});
+  const st = {sip: JSON.parse(JSON.stringify(A.sip)), wa: JSON.parse(JSON.stringify(A.wa)), answered: A.answered || '', missed: A.missed || '', secret: A.secret || ''};
+  const exts = Object.assign({}, A.ext || {});
+  const box = h('div');
+  const field = (cfg, f) => {
+    const lab = h('label', {style:'display:block;margin:6px 0'}, h('span', {style:'display:inline-block;min-width:230px'}, FL[f] || f));
+    let el;
+    if (f === 'dial_format') el = h('select', {onchange: e => { cfg[f] = e.target.value; }}, FMT.map(([v, l]) => h('option', {value:v, selected: cfg[f] === v}, l)));
+    else if (f === 'uri_scheme') el = h('select', {onchange: e => { cfg[f] = e.target.value; }}, ['tel', 'sip', 'callto'].map(v => h('option', {value:v, selected: cfg[f] === v}, v + ':')));
+    else if (f === 'http_method') el = h('select', {onchange: e => { cfg[f] = e.target.value; }}, ['POST', 'GET', 'PUT'].map(v => h('option', {value:v, selected: cfg[f] === v}, v)));
+    else if (f === 'verify_ssl') el = h('input', {type:'checkbox', checked: cfg[f] !== '0', onchange: e => { cfg[f] = e.target.checked ? '1' : '0'; }});
+    else if (f === 'http_headers' || f === 'http_body') el = h('textarea', {rows:3, style:'width:100%;box-sizing:border-box;font-family:monospace', oninput: e => { cfg[f] = e.target.value; }}, cfg[f] || '');
+    else el = h('input', {type: (f === 'secret' || f === 'token') ? 'password' : 'text', value: cfg[f] || '', autocomplete:'new-password', style:'width:340px;max-width:100%', oninput: e => { cfg[f] = e.target.value; }});
+    lab.append(el);
+    return lab;
+  };
+  const section = (title, cfg, presets, kind) => {
+    const cur = presets.find(x => x.id === cfg.provider) || presets[0];
+    const sel = h('select', {onchange: e => {
+      const p = presets.find(x => x.id === e.target.value);
+      for (const k of Object.keys(cfg)) delete cfg[k];
+      Object.assign(cfg, {provider: p.id}, p.defaults);
+      draw();
+    }}, presets.map(x => h('option', {value:x.id, selected: x.id === cfg.provider}, T(x.label))));
+    const hint = HINT[cfg.provider];
+    const test = h('button', {onclick: async () => {
+      out.textContent = '…';
+      try { await api('/telephony', {method:'POST', body: payload()}); const r = await api('/telephony/test', {method:'POST', body:{kind}}); out.textContent = (r.ok ? '✅ ' : '❌ ') + T(r.message); }
+      catch (e) { out.textContent = '❌ ' + e.message; }
+    }}, T('Tester la connexion'));
+    return h('div', {style:'border-top:1px solid var(--color-border);padding:8px 0'}, h('h4', {}, title), sel,
+      hint ? h('p', {class:'muted'}, hint) : '',
+      ...(presets.find(x => x.id === cfg.provider) || cur).fields.map(f => field(cfg, f)),
+      cfg.provider !== presets[0].id ? test : '');
+  };
+  const payload = () => ({telephony: {sip: st.sip, wa: st.wa, answered: st.answered, missed: st.missed, secret: st.secret}, ext: exts});
+  const results = (me.statuses || []).filter(x => x.result && x.active && !x.callback && !x.note);
+  const statSel = key => h('select', {onchange: e => { st[key] = e.target.value; }}, h('option', {value:''}, T('— Ne rien changer —')), results.map(x => h('option', {value:x.key, selected: st[key] === x.key}, T(x.label))));
+  const secretIn = h('input', {readonly:true, style:'width:340px;max-width:100%;font-family:monospace', onclick: e => e.target.select()});
+  const urlP = h('input', {readonly:true, style:'width:100%;box-sizing:border-box;font-family:monospace', onclick: e => e.target.select()});
+  const urlW = h('input', {readonly:true, style:'width:100%;box-sizing:border-box;font-family:monospace', onclick: e => e.target.select()});
+  const refreshUrls = () => { secretIn.value = st.secret; urlP.value = A.url_pbx + '?token=' + st.secret; urlW.value = A.url_wa + '?token=' + st.secret; };
+  const extBox = h('div', {style:'max-height:220px;overflow:auto;border:1px solid var(--color-border);border-radius:6px;padding:6px;margin:6px 0'},
+    (me.commerciaux || []).map(u => h('label', {style:'display:flex;gap:8px;align-items:center;margin:3px 0'}, h('span', {style:'min-width:200px'}, u.name),
+      h('input', {value: exts[u.uid] || '', size:8, placeholder:T('ex. 1001'), oninput: e => { exts[u.uid] = e.target.value; }}))));
+  const draw = () => {
+    box.replaceChildren(section(T('Téléphonie (standard SIP / PBX)'), st.sip, A.sip_presets, 'sip'), section(T('WhatsApp'), st.wa, A.wa_presets, 'wa'));
+    refreshUrls();
+  };
+  draw();
+  return h('div', {class:'card'}, h('h3', {}, T('Téléphonie et WhatsApp')),
+    h('p', {class:'muted'}, T('Choisissez votre standard (Asterisk, FreePBX, Yeastar, 3CX…) et votre fournisseur WhatsApp : les réglages se pré-remplissent. Sans configuration, EasyCrm utilise le téléphone et le lien WhatsApp du smartphone.')),
+    box,
+    h('h4', {}, T('Postes des commerciaux')), h('p', {class:'muted'}, T('Numéro de poste (extension) de chaque commercial sur le standard.')), extBox,
+    h('h4', {}, T('Notifications entrantes (webhooks)')),
+    h('p', {class:'muted'}, T('À renseigner dans le standard (fin d’appel) et chez le fournisseur WhatsApp (messages reçus). Les appels et messages sont rattachés au prospect par les 8 derniers chiffres du numéro.')),
+    h('label', {style:'display:block;margin:6px 0'}, h('span', {style:'display:inline-block;min-width:230px'}, T('Jeton secret')), secretIn, ' ',
+      h('button', {onclick: async () => { if (!confirm(T('Générer un nouveau jeton ? Les anciennes URLs cesseront de fonctionner.'))) return; try { const r = await api('/telephony/secret', {method:'POST'}); st.secret = r.secret; A.secret = r.secret; refreshUrls(); } catch (e) { out.textContent = e.message; } }}, T('Générer'))),
+    h('label', {style:'display:block;margin:6px 0'}, T('URL fin d’appel (standard)'), urlP),
+    h('label', {style:'display:block;margin:6px 0'}, T('URL messages WhatsApp reçus'), urlW),
+    h('label', {style:'display:block;margin:6px 0'}, h('span', {style:'display:inline-block;min-width:230px'}, T('Statut après un appel abouti')), statSel('answered')),
+    h('label', {style:'display:block;margin:6px 0'}, h('span', {style:'display:inline-block;min-width:230px'}, T('Statut après un appel manqué')), statSel('missed')),
+    h('div', {style:'margin-top:8px;display:flex;gap:8px;align-items:center'},
+      h('button', {class:'primary', onclick: async () => {
+        out.textContent = '…';
+        try { await api('/telephony', {method:'POST', body: payload()}); out.textContent = T('Enregistré, rechargement…'); setTimeout(() => location.reload(), 700); }
+        catch (e) { out.textContent = e.message; }
+      }}, T('Enregistrer')), out));
+}
 function teamsCard() {
   const A = me.admin || {};
   let list = JSON.parse(JSON.stringify(A.teams || []));
@@ -562,6 +661,7 @@ function admin() {
   };
   show(h('h2', {}, T('Administration')),
     me.can.fields ? generalCard() : '',
+    me.can.fields ? telephonyCard() : '',
     me.can.fields ? teamsCard() : h('div', {class:'card'}, h('h3', {}, T('Équipes')),
       me.groups.length ? me.groups.map(g => h('div', {style:'margin:6px 0'}, h('strong', {}, g.name), ' : ' + ((me.teams[g.id] || []).length) + T(' commercial(aux)'), h('div', {class:'muted'}, T('Catégories : ') + g.cats.join(', ')))) : h('p', {class:'muted'}, T('Aucune équipe configurée.'))),
     me.can.fields ? fieldsEditor() : '',

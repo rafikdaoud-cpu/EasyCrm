@@ -21,6 +21,8 @@
         'wizard/call_wizard_views.xml',
         'wizard/import_wizard_views.xml',
         'wizard/distribute_wizard_views.xml',
+        'wizard/wa_wizard_views.xml',
+        'views/res_users_views.xml',
         'views/settings_views.xml',
         'views/menus.xml',
     ],

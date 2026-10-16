@@ -25,6 +25,156 @@
                             </div>
                         </setting>
                     </block>
+                    <block title="Telephony (PBX / SIP)" name="easycrm_telephony">
+                        <setting string="PBX / SIP provider"
+                                 help="Choose your phone system. Each user sets their own extension in their preferences.">
+                            <field name="easycrm_sip_provider"/>
+                            <div class="row mt8" invisible="easycrm_sip_provider not in ['asterisk']">
+                                <label class="col-lg-4 o_light_label" for="easycrm_sip_host"/>
+                                <field name="easycrm_sip_host"/>
+                            </div>
+                            <div class="row mt8" invisible="easycrm_sip_provider not in ['asterisk']">
+                                <label class="col-lg-4 o_light_label" for="easycrm_sip_port"/>
+                                <field name="easycrm_sip_port"/>
+                            </div>
+                            <div class="row mt8" invisible="easycrm_sip_provider not in ['yeastar', '3cx', 'http']">
+                                <label class="col-lg-4 o_light_label" for="easycrm_sip_url"/>
+                                <field name="easycrm_sip_url"/>
+                            </div>
+                            <div class="row mt8" invisible="easycrm_sip_provider not in ['asterisk', 'yeastar', '3cx']">
+                                <label class="col-lg-4 o_light_label" for="easycrm_sip_user"/>
+                                <field name="easycrm_sip_user"/>
+                            </div>
+                            <div class="row mt8" invisible="easycrm_sip_provider not in ['asterisk', 'yeastar', '3cx']">
+                                <label class="col-lg-4 o_light_label" for="easycrm_sip_secret"/>
+                                <field name="easycrm_sip_secret" password="True"/>
+                            </div>
+                            <div class="row mt8" invisible="easycrm_sip_provider not in ['asterisk']">
+                                <label class="col-lg-4 o_light_label" for="easycrm_sip_channel"/>
+                                <field name="easycrm_sip_channel"/>
+                            </div>
+                            <div class="row mt8" invisible="easycrm_sip_provider not in ['asterisk']">
+                                <label class="col-lg-4 o_light_label" for="easycrm_sip_context"/>
+                                <field name="easycrm_sip_context"/>
+                            </div>
+                            <div class="row mt8" invisible="easycrm_sip_provider not in ['uri', 'asterisk', 'yeastar', '3cx', 'http']">
+                                <label class="col-lg-4 o_light_label" for="easycrm_sip_dial_format"/>
+                                <field name="easycrm_sip_dial_format"/>
+                            </div>
+                            <div class="row mt8" invisible="easycrm_sip_provider not in ['uri', 'asterisk', 'yeastar', '3cx', 'http']">
+                                <label class="col-lg-4 o_light_label" for="easycrm_sip_dial_prefix"/>
+                                <field name="easycrm_sip_dial_prefix"/>
+                            </div>
+                            <div class="row mt8" invisible="easycrm_sip_provider not in ['uri']">
+                                <label class="col-lg-4 o_light_label" for="easycrm_sip_uri_scheme"/>
+                                <field name="easycrm_sip_uri_scheme"/>
+                            </div>
+                            <div class="row mt8" invisible="easycrm_sip_provider not in ['yeastar', '3cx', 'http']">
+                                <label class="col-lg-4 o_light_label" for="easycrm_sip_verify_ssl"/>
+                                <field name="easycrm_sip_verify_ssl"/>
+                            </div>
+                            <div class="row mt8" invisible="easycrm_sip_provider not in ['http']">
+                                <label class="col-lg-4 o_light_label" for="easycrm_sip_http_method"/>
+                                <field name="easycrm_sip_http_method"/>
+                            </div>
+                            <div class="row mt8" invisible="easycrm_sip_provider not in ['http']">
+                                <label class="col-lg-4 o_light_label" for="easycrm_sip_http_headers"/>
+                                <field name="easycrm_sip_http_headers" widget="text"/>
+                            </div>
+                            <div class="row mt8" invisible="easycrm_sip_provider not in ['http']">
+                                <label class="col-lg-4 o_light_label" for="easycrm_sip_http_body"/>
+                                <field name="easycrm_sip_http_body" widget="text"/>
+                            </div>
+                            <div class="mt8" invisible="easycrm_sip_provider in ['none', 'uri']">
+                                <button name="action_easycrm_test_sip" type="object" string="Test the connection"
+                                        class="btn-secondary"/>
+                            </div>
+                        </setting>
+                        <setting string="Call result" help="Optional: response logged automatically when the PBX reports the call result."
+                                 invisible="easycrm_sip_provider in ['none', 'uri']">
+                            <div class="row mt8">
+                                <label class="col-lg-4 o_light_label" for="easycrm_pbx_status_answered"/>
+                                <field name="easycrm_pbx_status_answered" options="{'no_create': True}"/>
+                            </div>
+                            <div class="row mt8">
+                                <label class="col-lg-4 o_light_label" for="easycrm_pbx_status_missed"/>
+                                <field name="easycrm_pbx_status_missed" options="{'no_create': True}"/>
+                            </div>
+                        </setting>
+                    </block>
+                    <block title="WhatsApp" name="easycrm_whatsapp">
+                        <setting string="WhatsApp provider"
+                                 help="The link only opens WhatsApp with a pre-filled message. The APIs send messages from EasyCRM.">
+                            <field name="easycrm_wa_provider"/>
+                            <div class="row mt8" invisible="easycrm_wa_provider not in ['cloud']">
+                                <label class="col-lg-4 o_light_label" for="easycrm_wa_phone_id"/>
+                                <field name="easycrm_wa_phone_id"/>
+                            </div>
+                            <div class="row mt8" invisible="easycrm_wa_provider not in ['cloud', '360dialog', 'twilio']">
+                                <label class="col-lg-4 o_light_label" for="easycrm_wa_token"/>
+                                <field name="easycrm_wa_token" password="True"/>
+                            </div>
+                            <div class="row mt8" invisible="easycrm_wa_provider not in ['cloud', '360dialog', 'twilio']">
+                                <label class="col-lg-4 o_light_label" for="easycrm_wa_template"/>
+                                <field name="easycrm_wa_template"/>
+                            </div>
+                            <div class="row mt8" invisible="easycrm_wa_provider not in ['cloud', '360dialog']">
+                                <label class="col-lg-4 o_light_label" for="easycrm_wa_language"/>
+                                <field name="easycrm_wa_language"/>
+                            </div>
+                            <div class="row mt8" invisible="easycrm_wa_provider not in ['cloud']">
+                                <label class="col-lg-4 o_light_label" for="easycrm_wa_api_version"/>
+                                <field name="easycrm_wa_api_version"/>
+                            </div>
+                            <div class="row mt8" invisible="easycrm_wa_provider not in ['twilio']">
+                                <label class="col-lg-4 o_light_label" for="easycrm_wa_account_sid"/>
+                                <field name="easycrm_wa_account_sid"/>
+                            </div>
+                            <div class="row mt8" invisible="easycrm_wa_provider not in ['twilio']">
+                                <label class="col-lg-4 o_light_label" for="easycrm_wa_from_number"/>
+                                <field name="easycrm_wa_from_number"/>
+                            </div>
+                            <div class="row mt8" invisible="easycrm_wa_provider not in ['http']">
+                                <label class="col-lg-4 o_light_label" for="easycrm_wa_url"/>
+                                <field name="easycrm_wa_url"/>
+                            </div>
+                            <div class="row mt8" invisible="easycrm_wa_provider not in ['http']">
+                                <label class="col-lg-4 o_light_label" for="easycrm_wa_http_method"/>
+                                <field name="easycrm_wa_http_method"/>
+                            </div>
+                            <div class="row mt8" invisible="easycrm_wa_provider not in ['http']">
+                                <label class="col-lg-4 o_light_label" for="easycrm_wa_http_headers"/>
+                                <field name="easycrm_wa_http_headers" widget="text"/>
+                            </div>
+                            <div class="row mt8" invisible="easycrm_wa_provider not in ['http']">
+                                <label class="col-lg-4 o_light_label" for="easycrm_wa_http_body"/>
+                                <field name="easycrm_wa_http_body" widget="text"/>
+                            </div>
+                            <div class="mt8" invisible="easycrm_wa_provider == 'link'">
+                                <button name="action_easycrm_test_wa" type="object" string="Test the connection"
+                                        class="btn-secondary"/>
+                            </div>
+                        </setting>
+                    </block>
+                    <block title="Webhooks (call results and incoming messages)" name="easycrm_webhooks"
+                           invisible="easycrm_sip_provider in ['none', 'uri'] and easycrm_wa_provider == 'link'">
+                        <setting string="Webhook secret"
+                                 help="Paste these addresses into your PBX / WhatsApp provider. Keep the secret private.">
+                            <field name="easycrm_webhook_secret" password="True"/>
+                            <div class="mt8">
+                                <button name="action_easycrm_new_secret" type="object" string="Generate a new secret"
+                                        class="btn-secondary"/>
+                            </div>
+                            <div class="row mt8">
+                                <label class="col-lg-4 o_light_label" for="easycrm_pbx_webhook_url"/>
+                                <field name="easycrm_pbx_webhook_url" readonly="1"/>
+                            </div>
+                            <div class="row mt8">
+                                <label class="col-lg-4 o_light_label" for="easycrm_wa_webhook_url"/>
+                                <field name="easycrm_wa_webhook_url" readonly="1"/>
+                            </div>
+                        </setting>
+                    </block>
                 </app>
             </xpath>
         </field>
