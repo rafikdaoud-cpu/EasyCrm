@@ -19,6 +19,7 @@ function applyStatuses() {
 }
 const inkOn = c => { const n = parseInt(String(c).slice(1), 16) || 0, l = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)); return l > 160 ? '#000' : '#fff'; };
 const badge = k => h('span', {class:'badge', style:'background:' + (STC[k] || '#888') + ';color:' + inkOn(STC[k] || '#888')}, ST[k] || k);
+const fmtD = t => Number(t) ? new Date(t * 1000).toLocaleDateString(window.EC_LOCALE || 'fr-FR', {day:'2-digit', month:'2-digit', year:'numeric'}) : '';
 const fmt = t => t ? new Date(t * 1000).toLocaleString(window.EC_LOCALE || 'fr-FR', {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}) : '';
 const waNum = p => { const d = String(p || '').replace(/\D+/g, ''), ph = (me && me.phone) || {cc:'', trunk:''};
   if (!ph.cc) return d;
@@ -149,12 +150,17 @@ async function list(k) {
   const sd = h('button', {title:T('Sens du tri'), onclick: () => { sortBy.d = sortBy.d === 'asc' ? 'desc' : 'asc'; sd.textContent = sortBy.d === 'asc' ? T('↑ Croissant') : T('↓ Décroissant'); load(); }}, sortBy.d === 'asc' ? T('↑ Croissant') : T('↓ Décroissant'));
   so.addEventListener('change', () => { sortBy.k = so.value; load(); });
   bar.append(so, sd);
+  const rf = h('input', {type:'date'}), rt = h('input', {type:'date'}), pf = h('input', {type:'date'}), pt = h('input', {type:'date'});
+  const dbar = h('div', {class:'bar'}, h('label', {}, T('Inscrit du '), rf), h('label', {}, T('au '), rt), h('label', {}, T('Traité du '), pf), h('label', {}, T('au '), pt),
+    h('button', {onclick: () => { [rf, rt, pf, pt].forEach(x => x.value = ''); load(); }}, T('Effacer les dates')));
+  const dts = (v, add) => v ? Math.floor(new Date(v + 'T00:00:00').getTime() / 1000) + add : '';
   const pst = 'justify-content:space-between;align-items:center;margin:8px 0';
   const pager = h('div', {class:'bar', style:pst}), pagerB = h('div', {class:'bar', style:pst});
   const load = async (keep) => {
     if (keep !== true) page = 1;
     filt = {q:q.value, status: s ? s.value : '', assigned: a ? a.value : ''};
     const p = new URLSearchParams({q:filt.q, status: K.status || filt.status, assigned:filt.assigned, rappels: K.rappels ? 1 : '', asc: K.asc ? 1 : '',
+      reg_from: dts(rf.value, 0), reg_to: dts(rt.value, 86400), proc_from: dts(pf.value, 0), proc_to: dts(pt.value, 86400),
       sort:sortBy.k, dir:sortBy.d, paged:1, limit:pageSize, offset:(page - 1) * pageSize});
     try {
       const r = await api('/prospects?' + p);
@@ -171,8 +177,8 @@ async function list(k) {
       pager.replaceChildren(...mk()); pagerB.replaceChildren(...mk());
     } catch (e) { box.replaceChildren(h('p', {class:'err'}, e.message)); }
   };
-  [q, s, a].forEach(e => e && e.addEventListener('change', () => load()));
-  show(h('h2', {}, K.t), me.can.create ? h('div', {class:'bar'}, h('button', {class:'primary', onclick: () => addForm()}, T('+ Ajouter un client'))) : '', me.can.assign && K.all ? distButtons() : '', bar, pager, box, pagerB); load();
+  [q, s, a, rf, rt, pf, pt].forEach(e => e && e.addEventListener('change', () => load()));
+  show(h('h2', {}, K.t), me.can.create ? h('div', {class:'bar'}, h('button', {class:'primary', onclick: () => addForm()}, T('+ Ajouter un client'))) : '', me.can.assign && K.all ? distButtons() : '', bar, dbar, pager, box, pagerB); load();
 }
 async function addForm() {
   const msg = h('div', {class:'err'});
@@ -190,7 +196,8 @@ async function addForm() {
 function row(r) {
   const late = r.callback_at && Number(r.callback_at) < Date.now() / 1000;
   return h('div', {class:'row', onclick: () => detail(r.id)},
-    h('div', {}, h('strong', {}, nm(r)), h('div', {class:'muted'}, [r.phone, r.c5, r.c2].filter(Boolean).join(' · ') || T('Sans numéro'))),
+    h('div', {}, h('strong', {}, nm(r)), h('div', {class:'muted'}, [r.phone, r.c5, r.c2].filter(Boolean).join(' · ') || T('Sans numéro')),
+      h('div', {class:'muted'}, T('Inscrit le ') + fmtD(r.created_at) + ' · ' + T('Traité le ') + (Number(r.last_call_at) ? fmtD(r.last_call_at) : '—'))),
     h('div', {style:'text-align:right'}, badge(r.status),
       r.callback_at ? h('div', {class: late ? 'late' : 'muted'}, '⏰ ' + fmt(Number(r.callback_at))) : ''));
 }
@@ -254,6 +261,8 @@ async function detail(id) {
     h('div', {class:'cols'},
       h('div', {},
         h('h2', {}, nm(p)), badge(p.status),
+        h('div', {class:'muted'}, T('Date d’inscription : ') + fmt(Number(p.created_at))),
+        h('div', {class:'muted'}, T('Date de traitement : ') + (Number(p.last_call_at) ? fmt(Number(p.last_call_at)) : '—')),
         p.callback_at ? h('div', {}, T('⏰ Rappel : ') + fmt(Number(p.callback_at))) : '',
         p.phone ? (TEL.pbx === 'none' ? h('a', {class:'big', href:'tel:' + p.phone}, T('📞 Appeler ') + p.phone)
           : h('button', {class:'big', onclick: () => pbxCall(id)}, T('📞 Appeler via le standard ') + p.phone)) : h('p', {class:'muted'}, T('Aucun numéro de téléphone renseigné.')),

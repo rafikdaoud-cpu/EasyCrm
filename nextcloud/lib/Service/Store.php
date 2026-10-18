@@ -16,6 +16,10 @@ class Store {
 			$qb->andWhere($qb->expr()->isNotNull('callback_at'));
 			$qb->andWhere($qb->expr()->in('status', $qb->createNamedParameter(\OCA\EasyCrm\Service\Statuses::callbackKeys() ?: ['-'], IQueryBuilder::PARAM_STR_ARRAY)));
 		}
+		foreach (['reg' => 'created_at', 'proc' => 'last_call_at'] as $k => $col) {
+			if (!empty($f[$k . '_from'])) { $qb->andWhere($qb->expr()->gte($col, $qb->createNamedParameter((int)$f[$k . '_from'], IQueryBuilder::PARAM_INT))); }
+			if (!empty($f[$k . '_to'])) { $qb->andWhere($qb->expr()->lt($col, $qb->createNamedParameter((int)$f[$k . '_to'], IQueryBuilder::PARAM_INT))); }
+		}
 		if (!empty($f['q'])) {
 			$l = '%' . $this->db->escapeLikeParameter($f['q']) . '%';
 			$or = $qb->expr()->orX();
