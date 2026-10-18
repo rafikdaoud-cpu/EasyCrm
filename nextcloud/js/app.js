@@ -354,6 +354,18 @@ async function stats() {
     } catch (e) { box.replaceChildren(h('p', {class:'err'}, e.message)); }
   };
   let jt; jq.addEventListener('input', () => { clearTimeout(jt); jt = setTimeout(() => { jpage = 1; jload(); }, 300); });
+  const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  const hday = h('input', {type:'date', value: iso(new Date()), onchange: () => hload()});
+  const hbox = h('div'), hbar = h('div', {style:'display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0'});
+  const hparam = () => hday.value ? '&hday=' + Math.floor(new Date(hday.value + 'T00:00:00').getTime() / 1000) : '';
+  const hshift = n => { const d = new Date((hday.value || iso(new Date())) + 'T12:00:00'); d.setDate(d.getDate() + n); hday.value = iso(d); hload(); };
+  const hload = async () => {
+    try { const r = await api('/stats?' + params() + hparam()); hbox.replaceChildren(hoursChart(r.hours || [])); }
+    catch (e) { hbox.replaceChildren(h('p', {class:'err'}, e.message)); }
+  };
+  hbar.append(h('button', {title:T('Jour précédent'), onclick: () => hshift(-1)}, '◀'), hday, h('button', {title:T('Jour suivant'), onclick: () => hshift(1)}, '▶'),
+    h('button', {onclick: () => { hday.value = iso(new Date()); hload(); }}, T('Aujourd’hui')),
+    h('button', {onclick: () => { hday.value = ''; hload(); }}, T('Toute la période')));
   const upd = h('span', {class:'muted'});
   const rbtn = h('button', {class:'primary', onclick: () => load()}, T('↻ Actualiser'));
   const load = async () => {
@@ -361,13 +373,14 @@ async function stats() {
     rbtn.disabled = true; rbtn.textContent = T('↻ Actualisation…');
     try {
       jp = p; jpage = 1;
-      const [, s] = await Promise.all([jload(), api('/stats?' + p)]);
+      const [, s] = await Promise.all([jload(), api('/stats?' + p + hparam())]);
+      hbox.replaceChildren(hoursChart(s.hours || []));
       upd.textContent = T('Mis à jour à ') + new Date().toLocaleTimeString(window.EC_LOCALE || 'fr-FR', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
       const by = {};
       s.calls.forEach(c => { (by[c.user_id] = by[c.user_id] || {})[c.result] = c.n; });
       sum.replaceChildren(
         h('h3', {}, T('Nombre d’appels par heure')),
-        hoursChart(s.hours || []),
+        hbar, hbox,
         h('h3', {}, T('Nombre de dossiers par statut')),
         statusChart(s.status),
         h('h3', {}, T('Prospects par statut')),
