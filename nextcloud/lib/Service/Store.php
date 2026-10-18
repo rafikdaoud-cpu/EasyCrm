@@ -184,6 +184,8 @@ class Store {
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('status')->selectAlias($qb->func()->count('*'), 'n')->from('easycrm_prospects')->groupBy('status');
 		$this->where($qb, $uid, $f);
+		if (!empty($f['from'])) { $qb->andWhere($qb->expr()->gte('last_call_at', $qb->createNamedParameter((int)$f['from'], IQueryBuilder::PARAM_INT))); }
+		if (!empty($f['to'])) { $qb->andWhere($qb->expr()->lt('last_call_at', $qb->createNamedParameter((int)$f['to'], IQueryBuilder::PARAM_INT))); }
 		return $qb->executeQuery()->fetchAll();
 	}
 	public function callCounts(?string $uid, array $f = []): array {

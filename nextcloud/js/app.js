@@ -355,17 +355,16 @@ async function stats() {
   };
   let jt; jq.addEventListener('input', () => { clearTimeout(jt); jt = setTimeout(() => { jpage = 1; jload(); }, 300); });
   const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-  const hday = h('input', {type:'date', value: iso(new Date()), onchange: () => hload()});
-  const hbox = h('div'), hbar = h('div', {style:'display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0'});
-  const hparam = () => hday.value ? '&hday=' + Math.floor(new Date(hday.value + 'T00:00:00').getTime() / 1000) : '';
-  const hshift = n => { const d = new Date((hday.value || iso(new Date())) + 'T12:00:00'); d.setDate(d.getDate() + n); hday.value = iso(d); hload(); };
-  const hload = async () => {
-    try { const r = await api('/stats?' + params() + hparam()); hbox.replaceChildren(hoursChart(r.hours || [])); }
-    catch (e) { hbox.replaceChildren(h('p', {class:'err'}, e.message)); }
-  };
-  hbar.append(h('button', {title:T('Jour précédent'), onclick: () => hshift(-1)}, '◀'), hday, h('button', {title:T('Jour suivant'), onclick: () => hshift(1)}, '▶'),
-    h('button', {onclick: () => { hday.value = iso(new Date()); hload(); }}, T('Aujourd’hui')),
-    h('button', {onclick: () => { hday.value = ''; hload(); }}, T('Toute la période')));
+  const hbox = h('div');
+  const setRange = (a, b) => { from.value = a ? iso(a) : ''; to.value = b ? iso(b) : ''; load(); };
+  const dAgo = n => { const d = new Date(); d.setDate(d.getDate() - n); return d; };
+  const presets = h('span', {style:'display:inline-flex;gap:4px;flex-wrap:wrap'},
+    h('button', {onclick: () => setRange(new Date(), new Date())}, T('Aujourd’hui')),
+    h('button', {onclick: () => setRange(dAgo(1), dAgo(1))}, T('Hier')),
+    h('button', {onclick: () => setRange(dAgo(6), new Date())}, T('7 jours')),
+    h('button', {onclick: () => { const n = new Date(); setRange(new Date(n.getFullYear(), n.getMonth(), 1), n); }}, T('Ce mois')),
+    h('button', {onclick: () => setRange(null, null)}, T('Toute la période')));
+  from.value = to.value = iso(new Date());
   const upd = h('span', {class:'muted'});
   const rbtn = h('button', {class:'primary', onclick: () => load()}, T('↻ Actualiser'));
   const load = async () => {
@@ -373,14 +372,14 @@ async function stats() {
     rbtn.disabled = true; rbtn.textContent = T('↻ Actualisation…');
     try {
       jp = p; jpage = 1;
-      const [, s] = await Promise.all([jload(), api('/stats?' + p + hparam())]);
+      const [, s] = await Promise.all([jload(), api('/stats?' + p)]);
       hbox.replaceChildren(hoursChart(s.hours || []));
       upd.textContent = T('Mis à jour à ') + new Date().toLocaleTimeString(window.EC_LOCALE || 'fr-FR', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
       const by = {};
       s.calls.forEach(c => { (by[c.user_id] = by[c.user_id] || {})[c.result] = c.n; });
       sum.replaceChildren(
         h('h3', {}, T('Nombre d’appels par heure')),
-        hbar, hbox,
+        hbox,
         h('h3', {}, T('Nombre de dossiers par statut')),
         statusChart(s.status),
         h('h3', {}, T('Prospects par statut')),
@@ -407,7 +406,7 @@ async function stats() {
     } catch (e) { alert(e.message); }
   };
   show(h('h2', {}, me.can.all ? T('Statistiques') : T('Mes statistiques')),
-    h('div', {class:'bar'}, me.can.all ? [usr.el, grp.el] : '', cat.el, res, h('label', {}, T('Du '), from), h('label', {}, T('Au '), to), rbtn, h('button', {onclick: xl}, T('⬇ Télécharger Excel')), upd),
+    h('div', {class:'bar'}, me.can.all ? [usr.el, grp.el] : '', cat.el, res, h('label', {}, T('Du '), from), h('label', {}, T('Au '), to), presets, rbtn, h('button', {onclick: xl}, T('⬇ Télécharger Excel')), upd),
     h('h3', {}, T('Journal des appels')), h('div', {class:'bar'}, jq), jpg,
     h('div', {style:'overflow-x:auto'}, box), sum);
   [usr.el, grp.el, cat.el, res, from, to].forEach(e => e.addEventListener('change', load));

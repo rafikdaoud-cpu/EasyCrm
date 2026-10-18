@@ -596,10 +596,7 @@ class ApiController extends Controller {
 		$f = $this->filters();
 		$tz = max(-840, min(840, (int)$this->request->getParam('tz', 60))) * 60;
 		$hours = array_fill(0, 24, 0);
-		$hd = (int)$this->request->getParam('hday', 0);
-		$fh = $f;
-		if ($hd > 0) { $fh['from'] = $hd; $fh['to'] = $hd + 86400; }
-		foreach ($this->s->callTimes($sc, $fh) as $t) { $hours[(int)(((($t + $tz) % 86400) + 86400) % 86400 / 3600)]++; }
+		foreach ($this->s->callTimes($sc, $f) as $t) { $hours[(int)(((($t + $tz) % 86400) + 86400) % 86400 / 3600)]++; }
 		return new JSONResponse(['status' => $this->s->statusCounts($sc, $f), 'calls' => $this->s->callCounts($sc, $f), 'users' => $this->commerciaux(), 'hours' => $hours]);
 	}
 }
