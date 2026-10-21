@@ -48,6 +48,7 @@ Disponible dès qu'un fournisseur WhatsApp est configuré (Administration → T�
 - **Réponse depuis le CRM** dans la fenêtre de 24 h de WhatsApp : texte, photos (JPG/PNG) et documents (PDF, Word, Excel, PowerPoint)
   — fichiers : Meta Cloud API et 360dialog ; texte seul : Twilio et API HTTP. Au-delà de 24 h : appel ou lien WhatsApp.
 - Photos, PDF, vocaux et vidéos reçus affichés dans la conversation (stockés dans les données de l'application, dossier `wa`).
+- Bouton « ✔ Marquer lu » : la conversation sort de la liste active et revient si le client réécrit.
 - Accusés ✓ envoyé, ✓✓ remis, ✓✓ bleu lu, ⚠ échec (Meta / 360dialog : champ `messages` ; Twilio : « Status callback URL » = webhook WhatsApp).
 - Meta en coexistence (appli WhatsApp Business + API) : abonnez aussi le champ `smb_message_echoes` pour voir dans le CRM les messages envoyés depuis le téléphone.
 - Le bouton « Envoyer un WhatsApp » de la fiche est aussi enregistré dans la conversation.

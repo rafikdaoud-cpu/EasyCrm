@@ -992,7 +992,7 @@ async function paintWa() {
   } catch (e) {}
 }
 async function waList(off = 0, keep) {
-  const boxes = me.can.all ? [['queue', T('File d’attente')], ['open', T('Ouvertes')], ['all', T('Toutes')], ['resolved', T('Résolues')]] : [['mine', T('Mes conversations')], ['resolved', T('Résolues')]];
+  const boxes = me.can.all ? [['queue', T('File d’attente')], ['open', T('Ouvertes')], ['all', T('Toutes')], ['resolved', T('Lues')]] : [['mine', T('Mes conversations')], ['resolved', T('Lues')]];
   if (!waBoxSel || !boxes.some(b => b[0] === waBoxSel)) waBoxSel = boxes[0][0];
   const st = keep || {q:'', user:''};
   const q = h('input', {type:'search', placeholder:T('Rechercher (nom, numéro, message)…'), value: st.q});
@@ -1011,7 +1011,7 @@ async function waList(off = 0, keep) {
           h('div', {class:'muted wa-prev'}, trPrev(c.preview)),
           h('div', {class:'muted'}, c.owner_name ? '👤 ' + c.owner_name : T('👥 File d’attente'), ' · ', waWin(c))),
         h('div', {style:'text-align:right;flex:none'}, h('div', {class:'muted'}, fmt(c.last_msg_at)), c.unread ? h('span', {class:'ovd'}, String(c.unread)) : '',
-          c.status === 'resolu' ? h('div', {class:'muted'}, T('✔ Résolue')) : ''))),
+          c.status === 'resolu' ? h('div', {class:'muted'}, T('✔ Lue')) : ''))),
         r.total > off + r.limit ? h('button', {onclick: () => waList(off + r.limit, {q:q.value, user: u ? u.value : ''})}, T('Suivantes →')) : '',
         off > 0 ? h('button', {onclick: () => waList(Math.max(0, off - r.limit), {q:q.value, user: u ? u.value : ''})}, T('← Précédentes')) : '',
         h('div', {class:'muted'}, TF('{0} conversation(s)', r.total)));
@@ -1043,7 +1043,7 @@ async function waConv(id, back) {
     head.replaceChildren(
       h('h2', {style:'margin:6px 0'}, c.prospect_name || c.name || c.phone || c.wa_id, ' ', h('span', {class:'muted'}, waWho(c))),
       c.name && c.prospect_name && c.name !== c.prospect_name ? h('div', {class:'muted'}, T('Nom WhatsApp : ') + c.name) : '',
-      h('div', {class:'muted'}, c.owner_name ? '👤 ' + c.owner_name : T('👥 File d’attente'), ' · ', waWin(c), c.status === 'resolu' ? ' · ' + T('✔ Résolue') : ''),
+      h('div', {class:'muted'}, c.owner_name ? '👤 ' + c.owner_name : T('👥 File d’attente'), ' · ', waWin(c), c.status === 'resolu' ? ' · ' + T('✔ Lue') : ''),
       c.prospect_id ? h('button', {onclick: () => detail(c.prospect_id)}, T('📇 Ouvrir la fiche') + (c.prospect_status ? ' (' + (ST[c.prospect_status] || c.prospect_status) + ')' : '')) : '');
     const atBottom = thread.scrollHeight - thread.scrollTop - thread.clientHeight < 60;
     thread.replaceChildren(...dd.messages.map(m => h('div', {class:'wa-b ' + (m.dir === 'out' ? 'out' : 'in')},
@@ -1092,7 +1092,7 @@ async function waConv(id, back) {
           }}, T('Créer la fiche'))), h('div', {class:'muted'}, T('La fiche est attribuée au commercial choisi ci-dessus (ou reste non assignée).'))));
     }
   }
-  if (d.can.reply) actions.append(h('button', {onclick: async () => { try { await api('/wa/' + id + '/resolve', {method:'POST'}); waConv(id, back); } catch (e) { amsg.textContent = T(e.message); } }}, c0.status === 'resolu' ? T('↺ Rouvrir') : T('✔ Marquer résolue')));
+  if (d.can.reply) actions.append(h('button', {onclick: async () => { try { await api('/wa/' + id + '/resolve', {method:'POST'}); waConv(id, back); } catch (e) { amsg.textContent = T(e.message); } }}, c0.status === 'resolu' ? T('↺ Marquer non lu') : T('✔ Marquer lu')));
   actions.append(amsg);
   show(h('button', {onclick: () => (back || (() => { tab = 'wa'; waList(); }))()}, T('← Retour')), head, actions, thread, reply);
   paintWa();

@@ -16,7 +16,7 @@
 * Saisie des appels différée en cas de coupure réseau
 * Boîte WhatsApp partagée : conversations attribuées au commercial de la fiche, file d'attente pour les numéros inconnus, réponses avec photos et documents
 * Téléphonie : Asterisk/FreePBX, Yeastar, 3CX, API HTTP ou lien softphone ; WhatsApp : lien, Meta Cloud API, 360dialog, Twilio (pré-réglages et webhooks)]]></description>
-	<version>1.3.1</version>
+	<version>1.3.2</version>
 	<licence>agpl</licence>
 	<author>Rafik</author>
 	<namespace>EasyCrm</namespace>
