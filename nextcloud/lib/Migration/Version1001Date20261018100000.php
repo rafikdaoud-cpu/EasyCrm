@@ -1,0 +1,30 @@
+<?php
+namespace OCA\EasyCrm\Migration;
+use Closure;
+use OCP\DB\ISchemaWrapper;
+use OCP\DB\Types;
+use OCP\Migration\IOutput;
+use OCP\Migration\SimpleMigrationStep;
+/** Motif de refus sur les appels + journal d'activité (transferts, clôtures automatiques, exports…). */
+class Version1001Date20261018100000 extends SimpleMigrationStep {
+	public function changeSchema(IOutput $output, Closure $schemaClosure, array $options): ?ISchemaWrapper {
+		$s = $schemaClosure();
+		if ($s->hasTable('easycrm_calls')) {
+			$t = $s->getTable('easycrm_calls');
+			if (!$t->hasColumn('reason')) { $t->addColumn('reason', Types::STRING, ['notnull' => false, 'length' => 80]); }
+		}
+		if (!$s->hasTable('easycrm_audit')) {
+			$t = $s->createTable('easycrm_audit');
+			$t->addColumn('id', Types::BIGINT, ['autoincrement' => true, 'notnull' => true]);
+			$t->addColumn('created_at', Types::BIGINT, ['notnull' => true, 'default' => 0]);
+			$t->addColumn('user_id', Types::STRING, ['notnull' => false, 'length' => 64]);
+			$t->addColumn('action', Types::STRING, ['notnull' => true, 'length' => 32]);
+			$t->addColumn('prospect_id', Types::BIGINT, ['notnull' => false]);
+			$t->addColumn('detail', Types::TEXT, ['notnull' => false]);
+			$t->setPrimaryKey(['id']);
+			$t->addIndex(['created_at'], 'ec_a_date');
+			$t->addIndex(['action'], 'ec_a_action');
+		}
+		return $s;
+	}
+}

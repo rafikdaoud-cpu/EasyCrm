@@ -26,3 +26,16 @@
 .ccp button{display:block;width:100%;margin-top:6px}
 #easycrm .badge.non_eligible{background:#8a4b9d;color:#fff}
 #easycrm .badge.faux_numero{background:#c0392b;color:#fff}
+#easycrm .nav button{position:relative}
+#easycrm .ovd{display:inline-block;min-width:18px;margin-left:6px;padding:0 5px;border-radius:9px;background:#d12;color:#fff;font-size:11px;font-weight:bold;line-height:18px;text-align:center}
+#easycrm .nav .goal{display:inline-flex;align-items:center;gap:8px;margin-left:auto;font-size:13px}
+#easycrm .gbar{display:inline-block;width:90px;height:8px;border-radius:4px;background:var(--color-background-darker,#ddd);overflow:hidden}
+#easycrm .gbar>span{display:block;height:100%;background:#2e9e55}
+#easycrm .row.overdue{border-left:4px solid #d12;background:rgba(221,17,34,.06)}
+#easycrm .selbar{align-items:center;gap:8px;flex-wrap:wrap}
+#easycrm .shortcuts{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
+#easycrm .shortcuts button{padding:4px 10px}
+#easycrm .pbar{display:inline-block;width:80px;height:8px;border-radius:4px;background:var(--color-background-darker,#ddd);overflow:hidden;vertical-align:middle}
+#easycrm .pbar>span{display:block;height:100%;background:#2e9e55}
+#easycrm table.t{width:100%;border-collapse:collapse}
+#easycrm table.t th,#easycrm table.t td{padding:5px 6px;text-align:left;border-top:1px solid var(--color-border)}

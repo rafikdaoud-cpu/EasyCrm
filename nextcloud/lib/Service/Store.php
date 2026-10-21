@@ -23,7 +23,7 @@ class Store {
 		if (!empty($f['q'])) {
 			$l = '%' . $this->db->escapeLikeParameter($f['q']) . '%';
 			$or = $qb->expr()->orX();
-			foreach (['lastname', 'firstname', 'email', 'phone'] as $c) { $or->add($qb->expr()->like($c, $qb->createNamedParameter($l))); }
+			foreach (empty($f['nophone']) ? ['lastname', 'firstname', 'email', 'phone'] : ['lastname', 'firstname', 'email'] as $c) { $or->add($qb->expr()->like($c, $qb->createNamedParameter($l))); }
 			$qb->andWhere($or);
 		}
 	}
@@ -147,14 +147,14 @@ class Store {
 		if ($q !== '') {
 			$l = $qb->createNamedParameter('%' . $this->db->escapeLikeParameter($q) . '%');
 			$or = [];
-			foreach (['p.lastname', 'p.firstname', 'p.phone', 'c.note', 'c.user_id'] as $col) { $or[] = $qb->expr()->like($col, $l); }
+			foreach (empty($f['nophone']) ? ['p.lastname', 'p.firstname', 'p.phone', 'c.note', 'c.user_id'] : ['p.lastname', 'p.firstname', 'c.note', 'c.user_id'] as $col) { $or[] = $qb->expr()->like($col, $l); }
 			if (!empty($f['qusers'])) { $or[] = $qb->expr()->in('c.user_id', $qb->createNamedParameter($f['qusers'], IQueryBuilder::PARAM_STR_ARRAY)); }
 			$qb->andWhere($qb->expr()->orX(...$or));
 		}
 	}
 	public function callLog(?string $uid, array $f, int $limit, int $off): array {
 		$qb = $this->db->getQueryBuilder();
-		$qb->select('c.id', 'c.user_id', 'c.result', 'c.note', 'c.callback_at', 'c.created_at', 'c.prospect_id', 'p.lastname', 'p.firstname', 'p.phone', 'p.c2')
+		$qb->select('c.id', 'c.user_id', 'c.result', 'c.note', 'c.callback_at', 'c.created_at', 'c.prospect_id', 'c.reason', 'p.lastname', 'p.firstname', 'p.phone', 'p.c2')
 			->from('easycrm_calls', 'c')->innerJoin('c', 'easycrm_prospects', 'p', $qb->expr()->eq('c.prospect_id', 'p.id'));
 		$cols = ['date' => 'c.created_at', 'user' => 'c.user_id', 'client' => 'p.lastname', 'phone' => 'p.phone', 'cat' => 'p.c2', 'result' => 'c.result', 'note' => 'c.note'];
 		$dir = ($f['dir'] ?? '') === 'asc' ? 'ASC' : 'DESC';
@@ -178,6 +178,84 @@ class Store {
 			->andWhere($qb->expr()->notIn('assigned_to', $qb->createNamedParameter($valid, IQueryBuilder::PARAM_STR_ARRAY)));
 		if ($onlyNew) { $qb->andWhere($qb->expr()->eq('status', $qb->createNamedParameter('nouveau'))); }
 		return $qb->orderBy('id', 'ASC')->executeQuery()->fetchAll();
+	}
+	/** Identifiants des prospects d'un commercial (ou non assignés si $from === '') filtrés par statut, les plus anciens d'abord. */
+	public function idsFor(string $from, string $status, int $limit = 0): array {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('id')->from('easycrm_prospects');
+		if ($from === '') { $qb->where($qb->expr()->isNull('assigned_to')); } else { $qb->where($qb->expr()->eq('assigned_to', $qb->createNamedParameter($from))); }
+		if ($status !== '') { $qb->andWhere($qb->expr()->eq('status', $qb->createNamedParameter($status))); }
+		$qb->orderBy('id', 'ASC');
+		if ($limit > 0) { $qb->setMaxResults($limit); }
+		return array_map('intval', array_column($qb->executeQuery()->fetchAll(), 'id'));
+	}
+	/** Réassigne une liste de prospects ; retourne le nombre de lignes modifiées. */
+	public function reassign(array $ids, string $to): int {
+		$n = 0;
+		foreach (array_chunk($ids, 500) as $chunk) {
+			$qb = $this->db->getQueryBuilder();
+			$qb->update('easycrm_prospects')->set('assigned_to', $qb->createNamedParameter($to))
+				->where($qb->expr()->in('id', $qb->createNamedParameter($chunk, IQueryBuilder::PARAM_INT_ARRAY)));
+			$n += $qb->executeStatement();
+		}
+		return $n;
+	}
+	/** Nombre d'appels de ce prospect dont le résultat demande un rappel (statuts « avec date de rappel »). */
+	public function callbackCalls(int $prospectId): int {
+		$keys = \OCA\EasyCrm\Service\Statuses::callbackKeys();
+		if (!$keys) { return 0; }
+		$qb = $this->db->getQueryBuilder();
+		$qb->select($qb->func()->count('*', 'n'))->from('easycrm_calls')
+			->where($qb->expr()->eq('prospect_id', $qb->createNamedParameter($prospectId, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->in('result', $qb->createNamedParameter($keys, IQueryBuilder::PARAM_STR_ARRAY)));
+		return (int)$qb->executeQuery()->fetchOne();
+	}
+	/** Journal d'activité (transferts, clôtures automatiques, exports, imports…). */
+	public function audit(?string $uid, string $action, ?int $pid = null, string $detail = ''): void {
+		try { $this->insert('easycrm_audit', ['created_at' => time(), 'user_id' => $uid, 'action' => $action, 'prospect_id' => $pid, 'detail' => mb_substr($detail, 0, 4000)]); }
+		catch (\Throwable $e) { /* le journal ne doit jamais bloquer l'action */ }
+	}
+	public function auditList(int $limit, int $off, string $action = ''): array {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('*')->from('easycrm_audit')->orderBy('id', 'DESC')->setMaxResults($limit)->setFirstResult($off);
+		if ($action !== '') { $qb->where($qb->expr()->eq('action', $qb->createNamedParameter($action))); }
+		return $qb->executeQuery()->fetchAll();
+	}
+	public function auditCount(string $action = ''): int {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select($qb->func()->count('*', 'n'))->from('easycrm_audit');
+		if ($action !== '') { $qb->where($qb->expr()->eq('action', $qb->createNamedParameter($action))); }
+		return (int)$qb->executeQuery()->fetchOne();
+	}
+	/** Rappels dont l'heure est dépassée (statuts « avec date de rappel »). */
+	public function overdueCount(?string $uid, int $now): int {
+		$keys = \OCA\EasyCrm\Service\Statuses::callbackKeys();
+		if (!$keys) { return 0; }
+		$qb = $this->db->getQueryBuilder();
+		$qb->select($qb->func()->count('*', 'n'))->from('easycrm_prospects')
+			->where($qb->expr()->isNotNull('callback_at'))->andWhere($qb->expr()->lt('callback_at', $qb->createNamedParameter($now, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->in('status', $qb->createNamedParameter($keys, IQueryBuilder::PARAM_STR_ARRAY)));
+		if ($uid !== null) { $qb->andWhere($qb->expr()->eq('assigned_to', $qb->createNamedParameter($uid))); }
+		return (int)$qb->executeQuery()->fetchOne();
+	}
+	/** Nombre d'appels passés depuis $since, par commercial (user_id => n). */
+	public function callsSince(?string $uid, int $since): array {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('user_id')->selectAlias($qb->func()->count('*'), 'n')->from('easycrm_calls')->groupBy('user_id')
+			->where($qb->expr()->gte('created_at', $qb->createNamedParameter($since, IQueryBuilder::PARAM_INT)));
+		if ($uid !== null) { $qb->andWhere($qb->expr()->eq('user_id', $qb->createNamedParameter($uid))); }
+		$o = []; foreach ($qb->executeQuery()->fetchAll() as $r) { $o[$r['user_id']] = (int)$r['n']; }
+		return $o;
+	}
+	/** Motifs de refus (motif => nombre d'appels) sur la même sélection que le journal. */
+	public function reasonCounts(?string $uid, array $f): array {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('c.reason')->selectAlias($qb->func()->count('*'), 'n')->from('easycrm_calls', 'c')
+			->innerJoin('c', 'easycrm_prospects', 'p', $qb->expr()->eq('c.prospect_id', 'p.id'))
+			->groupBy('c.reason')->orderBy('n', 'DESC');
+		$this->logWhere($qb, $uid, $f);
+		$qb->andWhere($qb->expr()->isNotNull('c.reason'))->andWhere($qb->expr()->neq('c.reason', $qb->createNamedParameter('')));
+		return $qb->executeQuery()->fetchAll();
 	}
 	public function unassigned(): array {
 		$qb = $this->db->getQueryBuilder();

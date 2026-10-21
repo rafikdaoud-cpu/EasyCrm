@@ -6,15 +6,15 @@ use OCP\IConfig;
 /** Statuts / réponses d'appel personnalisables (libellé, couleur, règles de saisie). */
 class Statuses {
 	public const MAX_CUSTOM = 20;
-	/** clé => [libellé, couleur, rappel obligatoire, note obligatoire] */
+	/** clé => [libellé, couleur, rappel obligatoire, note obligatoire, motif obligatoire] */
 	private const BUILTIN = [
-		'nouveau' => ['Nouveau', '#3b82f6', false, false],
-		'interesse' => ['Intéressé', '#2e9e55', false, false],
-		'injoignable' => ['Ne répond pas', '#e9a100', true, false],
-		'rappel' => ['À rappeler (occupé)', '#f0c040', true, false],
-		'pas_interesse' => ['Pas intéressé', '#888888', false, true],
-		'non_eligible' => ['Non éligible', '#8a4b9d', false, false],
-		'faux_numero' => ['Injoignable / faux numéro', '#c0392b', false, false],
+		'nouveau' => ['Nouveau', '#3b82f6', false, false, false],
+		'interesse' => ['Intéressé', '#2e9e55', false, false, false],
+		'injoignable' => ['Ne répond pas', '#e9a100', true, false, false],
+		'rappel' => ['À rappeler (occupé)', '#f0c040', true, false, false],
+		'pas_interesse' => ['Pas intéressé', '#888888', false, true, true],
+		'non_eligible' => ['Non éligible', '#8a4b9d', false, false, true],
+		'faux_numero' => ['Injoignable / faux numéro', '#c0392b', false, false, false],
 	];
 
 	private static function stored(): array {
@@ -34,7 +34,7 @@ class Statuses {
 			elseif (preg_match('/^s[0-9a-f]{6}$/', $k)) {
 				$l = mb_substr(trim((string)($f['label'] ?? '')), 0, 40);
 				$out[] = ['key' => $k, 'label' => $l !== '' ? $l : $k, 'color' => self::color($f['color'] ?? '', '#607d8b'), 'callback' => !empty($f['callback']),
-					'note' => !empty($f['note']), 'active' => !array_key_exists('active', $f) || !empty($f['active']), 'builtin' => false, 'result' => true];
+					'note' => !empty($f['note']), 'reason' => !empty($f['reason']), 'active' => !array_key_exists('active', $f) || !empty($f['active']), 'builtin' => false, 'result' => true];
 			} else { continue; }
 			$seen[$k] = true;
 		}
@@ -42,12 +42,13 @@ class Statuses {
 		return $out;
 	}
 	private static function builtin(string $k, array $f): array {
-		[$label, $color, $cb, $note] = self::BUILTIN[$k];
+		[$label, $color, $cb, $note, $rs] = self::BUILTIN[$k];
 		$l = mb_substr(trim((string)($f['label'] ?? '')), 0, 40);
 		$isNew = $k === 'nouveau';
 		return ['key' => $k, 'label' => $l !== '' ? $l : $label, 'color' => self::color($f['color'] ?? '', $color),
 			'callback' => $isNew ? false : (array_key_exists('callback', $f) ? !empty($f['callback']) : $cb),
 			'note' => $isNew ? false : (array_key_exists('note', $f) ? !empty($f['note']) : $note),
+			'reason' => $isNew ? false : (array_key_exists('reason', $f) ? !empty($f['reason']) : $rs),
 			'active' => $isNew ? true : (!array_key_exists('active', $f) || !empty($f['active'])), 'builtin' => true, 'result' => !$isNew];
 	}
 
@@ -69,11 +70,11 @@ class Statuses {
 			if (isset(self::BUILTIN[$k])) {
 				if (isset($seen[$k])) { continue; }
 				$clean[] = ['key' => $k, 'label' => $label !== '' ? $label : self::BUILTIN[$k][0], 'color' => $color, 'callback' => $k !== 'nouveau' && !empty($f['callback']),
-					'note' => $k !== 'nouveau' && !empty($f['note']), 'active' => $k === 'nouveau' ? true : !empty($f['active'])];
+					'note' => $k !== 'nouveau' && !empty($f['note']), 'reason' => $k !== 'nouveau' && !empty($f['reason']), 'active' => $k === 'nouveau' ? true : !empty($f['active'])];
 			} else {
 				if ($label === '' || ++$custom > self::MAX_CUSTOM) { continue; }
 				if (!preg_match('/^s[0-9a-f]{6}$/', $k) || isset($seen[$k])) { $k = 's' . bin2hex(random_bytes(3)); }
-				$clean[] = ['key' => $k, 'label' => $label, 'color' => $color, 'callback' => !empty($f['callback']), 'note' => !empty($f['note']), 'active' => !empty($f['active'])];
+				$clean[] = ['key' => $k, 'label' => $label, 'color' => $color, 'callback' => !empty($f['callback']), 'note' => !empty($f['note']), 'reason' => !empty($f['reason']), 'active' => !empty($f['active'])];
 			}
 			$seen[$k] = true;
 		}

@@ -20,6 +20,7 @@ function applyStatuses() {
 const inkOn = c => { const n = parseInt(String(c).slice(1), 16) || 0, l = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)); return l > 160 ? '#000' : '#fff'; };
 const badge = k => h('span', {class:'badge', style:'background:' + (STC[k] || '#888') + ';color:' + inkOn(STC[k] || '#888')}, ST[k] || k);
 const fmtD = t => Number(t) ? new Date(t * 1000).toLocaleDateString(window.EC_LOCALE || 'fr-FR', {day:'2-digit', month:'2-digit', year:'numeric'}) : '';
+const fmtS = t => t ? new Date(t * 1000).toLocaleString(window.EC_LOCALE || 'fr-FR', {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false}) : '';
 const fmt = t => t ? new Date(t * 1000).toLocaleString(window.EC_LOCALE || 'fr-FR', {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}) : '';
 const waNum = p => { const d = String(p || '').replace(/\D+/g, ''), ph = (me && me.phone) || {cc:'', trunk:''};
   if (!ph.cc) return d;
@@ -78,7 +79,8 @@ async function flushQueue() {
 window.addEventListener('online', flushQueue); window.addEventListener('offline', paintBanner);
 setInterval(flushQueue, 30000);
 let sortBy = {k:'', d:'desc'};
-let pageSize = 20; try { pageSize = Number(localStorage.getItem('easycrm_ps')) || 20; } catch (e) {}
+const sel = new Set();
+let pageSize = 10; try { const v = localStorage.getItem('easycrm_ps2'); if (v !== null && [0, 10, 20, 30].includes(Number(v))) pageSize = Number(v); } catch (e) {}
 let me, tab = 'nouveaux', filt = {q:'', status:'', assigned:''}, snooze = {}, popup = false;
 try { snooze = JSON.parse(localStorage.getItem('easycrm_snooze') || '{}'); } catch (e) {}
 const saveSnooze = () => { try { localStorage.setItem('easycrm_snooze', JSON.stringify(snooze)); } catch (e) {} };
@@ -101,7 +103,7 @@ function fieldEl(f, val, disabled) {
   const st = 'width:100%;box-sizing:border-box', a = {'data-k': f.key, disabled, style: st};
   if (f.type === 'textarea') return h('textarea', {...a, rows: 3}, val);
   if (f.type === 'select') return h('select', a, h('option', {value:''}, '—'), (f.options || []).map(x => h('option', {value:x, selected: val === x}, x)));
-  if (f.type === 'yesno') return h('select', a, h('option', {value:''}, '—'), ['Oui', 'Non'].map(x => h('option', {value:x, selected: val === x}, T(x))));
+  if (f.type === 'yesno') return h('select', a, h('option', {value:''}, '—'), [T('Oui'), T('Non')].map(x => h('option', {value:x, selected: val === x}, T(x))));
   if (f.type === 'multiselect') { const cur = String(val).split('|').map(x => x.trim());
     return h('div', {'data-k': f.key, 'data-multi': 1, style:'display:flex;flex-wrap:wrap;gap:4px 14px;padding:4px 0'},
       (f.options || []).map(x => h('label', {style:'display:flex;align-items:center;gap:4px'}, h('input', {type:'checkbox', value:x, checked: cur.includes(x), disabled}), x))); }
@@ -112,23 +114,36 @@ function fieldsGrid(p, disabled) {
   return h('div', {class:'g2'}, vis.map(f => h('label', {class: ['textarea', 'multiselect'].includes(f.type) || f.key === 'lastname' ? 'full' : '', style:'display:block;margin:5px 0'},
     h('span', {class:'muted'}, f.label + (f.required ? ' *' : '')), fieldEl(f, fval(p, f), disabled))));
 }
-const show = (...n) => { root.replaceChildren(nav(), ...n.flat()); };
+const show = (...n) => { root.replaceChildren(nav(), ...n.flat()); paintCounters(); };
+let CNT = {overdue:0, today:null, goal:0};
+/** Badge des rappels en retard + progression de l'objectif quotidien (commerciaux). */
+async function paintCounters() {
+  try { CNT = await api('/counters'); } catch (e) { return; }
+  const btn = root.querySelector('.nav button[data-k="rappels"]');
+  if (btn) { btn.querySelector('.ovd')?.remove(); if (CNT.overdue) btn.append(h('span', {class:'ovd', title:T('Rappels en retard')}, String(CNT.overdue))); }
+  const g = root.querySelector('.nav .goal');
+  if (g && CNT.goal && CNT.today !== null) {
+    const pc = Math.min(100, Math.round(100 * CNT.today / CNT.goal));
+    g.replaceChildren(T('🎯 Aujourd’hui : ') + CNT.today + ' / ' + CNT.goal + T(' appels'), h('span', {class:'gbar'}, h('span', {style:'width:' + pc + '%'})));
+  }
+}
 function nav() {
   const t = TABS.slice();
   if (me.can.all) t.push(['tous', T('Tous')]);
   t.push(['stats', me.can.all ? T('Statistiques') : T('Mes statistiques')]);
   if (me.can.import) t.push(['admin', T('Administration')]);
-  return h('div', {class:'nav'}, t.map(([k, l]) => h('button', {class: tab === k ? 'on' : '', onclick: () => go(k)}, l)));
+  return h('div', {class:'nav'}, t.map(([k, l]) => h('button', {class: tab === k ? 'on' : '', 'data-k': k, onclick: () => go(k)}, l)),
+    me.role === 'commercial' && me.prefs && me.prefs.goal ? h('span', {class:'goal muted'}) : '');
 }
 function go(k) { tab = k; if (k === 'stats') stats(); else if (k === 'admin') admin(); else list(k); }
 const modeOpts = none => [
-  me.groups.length ? h('option', {value:'categorie'}, T('Par catégorie (équipe de chaque catégorie)')) : '',
+  h('option', {value:'categorie'}, T('Par catégorie (groupe de chaque catégorie)')),
   h('option', {value:'auto'}, T('Équitablement (tous les commerciaux)')),
   me.groups.map(g => h('option', {value:'grp:' + g.id}, T('Tout vers le groupe ') + g.name)),
   none ? h('option', {value:''}, T('Non assignés')) : ''].flat();
-async function distribute(mode, out) {
+async function distribute(mode, out, uids) {
   out.textContent = '…';
-  try { const r = await api('/distribute', {method:'POST', body:{mode}}); out.textContent = r.assigned + T(' prospect(s) répartis.'); }
+  try { const r = await api('/distribute', {method:'POST', body:{mode, uids: uids || []}}); out.textContent = r.assigned + T(' prospect(s) répartis.'); }
   catch (e) { out.textContent = e.message; }
 }
 function distButtons() {
@@ -138,6 +153,7 @@ function distButtons() {
 
 async function list(k) {
   const K = KINDS[k];
+  sel.clear(); let rowsNow = [];
   const box = h('div', {}, T('Chargement…'));
   const q = h('input', {type:'search', placeholder:T('Rechercher…'), value:filt.q});
   const bar = h('div', {class:'bar'}, q);
@@ -154,6 +170,19 @@ async function list(k) {
   const dbar = h('div', {class:'bar'}, h('label', {}, T('Inscrit du '), rf), h('label', {}, T('au '), rt), h('label', {}, T('Traité du '), pf), h('label', {}, T('au '), pt),
     h('button', {onclick: () => { [rf, rt, pf, pt].forEach(x => x.value = ''); load(); }}, T('Effacer les dates')));
   const dts = (v, add) => v ? Math.floor(new Date(v + 'T00:00:00').getTime() / 1000) + add : '';
+  const selAll = h('input', {type:'checkbox', title:T('Tout cocher (page)'), onchange: e => { rowsNow.forEach(x => e.target.checked ? sel.add(x.id) : sel.delete(x.id)); box.querySelectorAll('.rsel').forEach(c => { c.checked = e.target.checked; }); refreshSel(); }});
+  const selCnt = h('span', {class:'muted'}), selMsg = h('span', {class:'muted'});
+  const selTo = h('select', {}, h('option', {value:''}, T('Transférer vers…')), me.commerciaux.map(u => h('option', {value:u.uid}, u.name)));
+  const selBtn = h('button', {class:'primary', onclick: async () => {
+    if (!selTo.value) { selMsg.textContent = T('Choisissez le commercial destinataire.'); return; }
+    const who = (me.commerciaux.find(u => u.uid === selTo.value) || {}).name || selTo.value;
+    if (!confirm(T('Transférer ') + sel.size + T(' prospect(s) vers « ') + who + T(' » ?'))) return;
+    selMsg.textContent = '…';
+    try { const r = await api('/transfer', {method:'POST', body:{ids:[...sel], to:selTo.value}}); sel.clear(); selMsg.textContent = '✔ ' + r.transferred + T(' prospect(s) transféré(s).'); load(true); }
+    catch (e) { selMsg.textContent = e.message; }
+  }}, T('Transférer la sélection'));
+  const selBar = me.can.assign ? h('div', {class:'bar selbar'}, h('label', {}, selAll, T(' Tout cocher (page)')), selCnt, selTo, selBtn, selMsg) : '';
+  function refreshSel() { selCnt.textContent = sel.size + T(' sélectionné(s)'); selBtn.disabled = !sel.size; selAll.checked = !!rowsNow.length && rowsNow.every(x => sel.has(x.id)); }
   const pst = 'justify-content:space-between;align-items:center;margin:8px 0';
   const pager = h('div', {class:'bar', style:pst}), pagerB = h('div', {class:'bar', style:pst});
   const load = async (keep) => {
@@ -164,21 +193,23 @@ async function list(k) {
       sort:sortBy.k, dir:sortBy.d, paged:1, limit:pageSize, offset:(page - 1) * pageSize});
     try {
       const r = await api('/prospects?' + p);
-      const pages = Math.max(1, Math.ceil(r.total / pageSize));
+      const pages = pageSize ? Math.max(1, Math.ceil(r.total / pageSize)) : 1;
       if (page > pages) { page = pages; return load(true); }
-      box.replaceChildren(...(r.rows.length ? r.rows.map(row) : [h('p', {class:'muted'}, T('Aucun prospect.'))]));
+      rowsNow = r.rows;
+      box.replaceChildren(...(r.rows.length ? r.rows.map(x => row(x, me.can.assign ? refreshSel : null)) : [h('p', {class:'muted'}, T('Aucun prospect.'))]));
+      refreshSel();
       const go2 = n => { page = n; load(true); window.scrollTo(0, 0); };
       const mk = () => [
-        h('span', {class:'muted'}, r.total + T(' fiche(s) client(s) — page ') + page + ' / ' + pages),
+        h('span', {class:'muted'}, r.total + T(' fiche(s) client(s) — page ') + page + ' / ' + pages + (!pageSize && r.total > 5000 ? T(' (5000 premières affichées)') : '')),
         h('span', {}, h('button', {disabled: page <= 1, onclick: () => go2(page - 1)}, T('◀ Précédent')), ' ',
           h('button', {disabled: page >= pages, onclick: () => go2(page + 1)}, T('Suivant ▶')), ' ',
-          h('select', {onchange: e => { pageSize = Number(e.target.value); try { localStorage.setItem('easycrm_ps', String(pageSize)); } catch (x) {} load(); }},
-            [10, 20, 30].map(n => h('option', {value:n, selected: n === pageSize}, n + T(' par page')))))];
+          h('select', {onchange: e => { pageSize = Number(e.target.value); try { localStorage.setItem('easycrm_ps2', String(pageSize)); } catch (x) {} load(); }},
+            [10, 20, 30, 0].map(n => h('option', {value:n, selected: n === pageSize}, n ? n + T(' par page') : T('Tout')))))];
       pager.replaceChildren(...mk()); pagerB.replaceChildren(...mk());
     } catch (e) { box.replaceChildren(h('p', {class:'err'}, e.message)); }
   };
   [q, s, a, rf, rt, pf, pt].forEach(e => e && e.addEventListener('change', () => load()));
-  show(h('h2', {}, K.t), me.can.create ? h('div', {class:'bar'}, h('button', {class:'primary', onclick: () => addForm()}, T('+ Ajouter un client'))) : '', me.can.assign && K.all ? distButtons() : '', bar, dbar, pager, box, pagerB); load();
+  show(h('h2', {}, K.t), me.can.create ? h('div', {class:'bar'}, h('button', {class:'primary', onclick: () => addForm()}, T('+ Ajouter un client'))) : '', me.can.assign && K.all ? distButtons() : '', bar, dbar, selBar, pager, box, pagerB); load();
 }
 async function addForm() {
   const msg = h('div', {class:'err'});
@@ -191,17 +222,42 @@ async function addForm() {
       try { const r = await api('/prospects', {method:'POST', body: collect(box)}); detail(r.id); }
       catch (x) { msg.textContent = x.message; e.target.disabled = false; }
     }}, T('Enregistrer')), msg);
+  const phIn = box.querySelector('[data-k="phone"]');
+  if (phIn) {
+    const w = h('div', {class:'err'}); phIn.after(w);
+    phIn.addEventListener('change', async () => {
+      w.replaceChildren();
+      if (!phIn.value.trim()) return;
+      try {
+        const r = await api('/duplicate?phone=' + encodeURIComponent(phIn.value));
+        if (r.exists) w.replaceChildren(T('⚠ Ce numéro existe déjà') + (r.name ? ' : « ' + r.name + ' »' + (r.assigned ? T(' (assigné à ') + r.assigned + ')' : T(' (non assigné)')) : T(' (fiche d’un autre commercial)')) + '. ',
+          r.id ? h('a', {href:'#', onclick: e => { e.preventDefault(); detail(r.id); }}, T('Ouvrir la fiche')) : '');
+      } catch (e) {}
+    });
+  }
   show(h('button', {onclick: () => go(tab)}, T('← Retour')), box);
 }
-function row(r) {
-  const late = r.callback_at && Number(r.callback_at) < Date.now() / 1000;
-  return h('div', {class:'row', onclick: () => detail(r.id)},
-    h('div', {}, h('strong', {}, nm(r)), h('div', {class:'muted'}, [r.phone, r.c5, r.c2].filter(Boolean).join(' · ') || T('Sans numéro')),
+function row(r, onSel) {
+  const late = r.callback_at && Number(r.callback_at) < Date.now() / 1000 && STD[r.status] && STD[r.status].callback;
+  const ck = onSel ? h('input', {type:'checkbox', class:'rsel', checked: sel.has(r.id), onclick: e => { e.stopPropagation(); e.target.checked ? sel.add(r.id) : sel.delete(r.id); onSel(); }}) : '';
+  return h('div', {class:'row' + (late ? ' overdue' : ''), onclick: () => detail(r.id)},
+    ck ? h('div', {style:'display:flex;align-items:flex-start;padding-top:2px'}, ck) : '',
+    h('div', {style:'flex:1'}, h('strong', {}, nm(r)), h('div', {class:'muted'}, [r.phone, r.c5, r.c2].filter(Boolean).join(' · ') || T('Sans numéro')),
       h('div', {class:'muted'}, T('Inscrit le ') + fmtD(r.created_at) + ' · ' + T('Traité le ') + (Number(r.last_call_at) ? fmtD(r.last_call_at) : '—'))),
     h('div', {style:'text-align:right'}, badge(r.status),
-      r.callback_at ? h('div', {class: late ? 'late' : 'muted'}, '⏰ ' + fmt(Number(r.callback_at))) : ''));
+      r.callback_at ? h('div', {class: late ? 'late' : 'muted'}, (late ? T('⚠ En retard · ') : '⏰ ') + fmt(Number(r.callback_at))) : ''));
 }
 
+/** Note non modifiable : tentatives sans succès (réponses « avec date de rappel »), avec date et heure exactes. */
+function attemptsBox(calls) {
+  const a = (calls || []).filter(c => STD[c.result] && STD[c.result].callback).sort((x, y) => Number(x.created_at) - Number(y.created_at));
+  if (!a.length) return '';
+  const max = me.max_callbacks || 0;
+  return h('div', {class:'card', style:'background:var(--color-background-dark,#f3f3f3);margin:8px 0', title:T('Note automatique, non modifiable')},
+    h('strong', {}, T('🔒 Tentatives de rappel : ') + a.length + (max ? ' / ' + max : '')),
+    ...a.map((c, i) => h('div', {}, T('Appel ') + (i + 1) + ' : ' + fmtS(Number(c.created_at)) + ' — ' + ST[c.result] + (c.user_id ? ' (' + c.user_id + ')' : ''))),
+    max && a.length >= max ? h('div', {class:'err'}, T('Limite atteinte.')) : '');
+}
 async function detail(id) {
   let d;
   try { d = await api('/prospects/' + id); } catch (e) { return show(h('p', {class:'err'}, e.message)); }
@@ -209,14 +265,44 @@ async function detail(id) {
   let sel = null;
   const note = h('textarea', {rows:2, placeholder:T('Note')});
   const cb = h('input', {type:'datetime-local'});
+  const P = me.prefs || {};
+  const reason = h('select', {}, h('option', {value:''}, T('— Motif (obligatoire) —')), (P.reasons || []).map(x => h('option', {value:x}, x)));
   const msg = h('div', {class:'err'});
   const form = h('div', {class:'card', style:'display:none'});
+  const hm = v => { const m = /^(\d{1,2}):(\d{2})$/.exec(v || ''); return m ? (+m[1]) * 60 + (+m[2]) : null; };
+  const pad = n => String(n).padStart(2, '0');
+  const toLocal = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  const winA = hm(P.cb_from), winB = hm(P.cb_to), gap = P.cb_gap || 0;
+  /** ramène une date dans la plage de rappel autorisée */
+  const fit = d => {
+    if (winA === null || winB === null) return d;
+    const m = d.getHours() * 60 + d.getMinutes();
+    if (m < winA) d.setHours(Math.floor(winA / 60), winA % 60, 0, 0);
+    else if (m > winB) { d.setDate(d.getDate() + 1); d.setHours(Math.floor(winA / 60), winA % 60, 0, 0); }
+    return d;
+  };
+  const setCb = d => { cb.value = toLocal(fit(d)); };
+  const inMin = n => setCb(new Date(Date.now() + Math.max(n, gap) * 60000));
+  const tomorrow = () => { const d = new Date(); d.setDate(d.getDate() + 1); const a = winA === null ? 540 : winA; d.setHours(Math.floor(a / 60), a % 60, 0, 0); cb.value = toLocal(d); };
+  const cbHint = (winA !== null && winB !== null ? T('Plage autorisée : ') + P.cb_from + ' – ' + P.cb_to : '') + (gap ? (winA !== null ? ' · ' : '') + T('espacement minimum : ') + gap + T(' min') : '');
+  const checkCb = () => {
+    if (!cb.value) return T('Date et heure de rappel obligatoires');
+    const t = new Date(cb.value).getTime();
+    if (gap && t < Date.now() + gap * 60000 - 120000) return T('Le rappel doit être programmé au moins ') + gap + T(' min après l’appel.');
+    if (winA !== null && winB !== null) { const d = new Date(t), m = d.getHours() * 60 + d.getMinutes(); if (m < winA || m > winB) return T('Rappel hors de la plage autorisée (') + P.cb_from + ' – ' + P.cb_to + ').'; }
+    return '';
+  };
   const pick = r => {
     sel = r;
     document.querySelectorAll('#easycrm .res button').forEach(b => b.classList.toggle('on', b.dataset.r === r));
     const needCb = !!(STD[r] && STD[r].callback);
     note.placeholder = STD[r] && STD[r].note ? T('Note (obligatoire)') : T('Note (facultatif)');
-    form.replaceChildren(note, needCb ? h('p', {}, T('Date et heure de rappel :')) : '', needCb ? cb : '',
+    const needRs = !!(STD[r] && STD[r].reason);
+    if (needCb && !cb.value) inMin(60);
+    form.replaceChildren(needRs ? h('p', {style:'margin:0 0 6px'}, reason) : '', note,
+      needCb ? h('p', {}, T('Date et heure de rappel :')) : '',
+      needCb ? h('div', {class:'shortcuts'}, h('button', {onclick: () => inMin(60)}, T('Dans 1 h')), h('button', {onclick: () => inMin(120)}, T('Dans 2 h')), h('button', {onclick: () => inMin(240)}, T('Dans 4 h')), h('button', {onclick: tomorrow}, T('Demain'))) : '',
+      needCb ? cb : '', needCb && cbHint ? h('div', {class:'muted'}, cbHint) : '',
       h('button', {class:'primary', style:'margin-top:8px', onclick: save}, T('Enregistrer l’appel et passer au suivant')), msg);
     form.style.display = '';
   };
@@ -232,8 +318,11 @@ async function detail(id) {
   const save = async () => {
     msg.textContent = '';
     try {
-      const body = {result:sel, note:note.value, callback_at: cb.value ? Math.floor(new Date(cb.value).getTime() / 1000) : null};
-      try { await api('/prospects/' + id + '/call', {method:'POST', body}); }
+      const needCb = !!(STD[sel] && STD[sel].callback);
+      if (needCb) { const e1 = checkCb(); if (e1) { msg.textContent = e1; return; } }
+      if (STD[sel] && STD[sel].reason && !reason.value) { msg.textContent = T('Un motif est obligatoire pour « ') + ST[sel] + ' ».'; return; }
+      const body = {result:sel, note:note.value, reason: STD[sel] && STD[sel].reason ? reason.value : '', at: Math.floor(Date.now() / 1000), callback_at: needCb && cb.value ? Math.floor(new Date(cb.value).getTime() / 1000) : null};
+      try { const r = await api('/prospects/' + id + '/call', {method:'POST', body}); if (r && r.auto_closed) alert(T('Limite de ') + r.max + T(' tentative(s) atteinte : ce prospect est passé automatiquement en « ') + (ST.faux_numero || T('Injoignable / faux numéro')) + ' ».'); }
       catch (e) {
         if (!e.offline) throw e;
         queueCall(id, body);
@@ -264,16 +353,18 @@ async function detail(id) {
         h('div', {class:'muted'}, T('Date d’inscription : ') + fmt(Number(p.created_at))),
         h('div', {class:'muted'}, T('Date de traitement : ') + (Number(p.last_call_at) ? fmt(Number(p.last_call_at)) : '—')),
         p.callback_at ? h('div', {}, T('⏰ Rappel : ') + fmt(Number(p.callback_at))) : '',
-        p.phone ? (TEL.pbx === 'none' ? h('a', {class:'big', href:'tel:' + p.phone}, T('📞 Appeler ') + p.phone)
-          : h('button', {class:'big', onclick: () => pbxCall(id)}, T('📞 Appeler via le standard ') + p.phone)) : h('p', {class:'muted'}, T('Aucun numéro de téléphone renseigné.')),
-        p.phone ? (TEL.wa === 'link' ? h('a', {class:'big', style:'background:#25D366;color:#fff', target:'_blank', rel:'noopener noreferrer', href:'https://wa.me/' + waNum(p.phone)}, T('💬 WhatsApp ') + p.phone)
+        attemptsBox(d.calls),
+        p.phone && !me.can.call ? h('p', {}, '📞 ' + p.phone) : '',
+        p.phone && me.can.call ? (TEL.pbx === 'none' ? h('a', {class:'big', href:'tel:' + p.phone}, T('📞 Appeler ') + p.phone)
+          : h('button', {class:'big', onclick: () => pbxCall(id)}, T('📞 Appeler via le standard ') + p.phone)) : (p.phone ? '' : h('p', {class:'muted'}, T('Aucun numéro de téléphone renseigné.'))),
+        p.phone && me.can.call ? (TEL.wa === 'link' ? h('a', {class:'big', style:'background:#25D366;color:#fff', target:'_blank', rel:'noopener noreferrer', href:'https://wa.me/' + waNum(p.phone)}, T('💬 WhatsApp ') + p.phone)
           : h('button', {class:'big', style:'background:#25D366;color:#fff', onclick: () => waSend(id, p)}, T('💬 Envoyer un WhatsApp ') + p.phone)) : '',
         me.can.call ? h('div', {class:'res'}, RES.map(r => h('button', {'data-r': r, onclick: () => pick(r)}, ST[r]))) : h('p', {class:'muted'}, T('Consultation seule.')),
         form, asg,
         d.recordings && d.recordings.length ? [h('h3', {}, T('Enregistrements')), d.recordings.map(recRow)] : '',
         h('h3', {}, T('Historique')),
         d.calls.length ? d.calls.map(c => h('div', {class:'card'}, h('strong', {}, ST[c.result]), ' — ', fmt(Number(c.created_at)), ' — ', c.user_id,
-          c.note ? h('div', {}, c.note) : '',  c.callback_at ? h('div', {class:'muted'}, T('Rappel prévu : ') + fmt(Number(c.callback_at))) : '')) : h('p', {class:'muted'}, T('Aucun appel.'))),
+          c.reason ? h('div', {}, T('Motif : ') + c.reason) : '', c.note ? h('div', {}, c.note) : '',  c.callback_at ? h('div', {class:'muted'}, T('Rappel prévu : ') + fmt(Number(c.callback_at))) : '')) : h('p', {class:'muted'}, T('Aucun appel.'))),
       h('div', {}, info,
         me.can.delete ? h('button', {onclick: async () => { if (confirm(T('Supprimer ce prospect ?'))) { await api('/prospects/' + id + '/delete', {method:'POST'}); go('tous'); } }}, T('Supprimer')) : '')));
 }
@@ -286,7 +377,7 @@ async function pbxCall(id) {
   } catch (e) { alert(e.message); }
 }
 async function waSend(id, p) {
-  const t = prompt(T('Message WhatsApp à envoyer'), TF('Bonjour {0}, ', p.firstname || ''));
+  const t = prompt(T('Message WhatsApp à envoyer'), TF(T('Bonjour {0}, '), p.firstname || ''));
   if (!t) return;
   try { const r = await api('/prospects/' + id + '/wasend', {method:'POST', body:{text:t}}); alert(T(r.message)); detail(id); }
   catch (e) { alert(e.message); }
@@ -339,8 +430,8 @@ async function stats() {
     return new URLSearchParams({user: me.can.all ? usr.values().join('|') : '', group: me.can.all ? grp.values().join('|') : '', cat: cat.values().join('|'),
       result: res.value, from: day(from.value, 0), to: day(to.value, 86400), tz: -new Date().getTimezoneOffset(), lang: window.EC_LANG || 'fr'});
   };
-  let jp = null, jpage = 1, jsize = 20, jsort = {k:'date', d:'desc'};
-  try { jsize = Number(localStorage.getItem('easycrm_jps')) || 20; } catch (e) {}
+  let jp = null, jpage = 1, jsize = 10, jsort = {k:'date', d:'desc'};
+  try { const v = localStorage.getItem('easycrm_jps2'); if (v !== null && [0, 10, 20, 30].includes(Number(v))) jsize = Number(v); } catch (e) {}
   const jq = h('input', {type:'search', placeholder:T('Rechercher dans le journal…')});
   const jpg = h('div', {class:'bar', style:'justify-content:space-between;align-items:center;margin:8px 0'});
   const jhead = [['date', T('Date et heure')], ['user', T('Commercial')], ['client', T('Client')], ['phone', T('Téléphone')], ['cat', lab('c2')], ['result', T('Résultat')], ['note', T('Note')]];
@@ -348,18 +439,18 @@ async function stats() {
     if (!jp) return;
     const p = new URLSearchParams(jp); p.set('q', jq.value); p.set('sort', jsort.k); p.set('dir', jsort.d); p.set('limit', jsize); p.set('offset', (jpage - 1) * jsize);
     try {
-      const r = await api('/journal?' + p), pages = Math.max(1, Math.ceil(r.total / jsize));
+      const r = await api('/journal?' + p), pages = jsize ? Math.max(1, Math.ceil(r.total / jsize)) : 1;
       if (jpage > pages) { jpage = pages; return jload(); }
       const go3 = n => { jpage = n; jload(); };
       jpg.replaceChildren(h('span', {class:'muted'}, r.total + T(' appel(s) — page ') + jpage + ' / ' + pages),
         h('span', {}, h('button', {disabled: jpage <= 1, onclick: () => go3(jpage - 1)}, T('◀ Précédent')), ' ', h('button', {disabled: jpage >= pages, onclick: () => go3(jpage + 1)}, T('Suivant ▶')), ' ',
-          h('select', {onchange: e => { jsize = Number(e.target.value); try { localStorage.setItem('easycrm_jps', String(jsize)); } catch (x) {} jpage = 1; jload(); }},
-            [10, 20, 30].map(n => h('option', {value:n, selected: n === jsize}, n + T(' par page'))))));
+          h('select', {onchange: e => { jsize = Number(e.target.value); try { localStorage.setItem('easycrm_jps2', String(jsize)); } catch (x) {} jpage = 1; jload(); }},
+            [10, 20, 30, 0].map(n => h('option', {value:n, selected: n === jsize}, n ? n + T(' par page') : T('Tout'))))));
       box.replaceChildren(r.rows.length ? h('table', {style:'width:100%;border-collapse:collapse'},
         h('thead', {}, h('tr', {}, jhead.map(([k, t]) => h('th', {style:'text-align:left;padding:4px;cursor:pointer;white-space:nowrap;user-select:none', title:T('Trier'), onclick: () => { if (jsort.k === k) jsort.d = jsort.d === 'asc' ? 'desc' : 'asc'; else { jsort.k = k; jsort.d = k === 'date' ? 'desc' : 'asc'; } jpage = 1; jload(); }},
           t + ' ', h('small', {style: jsort.k === k ? '' : 'opacity:.35'}, jsort.k === k ? (jsort.d === 'asc' ? '▲' : '▼') : '⇅'))))),
         h('tbody', {}, r.rows.map(x => h('tr', {style:'border-top:1px solid var(--color-border);cursor:pointer', onclick: () => detail(x.prospect_id)},
-          td(fmt(Number(x.created_at))), td(x.user_name), td(nm(x)), td(x.phone), td(x.c2 || ''), td(badge(x.result)), td(x.note || ''))))) : h('p', {class:'muted'}, T('Aucun appel.')));
+          td(fmt(Number(x.created_at))), td(x.user_name), td(nm(x)), td(x.phone), td(x.c2 || ''), td(badge(x.result), x.reason ? ' · ' + x.reason : ''), td(x.note || ''))))) : h('p', {class:'muted'}, T('Aucun appel.')));
     } catch (e) { box.replaceChildren(h('p', {class:'err'}, e.message)); }
   };
   let jt; jq.addEventListener('input', () => { clearTimeout(jt); jt = setTimeout(() => { jpage = 1; jload(); }, 300); });
@@ -386,7 +477,21 @@ async function stats() {
       upd.textContent = T('Mis à jour à ') + new Date().toLocaleTimeString(window.EC_LOCALE || 'fr-FR', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
       const by = {};
       s.calls.forEach(c => { (by[c.user_id] = by[c.user_id] || {})[c.result] = c.n; });
+      const cbk = new Set(Object.values(STD).filter(x => x.callback).map(x => x.key)), perf = {};
+      s.calls.forEach(c => { const o = perf[c.user_id] = perf[c.user_id] || {n:0, ct:0, it:0}; const n = Number(c.n); o.n += n; if (!cbk.has(c.result) && c.result !== 'faux_numero') o.ct += n; if (c.result === 'interesse') o.it += n; });
+      Object.keys(s.today || {}).forEach(u => { perf[u] = perf[u] || {n:0, ct:0, it:0}; });
+      const pct = (a, b) => b ? Math.round(100 * a / b) + ' %' : '—';
+      const goal = Number(s.goal) || 0;
+      const rsum = (s.reasons || []).reduce((a, x) => a + Number(x.n), 0);
       sum.replaceChildren(
+        h('h3', {}, T('Performance par commercial')),
+        Object.keys(perf).length ? h('div', {style:'overflow-x:auto'}, h('table', {class:'t'},
+          h('thead', {}, h('tr', {}, [T('Commercial'), goal ? T('Aujourd’hui / objectif') : T('Aujourd’hui'), T('Appels (période)'), T('Contacts'), T('Taux de contact'), T('Intéressés'), T('Taux d’intérêt')].map(x => h('th', {}, x)))),
+          h('tbody', {}, Object.entries(perf).map(([u, o]) => { const t = Number((s.today || {})[u] || 0); return h('tr', {},
+            h('td', {}, nameOf(u)), h('td', {}, t + (goal ? ' / ' + goal + ' ' : ''), goal ? h('span', {class:'pbar'}, h('span', {style:'width:' + Math.min(100, Math.round(100 * t / goal)) + '%'})) : ''),
+            h('td', {}, o.n), h('td', {}, o.ct), h('td', {}, pct(o.ct, o.n)), h('td', {}, o.it), h('td', {}, pct(o.it, o.ct))); })))) : h('p', {class:'muted'}, T('Aucun appel sur la période.')),
+        h('p', {class:'muted'}, T('Contact = appel abouti (hors « sans réponse / à rappeler » et faux numéro). Taux d’intérêt = intéressés / contacts.')),
+        ...((s.reasons || []).length ? [h('h3', {}, T('Motifs de refus')), h('div', {class:'card'}, s.reasons.map(x => h('div', {}, x.reason + ' : ', h('strong', {}, x.n), ' (' + Math.round(100 * Number(x.n) / rsum) + ' %)')))] : []),
         h('h3', {}, T('Nombre d’appels par heure')),
         hbox,
         h('h3', {}, T('Nombre de dossiers par statut')),
@@ -415,7 +520,7 @@ async function stats() {
     } catch (e) { alert(e.message); }
   };
   show(h('h2', {}, me.can.all ? T('Statistiques') : T('Mes statistiques')),
-    h('div', {class:'bar'}, me.can.all ? [usr.el, grp.el] : '', cat.el, res, h('label', {}, T('Du '), from), h('label', {}, T('Au '), to), presets, rbtn, h('button', {onclick: xl}, T('⬇ Télécharger Excel')), upd),
+    h('div', {class:'bar'}, me.can.all ? [usr.el, grp.el] : '', cat.el, res, h('label', {}, T('Du '), from), h('label', {}, T('Au '), to), presets, rbtn, me.can.export ? h('button', {onclick: xl, title: me.can.export_phone ? '' : T('Export sans numéros de téléphone')}, T('⬇ Télécharger Excel') + (me.can.export_phone ? '' : T(' (sans téléphone)'))) : '', upd),
     h('h3', {}, T('Journal des appels')), h('div', {class:'bar'}, jq), jpg,
     h('div', {style:'overflow-x:auto'}, box), sum);
   [usr.el, grp.el, cat.el, res, from, to].forEach(e => e.addEventListener('change', load));
@@ -500,19 +605,20 @@ function statusesEditor() {
       const col = h('input', {type:'color', value:f.color, title:T('Couleur'), oninput: e => { f.color = e.target.value; }});
       const cb = nw ? '' : h('label', {style:'white-space:nowrap'}, h('input', {type:'checkbox', checked: f.callback, onchange: e => { f.callback = e.target.checked; }}), T(' Date de rappel'));
       const nt = nw ? '' : h('label', {style:'white-space:nowrap'}, h('input', {type:'checkbox', checked: f.note, onchange: e => { f.note = e.target.checked; }}), T(' Note obligatoire'));
+      const rs = nw ? '' : h('label', {style:'white-space:nowrap'}, h('input', {type:'checkbox', checked: f.reason, onchange: e => { f.reason = e.target.checked; }}), T(' Motif obligatoire'));
       const ac = nw ? '' : h('label', {style:'white-space:nowrap'}, h('input', {type:'checkbox', checked: f.active, onchange: e => { f.active = e.target.checked; }}), T(' Actif'));
       const mv = d => () => { const j = i + d; if (j < 0 || j >= list.length) return; [list[i], list[j]] = [list[j], list[i]]; draw(); };
       const del = f.builtin ? '' : h('button', {title:T('Supprimer'), onclick: () => { if (confirm(T('Supprimer la réponse « ') + f.label + T(' » ?'))) { list.splice(i, 1); draw(); } }}, '🗑');
-      return h('div', {style:'border-top:1px solid var(--color-border);padding:8px 0;display:flex;flex-wrap:wrap;gap:8px;align-items:center'}, col, lab, cb, nt, ac,
+      return h('div', {style:'border-top:1px solid var(--color-border);padding:8px 0;display:flex;flex-wrap:wrap;gap:8px;align-items:center'}, col, lab, cb, nt, rs, ac,
         h('button', {onclick: mv(-1)}, '↑'), h('button', {onclick: mv(1)}, '↓'), del, nw ? h('span', {class:'muted'}, T('Statut initial (pas une réponse d’appel).')) : '');
     }));
   };
   draw();
   return h('div', {class:'card'}, h('h3', {}, T('Réponses d’appel / statuts')),
-    h('p', {class:'muted'}, T('Renommez, recolorez, réordonnez, désactivez ou ajoutez des réponses (intéressé, ne répond pas…). « Date de rappel » : le commercial doit fixer un rappel et le prospect apparaît dans « À rappeler ». Une réponse déjà utilisée ne peut pas être supprimée : désactivez-la.')),
+    h('p', {class:'muted'}, T('Renommez, recolorez, réordonnez, désactivez ou ajoutez des réponses (intéressé, ne répond pas…). « Date de rappel » : le commercial doit fixer un rappel et le prospect apparaît dans « À rappeler ». « Motif obligatoire » : le commercial doit choisir un motif (liste modifiable dans « Réglages des appels »). Une réponse déjà utilisée ne peut pas être supprimée : désactivez-la.')),
     box,
     h('div', {style:'margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap'},
-      h('button', {onclick: () => { list.push({key:'', label:T('Nouvelle réponse'), color:'#607d8b', callback:false, note:false, active:true, builtin:false}); draw(); }}, T('+ Ajouter une réponse')),
+      h('button', {onclick: () => { list.push({key:'', label:T('Nouvelle réponse'), color:'#607d8b', callback:false, note:false, reason:false, active:true, builtin:false}); draw(); }}, T('+ Ajouter une réponse')),
       h('button', {class:'primary', onclick: async () => {
         out.textContent = '…';
         try { const r = await api('/statuses', {method:'POST', body:{statuses:list}}); me.statuses = r.statuses; applyStatuses(); list = JSON.parse(JSON.stringify(r.statuses)); draw(); out.textContent = T('Enregistré. Rechargez la page pour mettre à jour les onglets.'); }
@@ -656,10 +762,95 @@ function teamsCard() {
         catch (e) { out.textContent = e.message; }
       }}, T('Enregistrer les équipes')), out));
 }
+function transferCard() {
+  const com = me.commerciaux || [];
+  const from = h('select', {}, h('option', {value:'__none'}, T('Non assignés')), com.map(u => h('option', {value:u.uid}, u.name)));
+  const to = h('select', {}, h('option', {value:''}, T('— Choisir —')), com.map(u => h('option', {value:u.uid}, u.name)));
+  const st = h('select', {}, h('option', {value:'nouveau'}, T('Nouveau (À traiter)')), h('option', {value:''}, T('Tous les statuts')),
+    Object.entries(ST).filter(([v]) => v !== 'nouveau').map(([v, l]) => h('option', {value:v}, l)));
+  const lim = h('input', {type:'number', min:0, placeholder:T('Tous'), style:'width:90px'});
+  const out = h('div', {class:'muted', style:'margin-top:6px'});
+  const body = dry => ({from:from.value, to:to.value, status:st.value, limit:lim.value ? Number(lim.value) : 0, dry});
+  const prev = async () => {
+    if (!to.value) { out.textContent = T('Choisissez le commercial destinataire.'); return; }
+    out.textContent = '…';
+    try { const r = await api('/transfer', {method:'POST', body:body(true)}); out.textContent = r.count + T(' prospect(s) seront transférés.'); }
+    catch (e) { out.textContent = e.message; }
+  };
+  return h('div', {class:'card'}, h('h3', {}, T('Transférer des prospects entre commerciaux')),
+    h('p', {class:'muted'}, T('Déplace en masse les prospects d’un commercial vers un autre (par défaut : seulement les « Nouveau », les plus anciens d’abord). Laissez « Quantité » vide pour tout transférer, ou saisissez un nombre pour n’en transférer qu’une partie.')),
+    h('div', {class:'bar'}, h('label', {}, 'De ', from), h('label', {}, T('Vers '), to)),
+    h('div', {class:'bar'}, h('label', {}, T('Statut '), st), h('label', {}, T('Quantité max '), lim)),
+    h('div', {class:'bar'}, h('button', {onclick: prev}, T('Compter')), h('button', {class:'primary', onclick: async () => {
+      if (!to.value) { out.textContent = T('Choisissez le commercial destinataire.'); return; }
+      let n; try { n = (await api('/transfer', {method:'POST', body:body(true)})).count; } catch (e) { out.textContent = e.message; return; }
+      if (!n) { out.textContent = T('Aucun prospect à transférer.'); return; }
+      const nm = u => (com.find(x => x.uid === u) || {name:T('Non assignés')}).name;
+      if (!confirm(T('Transférer ') + n + T(' prospect(s) de « ') + nm(from.value === '__none' ? '' : from.value) + T(' » vers « ') + nm(to.value) + T(' » ?'))) return;
+      out.textContent = '…';
+      try { const r = await api('/transfer', {method:'POST', body:body(false)}); out.textContent = '✔ ' + r.transferred + T(' prospect(s) transféré(s).'); }
+      catch (e) { out.textContent = e.message; }
+    }}, T('Transférer'))), out);
+}
+function settingsCard() {
+  const P = me.prefs || {};
+  const num = (v, w = 70) => h('input', {type:'number', min:0, value:v || 0, style:'width:' + w + 'px'});
+  const max = num(P.max_callbacks), gap = num(P.cb_gap, 80), goal = num(P.goal, 80);
+  const from = h('input', {type:'time', value:P.cb_from || ''}), to = h('input', {type:'time', value:P.cb_to || ''});
+  const tz = h('input', {value:P.tz || 'Africa/Algiers', style:'width:160px'});
+  const rs = h('textarea', {rows:6, style:'width:100%;box-sizing:border-box'}, (P.reasons || []).join('\n'));
+  const out = h('span', {class:'muted'});
+  return h('div', {class:'card'}, h('h3', {}, T('Réglages des appels')),
+    h('p', {class:'muted'}, T('Limite de tentatives : après ce nombre de tentatives sans succès (réponses avec date de rappel : « Ne répond pas », « À rappeler »…), le prospect passe automatiquement en « Injoignable / faux numéro ». Avec 3, la 3e tentative sans succès clôture le prospect. 0 = illimité.')),
+    h('div', {class:'bar'}, h('label', {}, T('Tentatives maximum '), max)),
+    h('p', {class:'muted'}, T('Plage de rappel : heures entre lesquelles un rappel peut être programmé (vider les deux champs = aucune limite). Espacement : délai minimum entre l’appel et le rappel programmé (0 = aucun).')),
+    h('div', {class:'bar'}, h('label', {}, T('Plage de rappel de '), from), h('label', {}, 'à ', to), h('label', {}, T('Espacement minimum (min) '), gap), h('label', {}, T('Fuseau horaire '), tz)),
+    h('p', {class:'muted'}, T('Objectif quotidien : nombre d’appels attendus par commercial et par jour (0 = pas d’objectif).')),
+    h('div', {class:'bar'}, h('label', {}, T('Appels par jour '), goal)),
+    h('p', {class:'muted'}, T('Motifs de refus proposés pour les réponses « Motif obligatoire » (un par ligne).')), rs,
+    h('div', {class:'bar'}, h('button', {class:'primary', onclick: async () => {
+      out.textContent = '…';
+      try {
+        const r = await api('/callprefs', {method:'POST', body:{max_callbacks:Number(max.value) || 0, cb_gap:Number(gap.value) || 0, goal:Number(goal.value) || 0, cb_from:from.value, cb_to:to.value, tz:tz.value, reasons:rs.value}});
+        me.prefs = r.prefs; me.max_callbacks = r.max_callbacks; out.textContent = T('✔ Réglages enregistrés.');
+      } catch (e) { out.textContent = e.message; }
+    }}, T('Enregistrer')), out));
+}
+/** Liste de commerciaux à cocher (affectation à l'import / à la répartition). */
+function commPicker(title) {
+  const all = h('input', {type:'checkbox', onchange: () => boxes.forEach(x => x.cb.checked = all.checked)});
+  const boxes = (me.commerciaux || []).map(u => ({u, cb: h('input', {type:'checkbox'})}));
+  return {el: h('div', {style:'margin:6px 0'}, h('strong', {}, title),
+      h('div', {style:'max-height:180px;overflow:auto;border:1px solid var(--color-border);border-radius:6px;padding:6px;margin-top:4px'},
+        h('label', {}, all, T(' Tout cocher / décocher')), ...boxes.map(x => h('label', {style:'display:block'}, x.cb, ' ' + x.u.name)))),
+    values: () => boxes.filter(x => x.cb.checked).map(x => x.u.uid)};
+}
+const AUDIT = {transfer:T('Transfert'), auto_close:T('Clôture automatique'), assign:T('Affectation'), import:T('Import'), distribute:T('Répartition'), release:T('Réattribution'), delete:T('Suppression'), export:T('Export'), settings:T('Réglages')};
+function auditCard() {
+  const box = h('div'), out = h('div', {class:'muted'});
+  const act = h('select', {}, h('option', {value:''}, T('Toutes les actions')), Object.entries(AUDIT).map(([k, l]) => h('option', {value:k}, l)));
+  let page = 1; const size = 20;
+  const load = async () => {
+    box.textContent = '…';
+    try {
+      const r = await api('/audit?' + new URLSearchParams({action:act.value, limit:size, offset:(page - 1) * size}));
+      const pages = Math.max(1, Math.ceil(r.total / size));
+      out.replaceChildren(r.total + T(' événement(s) — page ') + page + ' / ' + pages + ' ', h('button', {disabled: page <= 1, onclick: () => { page--; load(); }}, '◀'), ' ', h('button', {disabled: page >= pages, onclick: () => { page++; load(); }}, '▶'));
+      box.replaceChildren(r.rows.length ? h('div', {style:'overflow-x:auto'}, h('table', {class:'t'}, h('thead', {}, h('tr', {}, [T('Date et heure'), T('Utilisateur'), T('Action'), T('Fiche'), T('Détail')].map(x => h('th', {}, x)))),
+        h('tbody', {}, r.rows.map(x => h('tr', {}, h('td', {style:'white-space:nowrap'}, fmtS(Number(x.created_at))), h('td', {}, x.user_name || '—'), h('td', {}, AUDIT[x.action] || x.action),
+          h('td', {}, x.prospect_id ? h('a', {href:'#', onclick: e => { e.preventDefault(); detail(Number(x.prospect_id)); }}, '#' + x.prospect_id) : ''), h('td', {}, x.detail || '')))))) : h('p', {class:'muted'}, T('Aucun événement.')));
+    } catch (e) { box.textContent = e.message; }
+  };
+  act.addEventListener('change', () => { page = 1; load(); });
+  return h('div', {class:'card'}, h('h3', {}, T('Journal d’activité')),
+    h('p', {class:'muted'}, T('Transferts, clôtures automatiques, imports, exports, suppressions : qui, quand, quoi.')),
+    h('div', {class:'bar'}, act, h('button', {onclick: () => { page = 1; load(); }}, T('Afficher / actualiser'))), out, box);
+}
 function admin() {
   const m2 = h('div', {class:'muted'}), m3 = h('span', {class:'muted'});
   const file = h('input', {type:'file', accept:'.xlsx,.xls,.csv,.txt'});
-  const asg = h('select', {}, modeOpts(true));
+  const asg = h('select', {}, h('option', {value:'auto'}, T('Équitablement entre les commerciaux cochés')), h('option', {value:'categorie'}, T('Par catégorie (groupe de la catégorie, parmi les cochés)')));
+  const impPick = commPicker(T('Affecter les prospects importés à (obligatoire) :')), dstPick = commPicker(T('Répartir entre (obligatoire) :'));
   const dsel = h('select', {}, modeOpts(false));
   const allCb = h('input', {type:'checkbox'});
   const orph = h('div');
@@ -687,33 +878,38 @@ function admin() {
       me.groups.length ? me.groups.map(g => h('div', {style:'margin:6px 0'}, h('strong', {}, g.name), ' : ' + ((me.teams[g.id] || []).length) + T(' commercial(aux)'), h('div', {class:'muted'}, T('Catégories : ') + g.cats.join(', ')))) : h('p', {class:'muted'}, T('Aucune équipe configurée.'))),
     me.can.fields ? fieldsEditor() : '',
     me.can.fields ? statusesEditor() : '',
+    me.can.fields ? settingsCard() : '',
+    me.can.assign ? transferCard() : '',
+    me.can.audit ? auditCard() : '',
     !me.can.invite ? '' : h('div', {class:'card'}, h('h3', {}, T('Inviter les commerciaux par e-mail')),
       h('p', {class:'muted'}, T('Envoie à chaque commercial coché son adresse d’accès et son identifiant de connexion. Variables : {nom}, {identifiant}, {url}. Prérequis : serveur e-mail configuré dans Nextcloud (Paramètres d’administration → Paramètres de base).')),
       invSub, invBody, invList,
       h('div', {class:'bar'}, h('button', {onclick: () => invite(true)}, T('M’envoyer un test')), h('button', {class:'primary', onclick: () => invite(false)}, T('Envoyer aux commerciaux cochés')), invOut)),
     h('div', {class:'card'}, h('h3', {}, T('Importer des prospects (Excel ou CSV)')),
       h('p', {class:'muted'}, T('Colonnes, dans cet ordre : ') + [lab('lastname'), lab('phone'), lab('c5'), lab('c2'), lab('c3'), lab('c4'), lab('remarque')].join(' ; ') + T('. La 1re ligne (en-tête) est ignorée. Fichiers Excel (.xlsx, .xls) acceptés directement : 1re feuille, colonnes reconnues par leur titre (y compris vos champs personnalisés), doublons de numéros supprimés. Les numéros et les valeurs de listes sont corrigés automatiquement ; ce qui n’est pas reconnu est recopié dans le commentaire.')),
-      file, asg,
+      file, impPick.el, asg,
       h('button', {class:'primary', onclick: async () => {
         const f0 = file.files[0];
         if (!f0) { m2.textContent = T('Choisissez un fichier Excel ou CSV.'); return; }
-        const fd = new FormData(); fd.append('assign', asg.value);
+        const who = impPick.values();
+        if (!who.length) { m2.textContent = T('Sélectionnez au moins un commercial à qui affecter les prospects.'); return; }
+        const fd = new FormData(); fd.append('assign', asg.value); fd.append('uids', JSON.stringify(who));
         m2.textContent = T('Import en cours…');
         try {
           let pre = '';
           if (/\.xlsx?$/i.test(f0.name)) {
             const c = await excelToCsv(f0);
             fd.append('file', new Blob([c.csv], {type:'text/csv'}), 'import.csv'); fd.append('extras', JSON.stringify(c.extras));
-            pre = TF('{0} ligne(s) lue(s), {1} doublon(s) dans le fichier supprimé(s)', c.total, c.dupInFile) + (c.empty ? TF(', {0} ligne(s) vide(s) ignorée(s)', c.empty) : '') + ' — ';
+            pre = TF(T('{0} ligne(s) lue(s), {1} doublon(s) dans le fichier supprimé(s)'), c.total, c.dupInFile) + (c.empty ? TF(T(', {0} ligne(s) vide(s) ignorée(s)'), c.empty) : '') + ' — ';
           } else { fd.append('file', f0); }
           const r = await api('/import', {method:'POST', body:fd});
-          m2.replaceChildren(pre + TF('{0} importés, {1} déjà dans la base (doublons), {2} sans nom, {3} numéros invalides', r.imported, r.duplicates, r.skipped, r.invalid)
-            + (r.unrecognized ? TF(', {0} avec valeur non reconnue (voir commentaire)', r.unrecognized) : '') + (r.unassigned ? TF(', {0} sans commercial (groupe vide ou catégorie vide).', r.unassigned) : '.'),
+          m2.replaceChildren(pre + TF(T('{0} importés, {1} déjà dans la base (doublons), {2} sans nom, {3} numéros invalides'), r.imported, r.duplicates, r.skipped, r.invalid)
+            + (r.unrecognized ? TF(T(', {0} avec valeur non reconnue (voir commentaire)'), r.unrecognized) : '') + (r.unassigned ? TF(T(', {0} sans commercial (groupe vide ou catégorie vide).'), r.unassigned) : '.'),
             ...r.samples.map(x => h('div', {class:'err'}, x)));
         } catch (e) { m2.textContent = e.message; }
       }}, T('Importer')), m2),
-    h('div', {class:'card'}, h('h3', {}, T('Répartir les prospects non assignés')), dsel,
-      h('button', {onclick: () => distribute(dsel.value, m3)}, T('Répartir')), m3,
+    h('div', {class:'card'}, h('h3', {}, T('Répartir les prospects non assignés')), dstPick.el, dsel,
+      h('button', {onclick: () => { const w = dstPick.values(); if (!w.length) { m3.textContent = T('Sélectionnez au moins un commercial.'); return; } distribute(dsel.value, m3, w); }}, T('Répartir')), m3,
       h('hr'),
       h('p', {class:'muted'}, T('Prospects encore assignés à des personnes qui ne sont plus dans le groupe des commerciaux (superviseurs, comptes supprimés…) : les réattribuer aux commerciaux actuels, avec le mode de répartition choisi ci-dessus.')),
       h('label', {style:'display:block;margin:6px 0'}, allCb, T(' Y compris les prospects déjà appelés (sinon seulement « À traiter »)')),
