@@ -5,6 +5,7 @@ use OCA\EasyCrm\AppInfo\Application;
 use OCA\EasyCrm\Service\Statuses;
 use OCA\EasyCrm\Service\Store;
 use OCA\EasyCrm\Service\Telephony;
+use OCA\EasyCrm\Service\Wa;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\AnonRateLimit;
@@ -12,12 +13,14 @@ use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\DataDisplayResponse;
 use OCP\AppFramework\Http\JSONResponse;
+use OCP\Files\IAppData;
+use OCP\Files\NotFoundException;
 use OCP\IConfig;
 use OCP\IRequest;
 
 /** Webhooks entrants (fin d'appel du standard, messages WhatsApp reçus). Protégés par un jeton secret. */
 class HookController extends Controller {
-	public function __construct(IRequest $r, private Store $s, private IConfig $cfg) { parent::__construct(Application::APP_ID, $r); }
+	public function __construct(IRequest $r, private Store $s, private IConfig $cfg, private Wa $wa, private IAppData $appData) { parent::__construct(Application::APP_ID, $r); }
 
 	private function authorized(): bool {
 		$secret = Telephony::get()['secret'];
@@ -70,13 +73,39 @@ class HookController extends Controller {
 	#[AnonRateLimit(limit: 120, period: 60)]
 	public function wa(): JSONResponse {
 		if (!$this->authorized()) { return new JSONResponse(['error' => 'Jeton invalide'], Http::STATUS_FORBIDDEN); }
-		$n = 0;
-		foreach (Telephony::parseWaInbound($this->payload()) as $m) {
-			$p = $m['from'] !== '' ? $this->s->prospectByTail($m['from']) : null;
-			if (!$p) { continue; }
-			$this->note($p, $p['assigned_to'] ?: 'whatsapp', '💬 WhatsApp reçu : ' . $m['text']);
-			$n++;
+		$c = Telephony::get()['wa'];
+		$ev = Telephony::parseWaEvents($this->payload());
+		$n = 0; $rec = 0;
+		foreach ($ev['messages'] as $m) {
+			if ($m['from'] === '') { continue; }
+			$e = ['wamid' => $m['id'], 'wa_id' => $m['from'], 'name' => $m['name'], 'type' => $m['type'], 'text' => $m['text'], 'ts' => $m['ts'], 'direction' => $m['direction'],
+				'user' => $m['direction'] === 'out' ? 'app' : ''];
+			if ($m['media'] && !$this->wa->known($m['id'])) {
+				[$data, $mime, $err] = Telephony::waMedia($c, $m['media']);
+				if ($data !== null) {
+					$ext = ['image/jpeg' => '.jpg', 'image/png' => '.png', 'image/webp' => '.webp', 'application/pdf' => '.pdf', 'audio/ogg' => '.ogg', 'audio/mpeg' => '.mp3', 'video/mp4' => '.mp4'][strtolower(explode(';', $mime)[0])] ?? '';
+					$orig = (string)($m['media']['filename'] ?? '');
+					$name = date('Ymd_His') . '_' . substr(preg_replace('/[^A-Za-z0-9]+/', '', $m['id']), -10) . '_' . ($orig !== '' ? preg_replace('/[^A-Za-z0-9._-]+/', '_', $orig) : $m['type'] . $ext);
+					try { $this->folder()->newFile($name, $data); $e += ['file_path' => $name, 'file_name' => $orig !== '' ? $orig : $name, 'mime' => $mime]; }
+					catch (\Throwable $x) { $e['text'] = trim($e['text'] . ' [pièce jointe non enregistrée]'); }
+				} else { $e['text'] = trim($e['text'] . ' [pièce jointe non récupérée : ' . $err . ']'); }
+			}
+			try { $r = $this->wa->record($e); } catch (\InvalidArgumentException $x) { continue; }
+			if (!$r['created']) { continue; }
+			$rec++;
+			// trace dans l'historique de la fiche (comme avant), pour les messages reçus
+			if ($m['direction'] === 'in') {
+				$conv = $this->wa->conv($r['conv']);
+				if ($conv && $conv['linked'] && ($p = $this->s->get((int)$conv['prospect_id']))) {
+					$this->note($p, $p['assigned_to'] ?: 'whatsapp', '💬 WhatsApp reçu : ' . ($m['text'] !== '' ? $m['text'] : '[' . $m['type'] . ']'));
+					$n++;
+				}
+			}
 		}
-		return new JSONResponse(['ok' => true, 'logged' => $n]);
+		foreach ($ev['statuses'] as $st) { $this->wa->setStatus($st['id'], $st['status'], $st['error']); }
+		return new JSONResponse(['ok' => true, 'logged' => $n, 'recorded' => $rec, 'statuses' => count($ev['statuses'])]);
+	}
+	private function folder(): \OCP\Files\SimpleFS\ISimpleFolder {
+		try { return $this->appData->getFolder('wa'); } catch (NotFoundException $e) { return $this->appData->newFolder('wa'); }
 	}
 }

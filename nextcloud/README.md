@@ -38,6 +38,20 @@ L'activation crée les tables `easycrm_*` et les quatre groupes d'accès `easycr
 6. **Importer des prospects** : choisissez le fichier et le mode de répartition.
 7. Option : **Inviter les commerciaux par e-mail** (nécessite un serveur de messagerie configuré dans Nextcloud).
 
+## Boîte WhatsApp partagée (1.3.0)
+
+Disponible dès qu'un fournisseur WhatsApp est configuré (Administration → Téléphonie : Meta Cloud API, 360dialog, Twilio ou API HTTP) et que le webhook WhatsApp affiché dans l'administration est déclaré chez le fournisseur.
+
+- **Menu « 💬 WhatsApp »** : une conversation par numéro client, badge des messages non lus, recherche.
+- **Attribution automatique** : client connu (fiche avec commercial) → ce commercial, la conversation suit la fiche en cas de transfert ;
+  numéro inconnu ou fiche non assignée → **file d'attente** du superviseur, qui attribue ou crée la fiche en un clic.
+- **Réponse depuis le CRM** dans la fenêtre de 24 h de WhatsApp : texte, photos (JPG/PNG) et documents (PDF, Word, Excel, PowerPoint)
+  — fichiers : Meta Cloud API et 360dialog ; texte seul : Twilio et API HTTP. Au-delà de 24 h : appel ou lien WhatsApp.
+- Photos, PDF, vocaux et vidéos reçus affichés dans la conversation (stockés dans les données de l'application, dossier `wa`).
+- Accusés ✓ envoyé, ✓✓ remis, ✓✓ bleu lu, ⚠ échec (Meta / 360dialog : champ `messages` ; Twilio : « Status callback URL » = webhook WhatsApp).
+- Meta en coexistence (appli WhatsApp Business + API) : abonnez aussi le champ `smb_message_echoes` pour voir dans le CRM les messages envoyés depuis le téléphone.
+- Le bouton « Envoyer un WhatsApp » de la fiche est aussi enregistré dans la conversation.
+
 ## Rôles
 
 | Rôle | Appeler | Voir tous les prospects | Importer, répartir | Administration |
@@ -68,6 +82,10 @@ Sauvegardez la base de données Nextcloud : les données se trouvent dans les ta
 ## English summary
 
 EasyCrm is a lightweight CRM / call-center app for Nextcloud (AGPL-3.0): prospect lists with pagination, search and sorting; Excel/CSV import with de-duplication; one-tap call and WhatsApp; configurable call outcomes and customer-record fields; teams and categories with automatic lead distribution; roles (admin, supervisor, sales agent, read-only) mapped to Nextcloud or LDAP groups; statistics and call log; offline-tolerant call logging. Install by unzipping into `apps/easycrm`, then `occ app:enable easycrm`, and configure everything under EasyCrm → Administration. The interface is currently French only.
+
+## WhatsApp shared inbox (1.3.0)
+
+One conversation per customer number; known customers go to the salesperson of their record, unknown numbers to the supervisor's queue. Salespeople reply from the CRM within WhatsApp's 24-hour window (text, photos and documents with Meta Cloud API / 360dialog). Delivery receipts and received media are shown in the thread.
 
 ## Languages
 The interface is available in French, English, Arabic (right-to-left), Spanish, Italian and German. The language follows the Nextcloud user language (unsupported languages fall back to English). Translations live in `js/i18n.js` (UI) and `lib/Service/Tr.php` (Excel export headers). Machine-quality translations: have a native speaker review them before a commercial release.

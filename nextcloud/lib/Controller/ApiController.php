@@ -11,6 +11,7 @@ use OCA\EasyCrm\Service\Teams;
 use OCA\EasyCrm\Service\Lookup;
 use OCA\EasyCrm\Service\Store;
 use OCA\EasyCrm\Service\Telephony;
+use OCA\EasyCrm\Service\Wa;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
@@ -28,7 +29,7 @@ use OCP\ITempManager;
 use OCP\AppFramework\Http\DataDownloadResponse;
 class ApiController extends Controller {
 	private const STATUS = ['nouveau', 'interesse', 'injoignable', 'rappel', 'pas_interesse', 'non_eligible', 'faux_numero'];
-	public function __construct(IRequest $r, private Access $a, private Store $s, private IConfig $cfg, private IGroupManager $gm, private IUserManager $um, private ITempManager $tm, private IAppData $appData, private IMailer $mailer, private IURLGenerator $urlGen) {
+	public function __construct(IRequest $r, private Access $a, private Store $s, private IConfig $cfg, private IGroupManager $gm, private IUserManager $um, private ITempManager $tm, private IAppData $appData, private IMailer $mailer, private IURLGenerator $urlGen, private Wa $wa) {
 		parent::__construct(Application::APP_ID, $r);
 	}
 	private function err(string $m, int $c = Http::STATUS_BAD_REQUEST): JSONResponse { return new JSONResponse(['error' => $m], $c); }
@@ -617,8 +618,13 @@ class ApiController extends Controller {
 		if ($c['provider'] === 'link') { return $this->err('Aucune API WhatsApp configurée.'); }
 		$text = trim((string)$this->request->getParam('text', ''));
 		if ($text === '') { return $this->err('Message vide'); }
-		[$ok, $msg] = Telephony::waSend($c, Phone::whatsapp((string)$p['phone']), mb_substr($text, 0, 4000), (string)($p['firstname'] ?? ''));
+		$to = Phone::whatsapp((string)$p['phone']);
+		[$ok, $msg, $wamid] = Telephony::waSend($c, $to, mb_substr($text, 0, 4000), (string)($p['firstname'] ?? ''));
 		if (!$ok) { return $this->err($msg); }
+		// la conversation de la boîte WhatsApp garde la trace de l'envoi (modèle ou texte)
+		try { $this->wa->record(['wa_id' => $to, 'wamid' => $wamid !== '' ? $wamid : 'local-' . bin2hex(random_bytes(8)), 'direction' => 'out', 'type' => trim((string)($c['template'] ?? '')) !== '' ? 'template' : 'text',
+			'text' => trim((string)($c['template'] ?? '')) !== '' ? '[modèle ' . trim((string)$c['template']) . '] ' . mb_substr($text, 0, 500) : mb_substr($text, 0, 4000), 'user' => $this->a->uid(), 'ts' => time(), 'status' => 'sent']); }
+		catch (\Throwable $e) { }
 		$this->s->insert('easycrm_calls', ['prospect_id' => $id, 'user_id' => $this->a->uid(), 'result' => $p['status'], 'note' => '💬 WhatsApp : ' . mb_substr($text, 0, 500), 'callback_at' => null, 'created_at' => time()]);
 		return new JSONResponse(['ok' => true, 'message' => $msg]);
 	}

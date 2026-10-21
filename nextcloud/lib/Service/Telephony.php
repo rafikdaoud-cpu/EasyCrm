@@ -281,13 +281,155 @@ class Telephony {
 			[$r, $e] = self::http('POST', 'https://api.twilio.com/2010-04-01/Accounts/' . rawurlencode($sid) . '/Messages.json', ['Content-Type' => 'application/x-www-form-urlencoded'],
 				http_build_query($d), true, [$sid, (string)$c['token']]);
 		} elseif ($p === 'http') {
-			return self::httpGeneric($c, true, ['number' => $number, 'text' => $text, 'name' => $name]);
-		} else { return [false, 'Ce mode n’envoie pas de message depuis le serveur.']; }
-		if (!$r) { return [false, $e]; }
-		if ($r['code'] >= 200 && $r['code'] < 300) { return [true, 'Message envoyé.']; }
+			return self::httpGeneric($c, true, ['number' => $number, 'text' => $text, 'name' => $name]) + [2 => ''];
+		} else { return [false, 'Ce mode n’envoie pas de message depuis le serveur.', '']; }
+		if (!$r) { return [false, $e, '']; }
+		if ($r['code'] >= 200 && $r['code'] < 300) { return [true, 'Message envoyé.', self::msgId(self::j($r))]; }
+		return [false, self::refusal($r), ''];
+	}
+	private static function refusal(array $r): string {
 		$j = self::j($r);
-		$m = is_array($j['error'] ?? null) ? ($j['error']['message'] ?? '') : ($j['message'] ?? substr($r['body'], 0, 160));
-		return [false, 'Le fournisseur WhatsApp a refusé le message (HTTP ' . $r['code'] . ') : ' . $m];
+		$m = is_array($j['error'] ?? null) ? ($j['error']['error_user_msg'] ?? $j['error']['message'] ?? '') : ($j['message'] ?? substr($r['body'], 0, 160));
+		return 'Le fournisseur WhatsApp a refusé le message (HTTP ' . $r['code'] . ') : ' . $m;
+	}
+	/** Identifiant du message renvoyé par le fournisseur (Meta / 360dialog : messages[0].id ; Twilio : sid) */
+	private static function msgId(array $j): string { return (string)($j['messages'][0]['id'] ?? $j['sid'] ?? $j['id'] ?? ''); }
+
+	public const WA_MEDIA = ['image', 'document', 'audio', 'video', 'sticker'];
+	public const SEND_IMAGE = ['image/jpeg', 'image/png'];
+	public const SEND_DOC = ['application/pdf', 'text/plain', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+		'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-powerpoint',
+		'application/vnd.openxmlformats-officedocument.presentationml.presentation'];
+	/** Le fournisseur sait-il recevoir (webhook) et répondre depuis le CRM ? */
+	public static function inbox(array $c): bool { return in_array($c['provider'], ['cloud', '360dialog', 'twilio', 'http'], true); }
+	/** Requête binaire (médias) : redirections suivies, 120 s, 100 Mo max. @return array{0:?array,1:string} */
+	public static function binary(string $method, string $url, array $headers = [], $body = null, ?array $basic = null): array {
+		if (!preg_match('#^https://#i', $url)) { return [null, 'URL de média invalide.']; }
+		$ch = curl_init($url);
+		$h = []; foreach ($headers as $k => $v) { $h[] = $k . ': ' . $v; }
+		curl_setopt_array($ch, [CURLOPT_CUSTOMREQUEST => strtoupper($method), CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 120, CURLOPT_CONNECTTIMEOUT => self::TIMEOUT,
+			CURLOPT_HTTPHEADER => $h, CURLOPT_FOLLOWLOCATION => true, CURLOPT_MAXREDIRS => 3, CURLOPT_PROTOCOLS => CURLPROTO_HTTPS, CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTPS,
+			CURLOPT_MAXFILESIZE => 100 * 1024 * 1024]);
+		if ($body !== null) { curl_setopt($ch, CURLOPT_POSTFIELDS, $body); }
+		if ($basic) { curl_setopt($ch, CURLOPT_USERPWD, $basic[0] . ':' . $basic[1]); }
+		$res = curl_exec($ch);
+		if ($res === false) { $e = curl_error($ch); curl_close($ch); return [null, 'Erreur de connexion : ' . $e]; }
+		$code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE); $ct = (string)curl_getinfo($ch, CURLINFO_CONTENT_TYPE); curl_close($ch);
+		return [['code' => $code, 'body' => (string)$res, 'type' => $ct], ''];
+	}
+	/**
+	 * Télécharge le média d'un message reçu. $m : ['id' => media id (Meta / 360dialog) | 'url' => lien (Twilio), 'mime' => …]
+	 * @return array{0:?string,1:string,2:string} [contenu, type MIME, erreur]
+	 */
+	public static function waMedia(array $c, array $m): array {
+		$p = $c['provider'];
+		if ($p === 'cloud' && ($m['id'] ?? '') !== '') {
+			$auth = ['Authorization' => 'Bearer ' . $c['token']];
+			[$r, $e] = self::binary('GET', 'https://graph.facebook.com/' . ($c['api_version'] ?: 'v21.0') . '/' . rawurlencode((string)$m['id']), $auth);
+			if (!$r || $r['code'] !== 200) { return [null, '', $e ?: 'Média introuvable chez Meta (HTTP ' . ($r['code'] ?? 0) . ')']; }
+			$j = json_decode($r['body'], true) ?: [];
+			if (empty($j['url'])) { return [null, '', 'Lien du média absent']; }
+			[$r2, $e] = self::binary('GET', (string)$j['url'], $auth + ['User-Agent' => 'EasyCrm']);
+			if (!$r2 || $r2['code'] !== 200) { return [null, '', $e ?: 'Téléchargement refusé (HTTP ' . ($r2['code'] ?? 0) . ')']; }
+			return [$r2['body'], (string)($j['mime_type'] ?? $m['mime'] ?? 'application/octet-stream'), ''];
+		}
+		if ($p === '360dialog' && ($m['id'] ?? '') !== '') {
+			$auth = ['D360-API-KEY' => (string)$c['token']];
+			[$r, $e] = self::binary('GET', 'https://waba-v2.360dialog.io/' . rawurlencode((string)$m['id']), $auth);
+			if (!$r || $r['code'] !== 200) { return [null, '', $e ?: 'Média introuvable chez 360dialog (HTTP ' . ($r['code'] ?? 0) . ')']; }
+			$j = json_decode($r['body'], true) ?: [];
+			if (empty($j['url'])) { return [null, '', 'Lien du média absent']; }
+			$u = preg_replace('#^https://lookaside\.fbsbx\.com#', 'https://waba-v2.360dialog.io', (string)$j['url']);
+			[$r2, $e] = self::binary('GET', $u, $auth);
+			if (!$r2 || $r2['code'] !== 200) { return [null, '', $e ?: 'Téléchargement refusé (HTTP ' . ($r2['code'] ?? 0) . ')']; }
+			return [$r2['body'], (string)($j['mime_type'] ?? $m['mime'] ?? 'application/octet-stream'), ''];
+		}
+		if (($m['url'] ?? '') !== '') {
+			$basic = $p === 'twilio' ? [(string)$c['account_sid'], (string)$c['token']] : null;
+			[$r, $e] = self::binary('GET', (string)$m['url'], [], null, $basic);
+			if (!$r || $r['code'] !== 200) { return [null, '', $e ?: 'Téléchargement refusé (HTTP ' . ($r['code'] ?? 0) . ')']; }
+			return [$r['body'], (string)($m['mime'] ?: ($r['type'] ?: 'application/octet-stream')), ''];
+		}
+		return [null, '', 'Média non récupérable avec ce fournisseur'];
+	}
+	/**
+	 * Réponse libre d'un commercial (fenêtre de 24 h) : texte et/ou fichier ['data', 'name', 'mime'].
+	 * @return array{0:bool,1:string,2:string} [ok, message, identifiant du message]
+	 */
+	public static function waSendRich(array $c, string $number, string $text, ?array $file = null): array {
+		$p = $c['provider'];
+		if ($file !== null) {
+			$mime = strtolower(explode(';', (string)$file['mime'])[0]); if ($mime === 'image/jpg') { $mime = 'image/jpeg'; }
+			if (!in_array($mime, array_merge(self::SEND_IMAGE, self::SEND_DOC), true)) { return [false, 'Type de fichier non accepté par WhatsApp : utilisez JPG, PNG, PDF, Word, Excel ou PowerPoint.', '']; }
+			if (!in_array($p, ['cloud', '360dialog'], true)) { return [false, 'L’envoi de fichiers depuis le CRM nécessite Meta Cloud API ou 360dialog.', '']; }
+			$part = new \CURLStringFile((string)$file['data'], (string)$file['name'], $mime);
+			if ($p === 'cloud') {
+				$base = 'https://graph.facebook.com/' . ($c['api_version'] ?: 'v21.0') . '/' . rawurlencode((string)$c['phone_id']);
+				$auth = ['Authorization' => 'Bearer ' . $c['token']];
+				[$r, $e] = self::binary('POST', $base . '/media', $auth, ['messaging_product' => 'whatsapp', 'type' => $mime, 'file' => $part]);
+			} else {
+				$base = 'https://waba-v2.360dialog.io';
+				$auth = ['D360-API-KEY' => (string)$c['token']];
+				[$r, $e] = self::binary('POST', $base . '/media', $auth, ['messaging_product' => 'whatsapp', 'file' => $part]);
+			}
+			if (!$r) { return [false, $e, '']; }
+			$mid = (string)((json_decode($r['body'], true) ?: [])['id'] ?? '');
+			if ($r['code'] >= 300 || $mid === '') { return [false, 'Fichier refusé par le fournisseur (HTTP ' . $r['code'] . ').', '']; }
+			$kind = in_array($mime, self::SEND_IMAGE, true) ? 'image' : 'document';
+			$obj = ['id' => $mid] + ($text !== '' ? ['caption' => $text] : []) + ($kind === 'document' ? ['filename' => (string)$file['name']] : []);
+			[$r, $e] = self::http('POST', $base . '/messages', $auth + ['Content-Type' => 'application/json'],
+				json_encode(['messaging_product' => 'whatsapp', 'recipient_type' => 'individual', 'to' => $number, 'type' => $kind, $kind => $obj]));
+			if (!$r) { return [false, $e, '']; }
+			return ($r['code'] >= 200 && $r['code'] < 300) ? [true, 'Message envoyé.', self::msgId(self::j($r))] : [false, self::refusal($r), ''];
+		}
+		if ($text === '') { return [false, 'Message vide', '']; }
+		// texte libre : jamais de modèle dans une réponse
+		return self::waSend(['template' => ''] + $c, $number, $text);
+	}
+	/** Événements WhatsApp entrants : messages (avec médias), accusés de livraison, échos de l'appli WhatsApp Business. */
+	public static function parseWaEvents(array $d): array {
+		$msgs = []; $sts = [];
+		if (isset($d['entry'])) {
+			foreach ((array)$d['entry'] as $en) { foreach ((array)($en['changes'] ?? []) as $ch) {
+				$v = (array)($ch['value'] ?? []); $echo = ($ch['field'] ?? '') === 'smb_message_echoes';
+				$names = []; foreach ((array)($v['contacts'] ?? []) as $ct) { $names[(string)($ct['wa_id'] ?? '')] = (string)($ct['profile']['name'] ?? ''); }
+				foreach ((array)($echo ? ($v['message_echoes'] ?? []) : ($v['messages'] ?? [])) as $m) {
+					$type = (string)($m['type'] ?? 'text'); $text = ''; $media = null;
+					if (in_array($type, self::WA_MEDIA, true)) {
+						$x = (array)($m[$type] ?? []);
+						$media = ['id' => (string)($x['id'] ?? ''), 'mime' => (string)($x['mime_type'] ?? ''), 'filename' => (string)($x['filename'] ?? '')];
+						$text = (string)($x['caption'] ?? '');
+					} elseif ($type === 'text') { $text = (string)($m['text']['body'] ?? ''); }
+					elseif ($type === 'location') { $l = (array)($m['location'] ?? []); $text = 'https://maps.google.com/?q=' . ($l['latitude'] ?? '') . ',' . ($l['longitude'] ?? '') . (!empty($l['name']) ? ' ' . $l['name'] : ''); }
+					elseif ($type === 'button') { $text = (string)($m['button']['text'] ?? ''); }
+					elseif ($type === 'interactive') { $text = (string)($m['interactive']['button_reply']['title'] ?? $m['interactive']['list_reply']['title'] ?? ''); }
+					else { $text = '[' . $type . ']'; }
+					$from = self::digits($m['from'] ?? '');
+					$msgs[] = ['from' => $echo ? self::digits($m['to'] ?? '') : $from, 'name' => $echo ? '' : ($names[$from] ?? ''), 'text' => $text, 'id' => (string)($m['id'] ?? ''),
+						'type' => $type, 'media' => $media, 'ts' => (int)($m['timestamp'] ?? 0), 'direction' => $echo ? 'out' : 'in'];
+				}
+				foreach ((array)($v['statuses'] ?? []) as $st) {
+					$sts[] = ['id' => (string)($st['id'] ?? ''), 'status' => (string)($st['status'] ?? ''), 'error' => (string)($st['errors'][0]['title'] ?? $st['errors'][0]['message'] ?? '')];
+				}
+			} }
+		} elseif (isset($d['MessageStatus']) && !isset($d['Body'])) {
+			$map = ['queued' => 'sent', 'accepted' => 'sent', 'sending' => 'sent', 'sent' => 'sent', 'delivered' => 'delivered', 'read' => 'read', 'failed' => 'failed', 'undelivered' => 'failed'];
+			$sts[] = ['id' => (string)($d['MessageSid'] ?? ''), 'status' => $map[strtolower((string)$d['MessageStatus'])] ?? '', 'error' => (string)($d['ErrorMessage'] ?? $d['ErrorCode'] ?? '')];
+		} elseif (isset($d['From']) || isset($d['WaId'])) {
+			$media = null; $type = 'text';
+			if ((int)($d['NumMedia'] ?? 0) > 0 && !empty($d['MediaUrl0'])) {
+				$mt = (string)($d['MediaContentType0'] ?? '');
+				$type = str_starts_with($mt, 'image/') ? 'image' : (str_starts_with($mt, 'audio/') ? 'audio' : (str_starts_with($mt, 'video/') ? 'video' : 'document'));
+				$media = ['url' => (string)$d['MediaUrl0'], 'mime' => $mt, 'filename' => ''];
+			}
+			$msgs[] = ['from' => self::digits($d['WaId'] ?? str_replace('whatsapp:', '', (string)($d['From'] ?? ''))), 'name' => (string)($d['ProfileName'] ?? ''), 'text' => (string)($d['Body'] ?? ''),
+				'id' => (string)($d['MessageSid'] ?? ''), 'type' => $type, 'media' => $media, 'ts' => 0, 'direction' => 'in'];
+		} elseif (isset($d['from']) || isset($d['number'])) {
+			$msgs[] = ['from' => self::digits($d['from'] ?? $d['number']), 'name' => (string)($d['name'] ?? ''), 'text' => (string)($d['text'] ?? $d['message'] ?? ''), 'id' => (string)($d['id'] ?? ''),
+				'type' => 'text', 'media' => !empty($d['media_url']) ? ['url' => (string)$d['media_url'], 'mime' => (string)($d['media_type'] ?? ''), 'filename' => (string)($d['filename'] ?? '')] : null,
+				'ts' => (int)($d['timestamp'] ?? 0), 'direction' => 'in'];
+		}
+		return ['messages' => $msgs, 'statuses' => $sts];
 	}
 	public static function waTest(array $c): array {
 		switch ($c['provider']) {

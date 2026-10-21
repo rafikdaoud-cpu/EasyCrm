@@ -38,4 +38,13 @@ return ['routes' => [
 	['name' => 'hook#waVerify', 'url' => '/api/hook/wa', 'verb' => 'GET'],
 	['name' => 'api#create', 'url' => '/api/prospects', 'verb' => 'POST'],
 	['name' => 'api#update', 'url' => '/api/prospects/{id}/update', 'verb' => 'POST'],
+	['name' => 'wa#list', 'url' => '/api/wa', 'verb' => 'GET'],
+	['name' => 'wa#counters', 'url' => '/api/wa/counters', 'verb' => 'GET'],
+	['name' => 'wa#forProspect', 'url' => '/api/wa/prospect/{pid}', 'verb' => 'GET'],
+	['name' => 'wa#file', 'url' => '/api/wa/file/{mid}', 'verb' => 'GET'],
+	['name' => 'wa#show', 'url' => '/api/wa/{id}', 'verb' => 'GET'],
+	['name' => 'wa#send', 'url' => '/api/wa/{id}/send', 'verb' => 'POST'],
+	['name' => 'wa#assign', 'url' => '/api/wa/{id}/assign', 'verb' => 'POST'],
+	['name' => 'wa#resolve', 'url' => '/api/wa/{id}/resolve', 'verb' => 'POST'],
+	['name' => 'wa#createProspect', 'url' => '/api/wa/{id}/prospect', 'verb' => 'POST'],
 ]];
