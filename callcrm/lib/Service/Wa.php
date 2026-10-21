@@ -20,15 +20,20 @@ class Wa {
 	}
 	/** 213770351427 / +213 770… / 0770… → 0770351427 (format des fiches) ; null si non algérien */
 	public static function localPhone(string $raw): ?string {
+		if (self::isBsuid($raw)) { return null; }
 		$d = preg_replace('/\D+/', '', Lookup::latin($raw));
 		if (str_starts_with($d, '00213')) { $d = substr($d, 5); } elseif (str_starts_with($d, '213') && strlen($d) >= 11) { $d = substr($d, 3); }
 		if ($d !== '' && $d[0] !== '0') { $d = '0' . $d; }
 		return (preg_match('/^0[567]\d{8}$/', $d) || preg_match('/^0[2349]\d{7,8}$/', $d)) ? $d : null;
 	}
 	public static function waId(string $raw): string {
+		if (self::isBsuid($raw)) { return trim($raw); }
 		$d = preg_replace('/\D+/', '', $raw);
 		return str_starts_with($d, '0') ? '213' . substr($d, 1) : $d;
 	}
+
+	/** Identifiant WhatsApp sans numéro (client avec nom d'utilisateur), ex. DZ.1828231388191250 */
+	public static function isBsuid(string $s): bool { return (bool)preg_match('/^[A-Z]{2}\.[A-Za-z0-9.]{1,140}$/', trim($s)); }
 
 	// ---------- lecture ----------
 	public function conv(int $id): ?array {
@@ -40,6 +45,12 @@ class Wa {
 	public function convByWaId(string $waId): ?array {
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('*')->from('callcrm_wa_conv')->where($qb->expr()->eq('wa_id', $qb->createNamedParameter($waId)))->setMaxResults(1);
+		$r = $qb->executeQuery()->fetch();
+		return $r ?: null;
+	}
+	public function convByBsuid(string $b): ?array {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('*')->from('callcrm_wa_conv')->where($qb->expr()->eq('bsuid', $qb->createNamedParameter($b)))->setMaxResults(1);
 		$r = $qb->executeQuery()->fetch();
 		return $r ?: null;
 	}
@@ -143,19 +154,28 @@ class Wa {
 	}
 	public function updateConv(int $id, array $v): void { $this->set('callcrm_wa_conv', $id, $v); }
 
-	/** Retourne la conversation du numéro, créée si besoin et rattachée à la fiche du même numéro. */
-	public function ensureConv(string $waId, string $name): array {
-		$c = $this->convByWaId($waId);
-		$phone = self::localPhone($waId);
+	/**
+	 * Conversation du client, créée si besoin et rattachée à la fiche du même numéro.
+	 * $waId : numéro international (peut être vide si le client a un nom d'utilisateur) ; $bsuid : identifiant WhatsApp (BSUID).
+	 */
+	public function ensureConv(string $waId, string $name, string $bsuid = ''): array {
+		$c = $waId !== '' ? $this->convByWaId($waId) : null;
+		if (!$c && $bsuid !== '') { $c = $this->convByBsuid($bsuid) ?? $this->convByWaId($bsuid); }
+		$phone = $waId !== '' ? self::localPhone($waId) : null;
 		if (!$c) {
-			$p = $phone ? $this->prospectByPhone($phone) : null;
-			$id = $this->insert('callcrm_wa_conv', ['wa_id' => $waId, 'phone' => $phone, 'name' => mb_substr($name, 0, 255) ?: null,
+			$p = $waId !== '' ? ($phone ? $this->prospectByPhone($phone) : null) : null;
+			$key = $waId !== '' ? $waId : $bsuid;
+			$this->insert('callcrm_wa_conv', ['wa_id' => $key, 'phone' => $phone, 'name' => mb_substr($name, 0, 255) ?: null, 'bsuid' => $bsuid !== '' ? $bsuid : null,
 				'prospect_id' => $p ? (int)$p['id'] : null, 'assigned_to' => null, 'status' => 'ouvert', 'unread' => 0, 'created_at' => time()]);
-			return $this->convByWaId($waId) ?? ['id' => $id];
+			return $this->convByWaId($key) ?? [];
 		}
 		$upd = [];
 		if ($name !== '' && $name !== ($c['name'] ?? '')) { $upd['name'] = mb_substr($name, 0, 255); }
-		if (empty($c['prospect_id']) && $phone && ($p = $this->prospectByPhone($phone))) { $upd['prospect_id'] = (int)$p['id']; }
+		if ($bsuid !== '' && empty($c['bsuid'])) { $upd['bsuid'] = $bsuid; }
+		// le numéro est apparu (client avec nom d'utilisateur qui nous a donné son numéro) : la conversation prend le numéro
+		if ($waId !== '' && self::isBsuid((string)$c['wa_id']) && !$this->convByWaId($waId)) { $upd['wa_id'] = $waId; $upd['phone'] = $phone; }
+		$ph = (string)($phone ?? $c['phone'] ?? '');
+		if (empty($c['prospect_id']) && $ph !== '' && ($p = $this->prospectByPhone($ph))) { $upd['prospect_id'] = (int)$p['id']; }
 		if ($upd) { $this->updateConv((int)$c['id'], $upd); $c = array_merge($c, $upd); }
 		return $c;
 	}
@@ -169,10 +189,13 @@ class Wa {
 	 * @return array{conv:int,msg:?int,created:bool}
 	 */
 	public function record(array $ev): array {
-		$waId = self::waId((string)($ev['wa_id'] ?? ''));
-		if ($waId === '') { throw new \InvalidArgumentException('wa_id manquant'); }
+		$waId = trim((string)($ev['wa_id'] ?? '')) !== '' ? self::waId((string)$ev['wa_id']) : '';
+		$bsuid = trim((string)($ev['user_id'] ?? ''));
+		if (!self::isBsuid($bsuid)) { $bsuid = ''; }
+		if (self::isBsuid($waId)) { $bsuid = $bsuid ?: $waId; $waId = ''; }
+		if ($waId === '' && $bsuid === '') { throw new \InvalidArgumentException('wa_id manquant'); }
 		$wamid = trim((string)($ev['wamid'] ?? ''));
-		$c = $this->ensureConv($waId, trim((string)($ev['name'] ?? '')));
+		$c = $this->ensureConv($waId, trim((string)($ev['name'] ?? '')), $bsuid);
 		$cid = (int)$c['id'];
 		if ($wamid !== '' && $this->msgExists($wamid)) { return ['conv' => $cid, 'msg' => null, 'created' => false]; }
 		$dir = ($ev['direction'] ?? 'in') === 'out' ? 'out' : 'in';

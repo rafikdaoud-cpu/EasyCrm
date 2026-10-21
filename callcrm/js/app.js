@@ -809,6 +809,8 @@ function admin() {
 let waBoxSel = null, waView = 0, waLast = -1;
 const waTicks = m => m.dir !== 'out' ? '' : ({sent:' ✓', delivered:' ✓✓', read:' ✓✓', failed:' ⚠'}[m.status] || '');
 const waUrl = id => API + '/wa/file/' + id;
+/** Numéro, ou mention « nom d'utilisateur WhatsApp » quand Meta ne transmet pas le numéro */
+const waWho = c => c.phone || (c.username ? '👤 nom d’utilisateur WhatsApp (numéro masqué)' : '+' + c.wa_id);
 const hhmm = t => t ? new Date(t * 1000).toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'}) : '';
 function waWin(c) {
   if (!c.last_in_at) return h('span', {class:'muted'}, 'Le client n’a pas encore écrit');
@@ -840,7 +842,7 @@ async function waList(off = 0, keep) {
       if (!r.rows.length) { box.replaceChildren(h('p', {class:'muted'}, waBoxSel === 'queue' ? 'Aucune conversation en attente d’attribution.' : 'Aucune conversation.')); return; }
       box.replaceChildren(...r.rows.map(c => h('div', {class:'row' + (c.unread ? ' wa-unread' : ''), onclick: () => waConv(c.id, () => waList(off, {q:q.value, user: u ? u.value : ''}))},
         h('div', {style:'min-width:0;flex:1'},
-          h('strong', {}, c.prospect_name || c.name || c.phone || c.wa_id), ' ', h('span', {class:'muted'}, c.phone || ('+' + c.wa_id)),
+          h('strong', {}, c.prospect_name || c.name || c.phone || c.wa_id), ' ', h('span', {class:'muted'}, waWho(c)),
           c.prospect_id ? '' : h('span', {class:'badge', style:'margin-left:6px;background:#e9a100;color:#000'}, 'Inconnu'),
           h('div', {class:'muted wa-prev'}, c.preview || ''),
           h('div', {class:'muted'}, c.owner_name ? '👤 ' + c.owner_name : '👥 File d’attente', ' · ', waWin(c))),
@@ -875,7 +877,7 @@ async function waConv(id, back) {
   const paint = dd => {
     const c = dd.conv; d = dd;
     head.replaceChildren(
-      h('h2', {style:'margin:6px 0'}, c.prospect_name || c.name || c.phone, ' ', h('span', {class:'muted'}, c.phone || ('+' + c.wa_id))),
+      h('h2', {style:'margin:6px 0'}, c.prospect_name || c.name || c.phone || c.wa_id, ' ', h('span', {class:'muted'}, waWho(c))),
       c.name && c.prospect_name && c.name !== c.prospect_name ? h('div', {class:'muted'}, 'Nom WhatsApp : ' + c.name) : '',
       h('div', {class:'muted'}, c.owner_name ? '👤 ' + c.owner_name : '👥 File d’attente', ' · ', waWin(c), c.status === 'resolu' ? ' · ✔ Résolue' : ''),
       c.prospect_id ? h('button', {onclick: () => detail(c.prospect_id)}, '📇 Ouvrir la fiche' + (c.prospect_status ? ' (' + (ST[c.prospect_status] || c.prospect_status) + ')' : '')) : '');
@@ -906,7 +908,7 @@ async function waConv(id, back) {
     : c0.window_open ? h('div', {class:'card'}, txt, h('div', {class:'bar', style:'margin-top:6px;align-items:center'}, file, sendBtn), h('div', {class:'muted'}, 'Ctrl+Entrée pour envoyer · photos JPG/PNG et documents (PDF, Word, Excel) · 50 Mo max.'), msg)
     : h('div', {class:'card'}, h('p', {}, 'Le client n’a pas écrit depuis plus de 24 h : WhatsApp n’autorise plus de réponse libre depuis le CRM.'),
         c0.phone ? h('a', {class:'big', href:'tel:' + c0.phone}, '📞 Appeler ' + c0.phone) : '',
-        h('a', {class:'big', style:'background:#25D366;color:#fff', target:'_blank', rel:'noopener noreferrer', href:'https://wa.me/' + c0.wa_id}, '💬 Écrire depuis mon WhatsApp'));
+        c0.username ? '' : h('a', {class:'big', style:'background:#25D366;color:#fff', target:'_blank', rel:'noopener noreferrer', href:'https://wa.me/' + c0.wa_id}, '💬 Écrire depuis mon WhatsApp'));
   // ---- actions superviseur ----
   const amsg = h('span', {class:'muted'});
   const actions = h('div', {class:'bar', style:'align-items:center'});

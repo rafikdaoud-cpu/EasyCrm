@@ -264,15 +264,20 @@ class Telephony {
 		}
 		return ['messaging_product' => 'whatsapp', 'to' => $number, 'type' => 'text', 'text' => ['body' => $text]];
 	}
+	/** Client avec nom d'utilisateur WhatsApp : identifiant BSUID dans « recipient » au lieu de « to » */
+	private static function toRecipient(array $b): array {
+		if (isset($b['to']) && preg_match('/^[A-Z]{2}\\.[A-Za-z0-9.]{1,140}$/', (string)$b['to'])) { $b['recipient'] = $b['to']; unset($b['to']); }
+		return $b;
+	}
 	/** $number : chiffres internationaux sans « + » */
 	public static function waSend(array $c, string $number, string $text, string $name = ''): array {
 		$p = $c['provider'];
 		if ($p === 'cloud') {
 			[$r, $e] = self::http('POST', 'https://graph.facebook.com/' . ($c['api_version'] ?: 'v21.0') . '/' . rawurlencode((string)$c['phone_id']) . '/messages',
-				['Authorization' => 'Bearer ' . $c['token'], 'Content-Type' => 'application/json'], json_encode(self::waPayload($c, $number, $text, $name)));
+				['Authorization' => 'Bearer ' . $c['token'], 'Content-Type' => 'application/json'], json_encode(self::toRecipient(self::waPayload($c, $number, $text, $name))));
 		} elseif ($p === '360dialog') {
 			[$r, $e] = self::http('POST', 'https://waba-v2.360dialog.io/messages', ['D360-API-KEY' => (string)$c['token'], 'Content-Type' => 'application/json'],
-				json_encode(self::waPayload($c, $number, $text, $name)));
+				json_encode(self::toRecipient(self::waPayload($c, $number, $text, $name))));
 		} elseif ($p === 'twilio') {
 			$sid = (string)$c['account_sid'];
 			$d = ['From' => 'whatsapp:+' . ltrim((string)$c['from_number'], '+'), 'To' => 'whatsapp:+' . $number];
@@ -378,7 +383,7 @@ class Telephony {
 			$kind = in_array($mime, self::SEND_IMAGE, true) ? 'image' : 'document';
 			$obj = ['id' => $mid] + ($text !== '' ? ['caption' => $text] : []) + ($kind === 'document' ? ['filename' => (string)$file['name']] : []);
 			[$r, $e] = self::http('POST', $base . '/messages', $auth + ['Content-Type' => 'application/json'],
-				json_encode(['messaging_product' => 'whatsapp', 'recipient_type' => 'individual', 'to' => $number, 'type' => $kind, $kind => $obj]));
+				json_encode(self::toRecipient(['messaging_product' => 'whatsapp', 'recipient_type' => 'individual', 'to' => $number, 'type' => $kind, $kind => $obj])));
 			if (!$r) { return [false, $e, '']; }
 			return ($r['code'] >= 200 && $r['code'] < 300) ? [true, 'Message envoyé.', self::msgId(self::j($r))] : [false, self::refusal($r), ''];
 		}
@@ -392,7 +397,7 @@ class Telephony {
 		if (isset($d['entry'])) {
 			foreach ((array)$d['entry'] as $en) { foreach ((array)($en['changes'] ?? []) as $ch) {
 				$v = (array)($ch['value'] ?? []); $echo = ($ch['field'] ?? '') === 'smb_message_echoes';
-				$names = []; foreach ((array)($v['contacts'] ?? []) as $ct) { $names[(string)($ct['wa_id'] ?? '')] = (string)($ct['profile']['name'] ?? ''); }
+				$names = []; foreach ((array)($v['contacts'] ?? []) as $ct) { $nmv = (string)($ct['profile']['name'] ?? $ct['profile']['username'] ?? ''); if (!empty($ct['wa_id'])) { $names[(string)$ct['wa_id']] = $nmv; } if (!empty($ct['user_id'])) { $names[(string)$ct['user_id']] = $nmv; } }
 				foreach ((array)($echo ? ($v['message_echoes'] ?? []) : ($v['messages'] ?? [])) as $m) {
 					$type = (string)($m['type'] ?? 'text'); $text = ''; $media = null;
 					if (in_array($type, self::WA_MEDIA, true)) {
@@ -404,8 +409,8 @@ class Telephony {
 					elseif ($type === 'button') { $text = (string)($m['button']['text'] ?? ''); }
 					elseif ($type === 'interactive') { $text = (string)($m['interactive']['button_reply']['title'] ?? $m['interactive']['list_reply']['title'] ?? ''); }
 					else { $text = '[' . $type . ']'; }
-					$from = self::digits($m['from'] ?? '');
-					$msgs[] = ['from' => $echo ? self::digits($m['to'] ?? '') : $from, 'name' => $echo ? '' : ($names[$from] ?? ''), 'text' => $text, 'id' => (string)($m['id'] ?? ''),
+					$from = self::digits($m['from'] ?? ''); $uid = (string)($echo ? ($m['to_user_id'] ?? $m['recipient_user_id'] ?? '') : ($m['from_user_id'] ?? ''));
+					$msgs[] = ['from' => $echo ? self::digits($m['to'] ?? '') : $from, 'user_id' => $uid, 'name' => $echo ? '' : ($names[$from] ?? $names[$uid] ?? ''), 'text' => $text, 'id' => (string)($m['id'] ?? ''),
 						'type' => $type, 'media' => $media, 'ts' => (int)($m['timestamp'] ?? 0), 'direction' => $echo ? 'out' : 'in'];
 				}
 				foreach ((array)($v['statuses'] ?? []) as $st) {

@@ -77,8 +77,8 @@ class HookController extends Controller {
 		$ev = Telephony::parseWaEvents($this->payload());
 		$n = 0; $rec = 0;
 		foreach ($ev['messages'] as $m) {
-			if ($m['from'] === '') { continue; }
-			$e = ['wamid' => $m['id'], 'wa_id' => $m['from'], 'name' => $m['name'], 'type' => $m['type'], 'text' => $m['text'], 'ts' => $m['ts'], 'direction' => $m['direction'],
+			if ($m['from'] === '' && ($m['user_id'] ?? '') === '') { continue; }
+			$e = ['wamid' => $m['id'], 'wa_id' => $m['from'], 'user_id' => $m['user_id'] ?? '', 'name' => $m['name'], 'type' => $m['type'], 'text' => $m['text'], 'ts' => $m['ts'], 'direction' => $m['direction'],
 				'user' => $m['direction'] === 'out' ? 'app' : ''];
 			if ($m['media'] && !$this->wa->known($m['id'])) {
 				[$data, $mime, $err] = Telephony::waMedia($c, $m['media']);

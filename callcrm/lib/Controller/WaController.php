@@ -47,7 +47,7 @@ class WaController extends Controller {
 		return ($sc === null || $c['owner'] === $sc) ? $c : null;
 	}
 	private function out(array $c): array {
-		return ['id' => (int)$c['id'], 'wa_id' => $c['wa_id'], 'phone' => $c['phone'], 'name' => $c['name'], 'prospect_id' => $c['prospect_id'] ? (int)$c['prospect_id'] : null,
+		return ['id' => (int)$c['id'], 'wa_id' => $c['wa_id'], 'bsuid' => $c['bsuid'] ?? null, 'username' => Wa::isBsuid((string)$c['wa_id']), 'phone' => $c['phone'], 'name' => $c['name'], 'prospect_id' => $c['prospect_id'] ? (int)$c['prospect_id'] : null,
 			'prospect_name' => $c['linked'] ? trim(($c['p_lastname'] ?? '') . ' ' . ($c['p_firstname'] ?? '')) : null, 'prospect_status' => $c['linked'] ? $c['p_status'] : null,
 			'owner' => $c['owner'], 'owner_name' => $this->name($c['owner']), 'status' => $c['status'], 'unread' => (int)$c['unread'],
 			'last_msg_at' => (int)$c['last_msg_at'], 'last_in_at' => (int)$c['last_in_at'], 'preview' => $c['last_preview'],
