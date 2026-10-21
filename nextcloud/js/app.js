@@ -181,8 +181,17 @@ async function list(k) {
     try { const r = await api('/transfer', {method:'POST', body:{ids:[...sel], to:selTo.value}}); sel.clear(); selMsg.textContent = '✔ ' + r.transferred + T(' prospect(s) transféré(s).'); load(true); }
     catch (e) { selMsg.textContent = e.message; }
   }}, T('Transférer la sélection'));
-  const selBar = me.can.assign ? h('div', {class:'bar selbar'}, h('label', {}, selAll, T(' Tout cocher (page)')), selCnt, selTo, selBtn, selMsg) : '';
-  function refreshSel() { selCnt.textContent = sel.size + T(' sélectionné(s)'); selBtn.disabled = !sel.size; selAll.checked = !!rowsNow.length && rowsNow.every(x => sel.has(x.id)); }
+  const stTo = h('select', {}, h('option', {value:''}, T('Changer le statut en…')), Object.entries(ST).map(([v, l]) => h('option', {value:v}, l)));
+  const stUn = h('label', {style:'white-space:nowrap'}, h('input', {type:'checkbox'}), T(' puis non assignés'));
+  const stBtn = h('button', {onclick: async () => {
+    if (!stTo.value) { selMsg.textContent = T('Choisissez le nouveau statut.'); return; }
+    if (!confirm(T('Passer ') + sel.size + T(' prospect(s) en « ') + ST[stTo.value] + ' »' + (stUn.firstChild.checked ? T(' et les rendre non assignés') : '') + T(' ? Les rappels prévus et le compteur de tentatives sont remis à zéro.'))) return;
+    selMsg.textContent = '…';
+    try { const r = await api('/bulkstatus', {method:'POST', body:{ids:[...sel], to_status:stTo.value, assign_mode: stUn.firstChild.checked ? 'none' : 'keep'}}); sel.clear(); selMsg.textContent = '✔ ' + r.changed + T(' prospect(s) mis à jour.'); load(true); }
+    catch (e) { selMsg.textContent = e.message; }
+  }}, T('Appliquer le statut'));
+  const selBar = me.can.assign ? h('div', {class:'bar selbar'}, h('label', {}, selAll, T(' Tout cocher (page)')), selCnt, selTo, selBtn, stTo, stUn, stBtn, selMsg) : '';
+  function refreshSel() { selCnt.textContent = sel.size + T(' sélectionné(s)'); selBtn.disabled = !sel.size; stBtn.disabled = !sel.size; selAll.checked = !!rowsNow.length && rowsNow.every(x => sel.has(x.id)); }
   const pst = 'justify-content:space-between;align-items:center;margin:8px 0';
   const pager = h('div', {class:'bar', style:pst}), pagerB = h('div', {class:'bar', style:pst});
   const load = async (keep) => {
@@ -353,7 +362,7 @@ async function detail(id) {
         h('div', {class:'muted'}, T('Date d’inscription : ') + fmt(Number(p.created_at))),
         h('div', {class:'muted'}, T('Date de traitement : ') + (Number(p.last_call_at) ? fmt(Number(p.last_call_at)) : '—')),
         p.callback_at ? h('div', {}, T('⏰ Rappel : ') + fmt(Number(p.callback_at))) : '',
-        attemptsBox(d.calls),
+        attemptsBox(d.calls.filter(c => Number(c.created_at) >= Number(p.reset_at || 0))),
         p.phone && !me.can.call ? h('p', {}, '📞 ' + p.phone) : '',
         p.phone && me.can.call ? (TEL.pbx === 'none' ? h('a', {class:'big', href:'tel:' + p.phone}, T('📞 Appeler ') + p.phone)
           : h('button', {class:'big', onclick: () => pbxCall(id)}, T('📞 Appeler via le standard ') + p.phone)) : (p.phone ? '' : h('p', {class:'muted'}, T('Aucun numéro de téléphone renseigné.'))),
@@ -792,6 +801,33 @@ function transferCard() {
       catch (e) { out.textContent = e.message; }
     }}, T('Transférer'))), out);
 }
+function bulkStatusCard() {
+  const com = me.commerciaux || [];
+  const who = h('select', {}, h('option', {value:'__all'}, T('Tous les commerciaux')), h('option', {value:''}, T('Non assignés')), com.map(u => h('option', {value:u.uid}, u.name)));
+  const chk = Object.entries(ST).map(([v, l]) => ({v, el: h('input', {type:'checkbox', value:v, checked: v === 'injoignable' || v === 'pas_interesse'})}));
+  const to = h('select', {}, Object.entries(ST).map(([v, l]) => h('option', {value:v, selected: v === 'nouveau'}, l)));
+  const mode = h('select', {}, h('option', {value:'keep'}, T('Garder le commercial actuel')), h('option', {value:'none'}, T('Rendre non assignés (à répartir ensuite)')), h('option', {value:'user'}, T('Affecter à un commercial…')));
+  const dest = h('select', {style:'display:none'}, h('option', {value:''}, T('— Choisir —')), com.map(u => h('option', {value:u.uid}, u.name)));
+  mode.addEventListener('change', () => { dest.style.display = mode.value === 'user' ? '' : 'none'; });
+  const lim = h('input', {type:'number', min:0, placeholder:T('Tous'), style:'width:90px'});
+  const out = h('div', {class:'muted', style:'margin-top:6px'});
+  const body = dry => ({from_status: chk.filter(c => c.el.checked).map(c => c.v), assigned:who.value, to_status:to.value, assign_mode:mode.value, assign_to:dest.value, limit: lim.value ? Number(lim.value) : 0, dry});
+  const prev = async () => { out.textContent = '…'; try { const r = await api('/bulkstatus', {method:'POST', body:body(true)}); out.textContent = r.count + T(' prospect(s) concernés.'); } catch (e) { out.textContent = e.message; } };
+  return h('div', {class:'card'}, h('h3', {}, T('Changer le statut des prospects en masse')),
+    h('p', {class:'muted'}, T('Sélectionnez les statuts d’origine (aucun coché = tous), éventuellement un commercial, puis le nouveau statut. Exemple : « Ne répond pas » et « Pas intéressé » → « Nouveau », puis répartissez-les. Les rappels prévus et le compteur de tentatives sont remis à zéro ; l’historique des appels est conservé. Pour une sélection précise, cochez les fiches dans les listes.')),
+    h('div', {style:'display:flex;flex-wrap:wrap;gap:4px 14px;padding:4px 0'}, chk.map((c, i) => h('label', {style:'white-space:nowrap'}, c.el, ' ' + ST[c.v]))),
+    h('div', {class:'bar'}, h('label', {}, T('Commercial '), who), h('label', {}, T('Quantité max '), lim)),
+    h('div', {class:'bar'}, h('label', {}, T('Nouveau statut '), to), mode, dest),
+    h('div', {class:'bar'}, h('button', {onclick: prev}, T('Compter')), h('button', {class:'primary', onclick: async () => {
+      if (mode.value === 'user' && !dest.value) { out.textContent = T('Choisissez le commercial destinataire.'); return; }
+      let n; try { n = (await api('/bulkstatus', {method:'POST', body:body(true)})).count; } catch (e) { out.textContent = e.message; return; }
+      if (!n) { out.textContent = T('Aucun prospect concerné.'); return; }
+      if (!confirm(T('Passer ') + n + T(' prospect(s) en « ') + ST[to.value] + T(' » ?'))) return;
+      out.textContent = '…';
+      try { const r = await api('/bulkstatus', {method:'POST', body:body(false)}); out.textContent = '✔ ' + r.changed + T(' prospect(s) mis à jour.'); }
+      catch (e) { out.textContent = e.message; }
+    }}, T('Appliquer'))), out);
+}
 function settingsCard() {
   const P = me.prefs || {};
   const num = (v, w = 70) => h('input', {type:'number', min:0, value:v || 0, style:'width:' + w + 'px'});
@@ -825,7 +861,7 @@ function commPicker(title) {
         h('label', {}, all, T(' Tout cocher / décocher')), ...boxes.map(x => h('label', {style:'display:block'}, x.cb, ' ' + x.u.name)))),
     values: () => boxes.filter(x => x.cb.checked).map(x => x.u.uid)};
 }
-const AUDIT = {transfer:T('Transfert'), auto_close:T('Clôture automatique'), assign:T('Affectation'), import:T('Import'), distribute:T('Répartition'), release:T('Réattribution'), delete:T('Suppression'), export:T('Export'), settings:T('Réglages')};
+const AUDIT = {transfer:T('Transfert'), status:T('Changement de statut'), auto_close:T('Clôture automatique'), assign:T('Affectation'), import:T('Import'), distribute:T('Répartition'), release:T('Réattribution'), delete:T('Suppression'), export:T('Export'), settings:T('Réglages')};
 function auditCard() {
   const box = h('div'), out = h('div', {class:'muted'});
   const act = h('select', {}, h('option', {value:''}, T('Toutes les actions')), Object.entries(AUDIT).map(([k, l]) => h('option', {value:k}, l)));
@@ -880,6 +916,7 @@ function admin() {
     me.can.fields ? statusesEditor() : '',
     me.can.fields ? settingsCard() : '',
     me.can.assign ? transferCard() : '',
+    me.can.assign ? bulkStatusCard() : '',
     me.can.audit ? auditCard() : '',
     !me.can.invite ? '' : h('div', {class:'card'}, h('h3', {}, T('Inviter les commerciaux par e-mail')),
       h('p', {class:'muted'}, T('Envoie à chaque commercial coché son adresse d’accès et son identifiant de connexion. Variables : {nom}, {identifiant}, {url}. Prérequis : serveur e-mail configuré dans Nextcloud (Paramètres d’administration → Paramètres de base).')),

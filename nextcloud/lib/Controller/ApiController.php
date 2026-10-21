@@ -283,6 +283,41 @@ class ApiController extends Controller {
 		return new JSONResponse(['transferred' => $n]);
 	}
 
+	/** Changement de statut en masse : sélection (ids) ou filtre (statuts d'origine, commercial) ; option de réaffectation. */
+	#[NoAdminRequired]
+	public function bulkStatus(): JSONResponse {
+		if (!$this->a->can('assign')) { return $this->deny(); }
+		$to = trim((string)$this->request->getParam('to_status', ''));
+		if (!in_array($to, Statuses::keys(), true)) { return $this->err('Choisissez le nouveau statut'); }
+		$dry = (bool)$this->request->getParam('dry', false);
+		$mode = (string)$this->request->getParam('assign_mode', 'keep');
+		$uid = trim((string)$this->request->getParam('assign_to', ''));
+		$assign = false;
+		if ($mode === 'none') { $assign = null; }
+		elseif ($mode === 'user') {
+			if (!in_array($uid, array_column($this->commerciaux(), 'uid'), true)) { return $this->err('Choisissez le commercial destinataire'); }
+			$assign = $uid;
+		} elseif ($mode !== 'keep') { return $this->err('Affectation invalide'); }
+		$sel = $this->request->getParam('ids');
+		if (is_array($sel)) {
+			$ids = array_values(array_unique(array_filter(array_map('intval', $sel), fn($x) => $x > 0)));
+			if (count($ids) > 2000) { return $this->err('Sélection trop grande (2000 maximum)'); }
+			if (!$ids) { return $this->err('Aucun prospect sélectionné'); }
+			$from = '';
+		} else {
+			$fs = $this->request->getParam('from_status', []);
+			$fs = is_array($fs) ? array_values(array_filter(array_map('strval', $fs), fn($x) => in_array($x, Statuses::keys(), true))) : [];
+			$who = (string)$this->request->getParam('assigned', '__all');
+			if ($who !== '__all' && $who !== '' && !in_array($who, array_column($this->commerciaux(), 'uid'), true)) { return $this->err('Commercial invalide'); }
+			$ids = $this->s->idsByStatus($fs, $who, max(0, (int)$this->request->getParam('limit', 0)));
+			$from = ($fs ? implode('+', $fs) : 'tous statuts') . ', ' . ($who === '__all' ? 'tous commerciaux' : ($who === '' ? 'non assignés' : $who));
+		}
+		if ($dry) { return new JSONResponse(['count' => count($ids)]); }
+		$n = $ids ? $this->s->setStatus($ids, $to, $assign) : 0;
+		$this->s->audit($this->a->uid(), 'status', null, $n . ' prospect(s) → statut ' . $to . ($assign === false ? '' : ($assign === null ? ', rendus non assignés' : ', affectés à ' . $assign)) . (is_array($sel) ? ' (sélection dans la liste)' : ' depuis ' . $from) . ' · ids : ' . implode(',', array_slice($ids, 0, 30)) . (count($ids) > 30 ? '…' : ''));
+		return new JSONResponse(['changed' => $n]);
+	}
+
 	#[NoAdminRequired]
 	public function destroy(int $id): JSONResponse {
 		if (!$this->a->can('delete')) { return $this->deny(); }

@@ -15,7 +15,7 @@
 * Enregistrements d'appels, invitation des commerciaux par e-mail
 * Saisie des appels différée en cas de coupure réseau
 * Téléphonie : Asterisk/FreePBX, Yeastar, 3CX, API HTTP ou lien softphone ; WhatsApp : lien, Meta Cloud API, 360dialog, Twilio (pré-réglages et webhooks)]]></description>
-	<version>1.1.0</version>
+	<version>1.2.0</version>
 	<licence>agpl</licence>
 	<author>Rafik</author>
 	<namespace>EasyCrm</namespace>

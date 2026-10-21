@@ -191,6 +191,31 @@ class Store {
 		}
 		return $n;
 	}
+	/** Prospects par statut(s) (vide = tous) et par commercial ('__all' = tous, '' = non assignés, sinon identifiant). */
+	public function idsByStatus(array $statuses, string $assigned, int $limit = 0): array {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('id')->from('callcrm_prospects')->where($qb->expr()->neq('id', $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT)));
+		if ($statuses) { $qb->andWhere($qb->expr()->in('status', $qb->createNamedParameter($statuses, IQueryBuilder::PARAM_STR_ARRAY))); }
+		if ($assigned === '') { $qb->andWhere($qb->expr()->isNull('assigned_to')); }
+		elseif ($assigned !== '__all') { $qb->andWhere($qb->expr()->eq('assigned_to', $qb->createNamedParameter($assigned))); }
+		$qb->orderBy('id', 'ASC');
+		if ($limit > 0) { $qb->setMaxResults($limit); }
+		return array_map('intval', array_column($qb->executeQuery()->fetchAll(), 'id'));
+	}
+	/** Change le statut en masse (rappel effacé, compteur de tentatives remis à zéro) ; $assign : false = inchangé, null = non assigné, sinon identifiant. */
+	public function setStatus(array $ids, string $status, $assign = false): int {
+		$n = 0; $now = time();
+		foreach (array_chunk($ids, 500) as $chunk) {
+			$qb = $this->db->getQueryBuilder();
+			$qb->update('callcrm_prospects')->set('status', $qb->createNamedParameter($status))
+				->set('callback_at', $qb->createNamedParameter(null, IQueryBuilder::PARAM_NULL))
+				->set('reset_at', $qb->createNamedParameter($now, IQueryBuilder::PARAM_INT));
+			if ($assign !== false) { $qb->set('assigned_to', $qb->createNamedParameter($assign, $assign === null ? IQueryBuilder::PARAM_NULL : IQueryBuilder::PARAM_STR)); }
+			$qb->where($qb->expr()->in('id', $qb->createNamedParameter($chunk, IQueryBuilder::PARAM_INT_ARRAY)));
+			$n += $qb->executeStatement();
+		}
+		return $n;
+	}
 	/** Nombre d'appels de ce prospect dont le résultat demande un rappel (statuts « avec date de rappel »). */
 	public function callbackCalls(int $prospectId): int {
 		$keys = \OCA\CallCrm\Service\Statuses::callbackKeys();
@@ -199,6 +224,8 @@ class Store {
 		$qb->select($qb->func()->count('*', 'n'))->from('callcrm_calls')
 			->where($qb->expr()->eq('prospect_id', $qb->createNamedParameter($prospectId, IQueryBuilder::PARAM_INT)))
 			->andWhere($qb->expr()->in('result', $qb->createNamedParameter($keys, IQueryBuilder::PARAM_STR_ARRAY)));
+		$ra = (int)($this->get($prospectId)['reset_at'] ?? 0);
+		if ($ra > 0) { $qb->andWhere($qb->expr()->gte('created_at', $qb->createNamedParameter($ra, IQueryBuilder::PARAM_INT))); }
 		return (int)$qb->executeQuery()->fetchOne();
 	}
 	/** Journal d'activité (transferts, clôtures automatiques, exports, imports…). */
