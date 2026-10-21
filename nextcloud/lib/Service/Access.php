@@ -23,7 +23,7 @@ class Access {
 		'import' => ['admin', 'superviseur'], 'invite' => ['admin'], 'fields' => ['admin'], 'labels' => ['admin'], 'delete' => ['admin'],
 		'assign' => ['admin', 'superviseur'], 'create' => ['admin', 'superviseur', 'commercial'], 'call' => ['admin', 'commercial'],
 		'all' => ['admin', 'superviseur', 'lecture'], 'audit' => ['admin', 'superviseur'],
-		'export' => ['admin', 'superviseur', 'commercial'], 'export_phone' => ['admin', 'superviseur'], 'mask' => [],
+		'export' => ['admin', 'superviseur', 'commercial', 'lecture'], 'export_phone' => ['admin', 'superviseur'], 'mask' => [],
 	];
 	public function __construct(private IUserSession $us, private IGroupManager $gm) {}
 	public function uid(): string { return $this->us->getUser()->getUID(); }
