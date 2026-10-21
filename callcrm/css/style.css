@@ -39,3 +39,14 @@
 #callcrm .pbar>span{display:block;height:100%;background:#2e9e55}
 #callcrm table.t{width:100%;border-collapse:collapse}
 #callcrm table.t th,#callcrm table.t td{padding:5px 6px;text-align:left;border-top:1px solid var(--color-border)}
+#callcrm .wa-thread{max-height:58vh;overflow:auto;display:flex;flex-direction:column;gap:6px;padding:10px;border:1px solid var(--color-border);border-radius:8px;background:var(--color-background-dark);margin:10px 0}
+#callcrm .wa-b{max-width:78%;padding:7px 10px;border-radius:10px;word-wrap:break-word;white-space:pre-wrap}
+#callcrm .wa-b.in{align-self:flex-start;background:var(--color-main-background);border:1px solid var(--color-border)}
+#callcrm .wa-b.out{align-self:flex-end;background:#d9fdd3;color:#111}
+#callcrm .wa-meta{font-size:11px;opacity:.7;text-align:right;margin-top:3px}
+#callcrm .wa-img{max-width:260px;max-height:260px;border-radius:6px;display:block}
+#callcrm .wa-doc{display:inline-block;padding:6px 8px;border-radius:6px;background:rgba(0,0,0,.06);text-decoration:none}
+#callcrm .wa-prev{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#callcrm .wa-unread{border-left:4px solid #25D366}
+#callcrm .wa-ok{color:#1e8e3e}#callcrm .wa-ko{color:#c0392b}
+#callcrm .wa-read{color:#34b7f1;font-weight:bold}

@@ -109,7 +109,7 @@ function fieldsGrid(p, disabled) {
   return h('div', {class:'g2'}, vis.map(f => h('label', {class: ['textarea', 'multiselect'].includes(f.type) || f.key === 'lastname' ? 'full' : '', style:'display:block;margin:5px 0'},
     h('span', {class:'muted'}, f.label + (f.required ? ' *' : '')), fieldEl(f, fval(p, f), disabled))));
 }
-const show = (...n) => { root.replaceChildren(nav(), ...n.flat()); paintCounters(); };
+const show = (...n) => { root.replaceChildren(nav(), ...n.flat()); paintCounters(); paintWa(); };
 let CNT = {overdue:0, today:null, goal:0};
 /** Badge des rappels en retard + progression de l'objectif quotidien (commerciaux). */
 async function paintCounters() {
@@ -125,12 +125,13 @@ async function paintCounters() {
 function nav() {
   const t = TABS.slice();
   if (me.can.all) t.push(['tous', 'Tous']);
+  t.push(['wa', '💬 WhatsApp']);
   t.push(['stats', me.can.all ? 'Statistiques' : 'Mes statistiques']);
   if (me.can.import) t.push(['admin', 'Administration']);
   return h('div', {class:'nav'}, t.map(([k, l]) => h('button', {class: tab === k ? 'on' : '', 'data-k': k, onclick: () => go(k)}, l)),
     me.role === 'commercial' && me.prefs && me.prefs.goal ? h('span', {class:'goal muted'}) : '');
 }
-function go(k) { tab = k; if (k === 'stats') stats(); else if (k === 'admin') admin(); else list(k); }
+function go(k) { tab = k; if (k === 'wa') waList(); else if (k === 'stats') stats(); else if (k === 'admin') admin(); else list(k); }
 const modeOpts = none => [
   h('option', {value:'categorie'}, 'Par catégorie (groupe de chaque catégorie)'),
   h('option', {value:'auto'}, 'Équitablement (tous les commerciaux)'),
@@ -361,6 +362,7 @@ async function detail(id) {
         p.phone && !me.can.call ? h('p', {}, '📞 ' + p.phone) : '',
         p.phone && me.can.call ? h('a', {class:'big', href:'tel:' + p.phone}, '📞 Appeler ' + p.phone) : (p.phone ? '' : h('p', {class:'muted'}, 'Aucun numéro de téléphone renseigné.')),
         p.phone && me.can.call ? h('a', {class:'big', style:'background:#25D366;color:#fff', target:'_blank', rel:'noopener noreferrer', href:'https://wa.me/' + waNum(p.phone)}, '💬 WhatsApp ' + p.phone) : '',
+        p.phone ? waOnProspect(id) : '',
         me.can.call ? h('div', {class:'res'}, RES.map(r => h('button', {'data-r': r, onclick: () => pick(r)}, ST[r]))) : h('p', {class:'muted'}, 'Consultation seule.'),
         form, asg,
         d.recordings && d.recordings.length ? [h('h3', {}, 'Enregistrements'), d.recordings.map(recRow)] : '',
@@ -803,6 +805,149 @@ function admin() {
   }).catch(() => {});
 }
 
+// ---- WhatsApp (boîte partagée) ----
+let waBoxSel = null, waView = 0, waLast = -1;
+const waTicks = m => m.dir !== 'out' ? '' : ({sent:' ✓', delivered:' ✓✓', read:' ✓✓', failed:' ⚠'}[m.status] || '');
+const waUrl = id => API + '/wa/file/' + id;
+const hhmm = t => t ? new Date(t * 1000).toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'}) : '';
+function waWin(c) {
+  if (!c.last_in_at) return h('span', {class:'muted'}, 'Le client n’a pas encore écrit');
+  return c.window_open ? h('span', {class:'wa-ok'}, '🟢 Réponse possible jusqu’à ' + fmt(c.window_ends))
+    : h('span', {class:'wa-ko'}, '⏳ Fenêtre de 24 h expirée');
+}
+async function paintWa() {
+  try {
+    const c = await api('/wa/counters');
+    const btn = root.querySelector('.nav button[data-k="wa"]');
+    if (btn) { btn.querySelector('.ovd')?.remove(); const n = Number(c.unread || 0) || Number(c.queue || 0); if (n) btn.append(h('span', {class:'ovd', title: me.can.all ? 'Messages en file d’attente' : 'Messages non lus'}, String(n))); }
+    const n = Number(c.unread || 0);
+    if (waLast >= 0 && n > waLast && window.Notification && Notification.permission === 'granted') new Notification('WhatsApp', {body: (n - waLast) + ' nouveau(x) message(s) client'});
+    waLast = n;
+  } catch (e) {}
+}
+async function waList(off = 0, keep) {
+  const boxes = me.can.all ? [['queue', 'File d’attente'], ['open', 'Ouvertes'], ['all', 'Toutes'], ['resolved', 'Résolues']] : [['mine', 'Mes conversations'], ['resolved', 'Résolues']];
+  if (!waBoxSel || !boxes.some(b => b[0] === waBoxSel)) waBoxSel = boxes[0][0];
+  const st = keep || {q:'', user:''};
+  const q = h('input', {type:'search', placeholder:'Rechercher (nom, numéro, message)…', value: st.q});
+  const u = me.can.all ? h('select', {}, h('option', {value:''}, 'Tous commerciaux'), me.commerciaux.map(x => h('option', {value:x.uid, selected: st.user === x.uid}, x.name))) : null;
+  const box = h('div', {}, 'Chargement…');
+  const tabs = h('div', {class:'bar'}, boxes.map(([k, l]) => h('button', {class: waBoxSel === k ? 'primary' : '', onclick: () => { waBoxSel = k; waList(0, {q:q.value, user: u ? u.value : ''}); }}, l)));
+  const load = async () => {
+    try {
+      const p = new URLSearchParams({box: waBoxSel, q: q.value.trim(), user: u ? u.value : '', offset: off});
+      const r = await api('/wa?' + p);
+      if (!r.rows.length) { box.replaceChildren(h('p', {class:'muted'}, waBoxSel === 'queue' ? 'Aucune conversation en attente d’attribution.' : 'Aucune conversation.')); return; }
+      box.replaceChildren(...r.rows.map(c => h('div', {class:'row' + (c.unread ? ' wa-unread' : ''), onclick: () => waConv(c.id, () => waList(off, {q:q.value, user: u ? u.value : ''}))},
+        h('div', {style:'min-width:0;flex:1'},
+          h('strong', {}, c.prospect_name || c.name || c.phone || c.wa_id), ' ', h('span', {class:'muted'}, c.phone || ('+' + c.wa_id)),
+          c.prospect_id ? '' : h('span', {class:'badge', style:'margin-left:6px;background:#e9a100;color:#000'}, 'Inconnu'),
+          h('div', {class:'muted wa-prev'}, c.preview || ''),
+          h('div', {class:'muted'}, c.owner_name ? '👤 ' + c.owner_name : '👥 File d’attente', ' · ', waWin(c))),
+        h('div', {style:'text-align:right;flex:none'}, h('div', {class:'muted'}, fmt(c.last_msg_at)), c.unread ? h('span', {class:'ovd'}, String(c.unread)) : '',
+          c.status === 'resolu' ? h('div', {class:'muted'}, '✔ Résolue') : ''))),
+        r.total > off + r.limit ? h('button', {onclick: () => waList(off + r.limit, {q:q.value, user: u ? u.value : ''})}, 'Suivantes →') : '',
+        off > 0 ? h('button', {onclick: () => waList(Math.max(0, off - r.limit), {q:q.value, user: u ? u.value : ''})}, '← Précédentes') : '',
+        h('div', {class:'muted'}, r.total + ' conversation(s)'));
+    } catch (e) { box.replaceChildren(h('p', {class:'err'}, e.message)); }
+  };
+  let t; q.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => { off = 0; load(); }, 350); });
+  if (u) u.addEventListener('change', () => { off = 0; load(); });
+  show(h('h2', {}, '💬 WhatsApp'), tabs, h('div', {class:'bar'}, q, u || ''), box);
+  load(); paintWa();
+  const myView = ++waView;
+  const iv = setInterval(() => { if (waView !== myView || !document.body.contains(box)) return clearInterval(iv); load(); }, 20000);
+}
+function waMedia(m) {
+  if (!m.file) return '';
+  const url = waUrl(m.id), mime = m.mime || '';
+  if (m.type === 'image' || m.type === 'sticker' || mime.startsWith('image/')) return h('a', {href:url, target:'_blank', rel:'noopener'}, h('img', {src:url, class:'wa-img', loading:'lazy', alt: m.file_name || 'photo'}));
+  if (m.type === 'audio' || mime.startsWith('audio/')) return h('audio', {controls:true, preload:'none', src:url, style:'width:100%'});
+  if (m.type === 'video' || mime.startsWith('video/')) return h('video', {controls:true, preload:'none', src:url, style:'max-width:100%'});
+  return h('a', {href:url, target:'_blank', rel:'noopener', class:'wa-doc'}, '📄 ' + (m.file_name || 'Document'));
+}
+async function waConv(id, back) {
+  let d;
+  try { d = await api('/wa/' + id); } catch (e) { return show(h('p', {class:'err'}, e.message)); }
+  const myView = ++waView;
+  const thread = h('div', {class:'wa-thread'});
+  const head = h('div');
+  const paint = dd => {
+    const c = dd.conv; d = dd;
+    head.replaceChildren(
+      h('h2', {style:'margin:6px 0'}, c.prospect_name || c.name || c.phone, ' ', h('span', {class:'muted'}, c.phone || ('+' + c.wa_id))),
+      c.name && c.prospect_name && c.name !== c.prospect_name ? h('div', {class:'muted'}, 'Nom WhatsApp : ' + c.name) : '',
+      h('div', {class:'muted'}, c.owner_name ? '👤 ' + c.owner_name : '👥 File d’attente', ' · ', waWin(c), c.status === 'resolu' ? ' · ✔ Résolue' : ''),
+      c.prospect_id ? h('button', {onclick: () => detail(c.prospect_id)}, '📇 Ouvrir la fiche' + (c.prospect_status ? ' (' + (ST[c.prospect_status] || c.prospect_status) + ')' : '')) : '');
+    const atBottom = thread.scrollHeight - thread.scrollTop - thread.clientHeight < 60;
+    thread.replaceChildren(...dd.messages.map(m => h('div', {class:'wa-b ' + (m.dir === 'out' ? 'out' : 'in')},
+      waMedia(m), m.body ? h('div', {class:'wa-t'}, m.body) : '',
+      h('div', {class:'wa-meta'}, (m.dir === 'out' && m.user_name ? m.user_name + ' · ' : '') + fmt(m.at), h('span', {class: m.status === 'read' ? 'wa-read' : m.status === 'failed' ? 'wa-ko' : ''}, waTicks(m))))));
+    if (atBottom || !thread.dataset.done) { thread.scrollTop = thread.scrollHeight; thread.dataset.done = 1; }
+  };
+  paint(d);
+  const c0 = d.conv;
+  // ---- réponse ----
+  const txt = h('textarea', {rows:3, placeholder:'Votre réponse…'});
+  const file = h('input', {type:'file', accept:'image/jpeg,image/png,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt'});
+  const msg = h('div', {class:'err'});
+  const sendBtn = h('button', {class:'primary', onclick: async () => {
+    msg.className = 'err'; msg.textContent = '';
+    if (!txt.value.trim() && !file.files.length) { msg.textContent = 'Écrivez un message ou joignez un fichier.'; return; }
+    const fd = new FormData(); fd.append('text', txt.value.trim()); if (file.files.length) fd.append('file', file.files[0]);
+    sendBtn.disabled = true; sendBtn.textContent = 'Envoi…';
+    try { await api('/wa/' + id + '/send', {method:'POST', body: fd}); txt.value = ''; file.value = ''; paint(await api('/wa/' + id)); }
+    catch (e) { msg.textContent = e.message; }
+    sendBtn.disabled = false; sendBtn.textContent = 'Envoyer';
+  }}, 'Envoyer');
+  txt.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) sendBtn.click(); });
+  const reply = !d.can.reply ? h('p', {class:'muted'}, 'Consultation seule.')
+    : (me.role === 'commercial' && c0.owner !== me.uid) ? h('p', {class:'muted'}, 'Conversation d’un autre commercial.')
+    : c0.window_open ? h('div', {class:'card'}, txt, h('div', {class:'bar', style:'margin-top:6px;align-items:center'}, file, sendBtn), h('div', {class:'muted'}, 'Ctrl+Entrée pour envoyer · photos JPG/PNG et documents (PDF, Word, Excel) · 50 Mo max.'), msg)
+    : h('div', {class:'card'}, h('p', {}, 'Le client n’a pas écrit depuis plus de 24 h : WhatsApp n’autorise plus de réponse libre depuis le CRM.'),
+        c0.phone ? h('a', {class:'big', href:'tel:' + c0.phone}, '📞 Appeler ' + c0.phone) : '',
+        h('a', {class:'big', style:'background:#25D366;color:#fff', target:'_blank', rel:'noopener noreferrer', href:'https://wa.me/' + c0.wa_id}, '💬 Écrire depuis mon WhatsApp'));
+  // ---- actions superviseur ----
+  const amsg = h('span', {class:'muted'});
+  const actions = h('div', {class:'bar', style:'align-items:center'});
+  if (d.can.assign) {
+    const asg = h('select', {}, h('option', {value:''}, '— File d’attente —'), me.commerciaux.map(u => h('option', {value:u.uid, selected: c0.owner === u.uid}, u.name)));
+    asg.addEventListener('change', async () => { amsg.textContent = '…'; try { await api('/wa/' + id + '/assign', {method:'POST', body:{uid: asg.value}}); amsg.textContent = 'Attribuée.'; paint(await api('/wa/' + id)); paintWa(); } catch (e) { amsg.textContent = e.message; } });
+    actions.append(h('label', {}, 'Attribuer à ', asg));
+    if (!c0.prospect_id) {
+      const nmIn = h('input', {type:'text', value: c0.name || '', placeholder:'Nom du client'});
+      const cat = h('select', {}, h('option', {value:''}, 'Catégorie —'), (me.options.c2 || []).map(x => h('option', {value:x}, x)));
+      actions.append(h('details', {class:'card', style:'width:100%'}, h('summary', {style:'cursor:pointer'}, '➕ Créer la fiche prospect de ce numéro'),
+        h('div', {class:'bar', style:'margin-top:6px'}, nmIn, cat,
+          h('button', {class:'primary', onclick: async () => {
+            amsg.textContent = '…';
+            try { const r = await api('/wa/' + id + '/prospect', {method:'POST', body:{name: nmIn.value.trim(), c2: cat.value, uid: asg.value}}); amsg.textContent = r.existing ? 'Fiche existante rattachée.' : 'Fiche créée.'; waConv(id, back); }
+            catch (e) { amsg.textContent = e.message; }
+          }}, 'Créer la fiche')), h('div', {class:'muted'}, 'La fiche est attribuée au commercial choisi ci-dessus (ou reste non assignée).')));
+    }
+  }
+  if (d.can.reply) actions.append(h('button', {onclick: async () => { try { await api('/wa/' + id + '/resolve', {method:'POST'}); waConv(id, back); } catch (e) { amsg.textContent = e.message; } }}, c0.status === 'resolu' ? '↺ Rouvrir' : '✔ Marquer résolue'));
+  actions.append(amsg);
+  show(h('button', {onclick: () => (back || (() => { tab = 'wa'; waList(); }))()}, '← Retour'), head, actions, thread, reply);
+  paintWa();
+  const iv = setInterval(async () => {
+    if (waView !== myView || !document.body.contains(thread)) return clearInterval(iv);
+    try { paint(await api('/wa/' + id)); } catch (e) {}
+  }, 10000);
+}
+/** Bloc WhatsApp de la fiche prospect */
+function waOnProspect(pid) {
+  const el = h('div');
+  api('/wa/prospect/' + pid).then(r => {
+    const c = r.conv;
+    if (!c) return;
+    el.replaceChildren(h('div', {class:'card'}, h('strong', {}, '💬 Conversation WhatsApp'), c.unread ? h('span', {class:'ovd'}, String(c.unread)) : '',
+      h('div', {class:'muted wa-prev'}, fmt(c.last_msg_at) + ' — ' + (c.preview || '')), h('div', {class:'muted'}, waWin(c)),
+      h('button', {style:'margin-top:6px', onclick: () => waConv(c.id, () => detail(pid))}, 'Ouvrir la conversation')));
+  }).catch(() => {});
+  return el;
+}
+
 async function checkReminders() {
   if (!me.can.call || popup) return;
   try {
@@ -834,5 +979,6 @@ async function checkReminders() {
   go(tab);
   if (window.Notification && Notification.permission === 'default') Notification.requestPermission();
   checkReminders(); setInterval(checkReminders, 30000);
+  setInterval(paintWa, 20000);
 })();
 })();
