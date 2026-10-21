@@ -5,7 +5,9 @@ Telephone prospecting / light call-center CRM, in two editions:
 | Folder | Platform | Notes |
 |---|---|---|
 | `odoo/easycrm` | Odoo 18 | Odoo Store package (OPL-1) — tested on Odoo 18 only |
-| `nextcloud/` | Nextcloud 28–40 | Nextcloud app (`easycrm`) |
+| `nextcloud/` | Nextcloud 28–40 | Nextcloud app (`easycrm`), WhatsApp shared inbox since 1.3.0 |
+| `callcrm/` | Nextcloud 28–40 | CSM Taksit in-house edition (French, AD groups), WhatsApp inbox since 0.15.0 |
+| `wa-nextcloud/` | Python 3.12 service | WhatsApp Cloud API webhook → CsmCloud folders + callcrm inbox (systemd + Apache) |
 
 Languages: French, English, Arabic (RTL), Spanish, Italian, German. Translations are machine-quality: have a native speaker review them before a commercial release.
 
