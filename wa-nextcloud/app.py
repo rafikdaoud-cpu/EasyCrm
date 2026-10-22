@@ -72,6 +72,17 @@ AUTO_REPLY_TEXT = env(
     "Bonjour, nous avons bien reçu votre document. Merci, notre équipe le traite rapidement.",
 )
 MAX_MEDIA_MB = int(env("MAX_MEDIA_MB", "100"))
+
+# Photos reçues -> PDF (Stirling-PDF, sinon conversion locale)
+IMAGE_TO_PDF = env("IMAGE_TO_PDF", "1") == "1"
+KEEP_IMAGE = env("KEEP_IMAGE", "1") == "1"                # 0 = ne garder que le PDF
+STIRLING_URL = (env("STIRLING_URL", "") or "").rstrip("/") # ex. http://erp.csmtaksit.dz:8080
+STIRLING_USER = env("STIRLING_USER", "")                  # compte AD si Stirling est derrière Nginx + AD
+STIRLING_PASSWORD = env("STIRLING_PASSWORD", "")
+STIRLING_API_KEY = env("STIRLING_API_KEY", "")            # si la sécurité de Stirling est activée
+STIRLING_FIT = env("STIRLING_FIT", "maintainAspectRatio")  # fillPage | fitDocumentToImage | maintainAspectRatio
+STIRLING_COLOR = env("STIRLING_COLOR", "color")            # color | greyscale | blackwhite
+STIRLING_TIMEOUT = int(env("STIRLING_TIMEOUT", "60"))
 TZ = ZoneInfo(env("TZ_NAME", "Africa/Algiers"))
 
 DATA_DIR = os.path.join(BASE_DIR, "data")
@@ -269,6 +280,45 @@ def wa_upload_media(phone_number_id, data, name, mime):
     return j["id"]
 
 
+def _pdf_local(data):
+    """Conversion de secours sur le VPS (Pillow) : image centrée sur une page A4, orientation EXIF respectée."""
+    import io
+    from PIL import Image, ImageOps
+    img = ImageOps.exif_transpose(Image.open(io.BytesIO(data)))
+    if img.mode not in ("RGB", "L"):
+        img = img.convert("RGB")
+    w, h = img.size
+    pw, ph = (1240, 1754) if h >= w else (1754, 1240)   # A4 à 150 dpi, orienté comme la photo
+    scale = min((pw - 80) / w, (ph - 80) / h)
+    img = img.resize((max(1, int(w * scale)), max(1, int(h * scale))))
+    page = Image.new("RGB", (pw, ph), "white")
+    page.paste(img, ((pw - img.size[0]) // 2, (ph - img.size[1]) // 2))
+    out = io.BytesIO()
+    page.save(out, "PDF", resolution=150.0)
+    return out.getvalue()
+
+
+def image_to_pdf(data, name, mime):
+    """Retourne (pdf, moteur). Stirling-PDF d'abord, conversion locale en secours ; (None, erreur) si impossible."""
+    if STIRLING_URL:
+        try:
+            headers = {"X-API-KEY": STIRLING_API_KEY} if STIRLING_API_KEY else {}
+            auth = (STIRLING_USER, STIRLING_PASSWORD) if STIRLING_USER else None
+            r = requests.post(f"{STIRLING_URL}/api/v1/convert/img/pdf", timeout=STIRLING_TIMEOUT, headers=headers, auth=auth,
+                              files={"fileInput": (name, data, mime)},
+                              data={"fitOption": STIRLING_FIT, "colorType": STIRLING_COLOR, "autoRotate": "true"})
+            if r.status_code == 200 and r.content[:5] == b"%PDF-":
+                return r.content, "Stirling-PDF"
+            log.warning("Stirling-PDF a refusé la conversion (HTTP %s) : %s", r.status_code, r.text[:200])
+        except Exception as e:  # noqa: BLE001
+            log.warning("Stirling-PDF injoignable : %s", e)
+    try:
+        return _pdf_local(data), "local"
+    except Exception as e:  # noqa: BLE001
+        log.warning("Conversion PDF locale impossible : %s", e)
+        return None, str(e)
+
+
 def send_text(phone_number_id, to, text):
     try:
         return wa_send(phone_number_id, {"to": to, "type": "text", "text": {"body": text}})
@@ -394,12 +444,25 @@ def handle_message(msg, value, direction="in"):
         if original:
             base += "_" + safe_name(original)
         fname = base + extension_for(mime, original)
-        saved = nc.upload(f"{folder}/{fname}", data, mime)
-        line = f"[{stamp}] {who} | {mtype} | {os.path.basename(saved)}"
+        pdf, engine = (None, "")
+        if IMAGE_TO_PDF and direction == "in" and mtype == "image":
+            pdf, engine = image_to_pdf(data, fname, mime)
+        if pdf is not None and not KEEP_IMAGE:
+            saved = None
+        else:
+            saved = nc.upload(f"{folder}/{fname}", data, mime)
+            log.info("Fichier enregistré : %s (%d octets)", saved, len(data))
+        pdf_saved = nc.upload(f"{folder}/{base}.pdf", pdf, "application/pdf") if pdf is not None else None
+        if pdf_saved:
+            log.info("PDF créé (%s) : %s", engine, pdf_saved)
+        files = " + ".join(os.path.basename(x) for x in (saved, pdf_saved) if x)
+        line = f"[{stamp}] {who} | {mtype} | {files}"
         if caption:
             line += f" | légende : {caption}"
-        log.info("Fichier enregistré : %s (%d octets)", saved, len(data))
-        event.update(text=caption, file_path=saved, file_name=original or os.path.basename(saved), mime=mime)
+        if saved:
+            event.update(text=caption, file_path=saved, file_name=original or os.path.basename(saved), mime=mime)
+        else:
+            event.update(type="document", text=caption, file_path=pdf_saved, file_name=os.path.basename(pdf_saved), mime="application/pdf")
 
     elif mtype == "text":
         body = msg["text"].get("body", "")

@@ -123,3 +123,14 @@ Chaque message reçu est aussi transmis à callcrm (`CRM_URL` + `CRM_SECRET`) :
 - `historique.txt` ouvert dans un éditeur : la ligne attend dans `data/hist_pending/` et part à l'écriture suivante, sans bloquer le CRM.
 - Clients avec **nom d'utilisateur WhatsApp** : Meta peut omettre le numéro ; le service utilise l'identifiant BSUID
   (`from_user_id`, dossier `WhatsApp/DZ.xxxx/`) et répond via le champ `recipient`.
+
+## 8. Photos converties en PDF (Stirling-PDF)
+
+Chaque photo reçue (`image`) est convertie en PDF A4 et rangée à côté de la photo :
+`WhatsApp/<numéro>/…_image_xxxx.jpg` + `…_image_xxxx.pdf`.
+
+- Moteur : **Stirling-PDF** (`POST {STIRLING_URL}/api/v1/convert/img/pdf`, rotation automatique) ;
+  si Stirling est injoignable (VM ou ligne du bureau coupée), conversion **locale** sur le VPS (Pillow) : aucune photo ne reste sans PDF.
+- `KEEP_IMAGE=0` : seul le PDF est gardé ; le CRM affiche alors le PDF à la place de la photo.
+- Les documents déjà en PDF, les vocaux, vidéos et autocollants ne sont pas convertis.
+- Réglages dans `.env` : `IMAGE_TO_PDF`, `KEEP_IMAGE`, `STIRLING_URL`, `STIRLING_USER` / `STIRLING_PASSWORD` (Nginx + AD), `STIRLING_API_KEY`, `STIRLING_FIT`, `STIRLING_COLOR`.
