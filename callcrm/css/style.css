@@ -1,52 +1,102 @@
-#callcrm{max-width:1100px;margin:0 auto;padding:12px;box-sizing:border-box}
-#callcrm .nav{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;padding-left:44px}
-#callcrm .nav button.on{background:var(--color-primary-element);color:var(--color-primary-element-text)}
-#callcrm .bar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
-#callcrm .bar input,#callcrm .bar select{flex:1;min-width:120px}
-#callcrm .row{display:flex;justify-content:space-between;gap:8px;padding:10px;border-bottom:1px solid var(--color-border);cursor:pointer;border-radius:6px}
-#callcrm .row:hover{background:var(--color-background-hover)}
-#callcrm .badge{padding:2px 8px;border-radius:10px;font-size:12px;background:var(--color-background-dark);white-space:nowrap}
-#callcrm .badge.interesse{background:#2e9e55;color:#fff}#callcrm .badge.pas_interesse{background:#888;color:#fff}
-#callcrm .badge.injoignable,#callcrm .badge.rappel{background:#e9a100;color:#000}
-#callcrm .late{color:#d12;font-weight:bold}
-#callcrm .big{display:block;text-align:center;padding:14px;font-size:18px;border-radius:10px;margin:10px 0;background:var(--color-primary-element);color:var(--color-primary-element-text);text-decoration:none}
-#callcrm .res{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
-#callcrm .res button{padding:14px 6px;font-size:15px}
-#callcrm .res button.on{outline:3px solid var(--color-primary-element)}
-#callcrm .card{padding:10px;border:1px solid var(--color-border);border-radius:8px;margin:10px 0}
-#callcrm textarea,#callcrm input[type=datetime-local]{width:100%;box-sizing:border-box}
-#callcrm .err{color:#d12}#callcrm .muted{color:var(--color-text-maxcontrast);font-size:13px}
-#callcrm .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
-#callcrm .g2{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
+/* CSM TAKSIT — charte graphique sept. 2025 : bleu nuit #1E2447, bleu #4A90E2, gris acier #A6A6A6 / #D8D8D8, texte #222222, Arial */
+#callcrm{--navy:#1E2447;--blue:#4A90E2;--ink:#222;--steel:#A6A6A6;--mist:#D8D8D8;
+ --ok:#1f8a4c;--warn:#c98200;--bad:#c62839;--info:#2f78c8;--wa:#25D366;
+ --brand:var(--navy);--brand-ink:#fff;--accent:var(--blue);--soft:rgba(30,36,71,.06);--line:var(--color-border,#d8d8d8);
+ --r1:8px;--r2:14px;--r3:999px;
+ font-family:Arial,Helvetica,sans-serif;color:var(--color-main-text,#222);max-width:1120px;margin:0 auto;padding:14px 16px 90px;box-sizing:border-box;line-height:1.4}
+body[data-themes*="dark"] #callcrm,body[data-theme-dark] #callcrm{--brand:var(--blue);--brand-ink:#0d1224;--soft:rgba(255,255,255,.06)}
+@media(prefers-color-scheme:dark){body:not([data-themes*="light"]):not([data-theme-light]) #callcrm{--brand:var(--blue);--brand-ink:#0d1224;--soft:rgba(255,255,255,.06)}}
+#callcrm *{box-sizing:border-box}
+#callcrm h2,#callcrm h3{font-family:Arial,Helvetica,sans-serif;letter-spacing:-.01em;margin:6px 0 10px}
+#callcrm :focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+#callcrm button,#callcrm input,#callcrm select,#callcrm textarea{font-family:inherit;font-size:15px;border-radius:var(--r1);min-height:44px}
+#callcrm input[type=checkbox]{min-height:0;width:18px;height:18px}
+#callcrm input,#callcrm select,#callcrm textarea{border:1px solid var(--line);background:var(--color-main-background,#fff);color:inherit;padding:8px 12px}
+#callcrm input:focus,#callcrm select:focus,#callcrm textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(74,144,226,.25)}
+#callcrm button{cursor:pointer;border:1px solid var(--line);background:var(--color-main-background,#fff);color:inherit;padding:8px 14px;font-weight:bold;transition:background .15s,border-color .15s}
+#callcrm button:hover{background:var(--soft);border-color:var(--steel)}
+#callcrm button.primary,#callcrm button[type=submit]{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
+#callcrm button.primary:hover{filter:brightness(1.15);background:var(--brand)}
+/* navigation : onglets défilables, collés en haut */
+#callcrm .nav{display:flex;gap:4px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 -16px 16px;padding:8px 16px 8px 52px;position:sticky;top:0;z-index:20;background:var(--color-main-background,#fff);border-bottom:1px solid var(--line);align-items:center}
+#callcrm .nav::-webkit-scrollbar{display:none}
+#callcrm .nav button{flex:none;border:0;background:transparent;border-radius:var(--r3);padding:8px 14px;color:var(--color-text-maxcontrast,#555);position:relative}
+#callcrm .nav button:hover{background:var(--soft);color:inherit}
+#callcrm .nav button.on{background:var(--brand);color:var(--brand-ink)}
+#callcrm .nav button.primary{background:var(--accent);color:#fff}
+#callcrm .bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+#callcrm .bar input,#callcrm .bar select{flex:1;min-width:140px}
+/* lignes de liste */
+#callcrm .row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;margin-bottom:8px;border:1px solid var(--line);border-left:4px solid var(--line);border-radius:var(--r2);cursor:pointer;background:var(--color-main-background,#fff);transition:border-color .15s,box-shadow .15s}
+#callcrm .row:hover{background:var(--color-main-background,#fff);border-color:var(--steel);box-shadow:0 2px 10px rgba(30,36,71,.1)}
+#callcrm .row.overdue{border-left-color:var(--bad);background:rgba(198,40,57,.05)}
+#callcrm .row .av{flex:none;width:42px;height:42px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:15px}
+#callcrm .row .main{flex:1;min-width:0}
+#callcrm .row .main strong{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#callcrm .row .side{text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex:none}
+#callcrm .badge{display:inline-block;padding:3px 10px;border-radius:var(--r3);font-size:12px;font-weight:bold;background:var(--mist);color:var(--ink);white-space:nowrap}
+#callcrm .late{color:var(--bad);font-weight:bold}
+#callcrm .muted{color:var(--color-text-maxcontrast,#6b6b6b);font-size:13px}
+#callcrm .err{color:var(--bad)}
+#callcrm .card{padding:16px;border:1px solid var(--line);border-radius:var(--r2);margin:12px 0;background:var(--color-main-background,#fff)}
+#callcrm .card h3{margin-top:0}
+#callcrm label{display:block;margin-top:10px;font-size:13px;font-weight:bold;color:var(--color-text-maxcontrast,#555)}
+#callcrm textarea,#callcrm input[type=datetime-local]{width:100%}
+#callcrm .cols{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start}
+#callcrm .g2{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
 #callcrm .g2 .full{grid-column:1/-1}
-#callcrm .cols h2{margin:6px 0}
-@media(max-width:760px){#callcrm .cols,#callcrm .g2{grid-template-columns:1fr}}
-.ccp-bg{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:100000;display:flex;align-items:center;justify-content:center}
-.ccp{background:var(--color-main-background);color:var(--color-main-text);padding:20px;border-radius:12px;max-width:380px;width:90%}
-.ccp button{display:block;width:100%;margin-top:6px}
-#callcrm .badge.non_eligible{background:#8a4b9d;color:#fff}
-#callcrm .badge.faux_numero{background:#c0392b;color:#fff}
-#callcrm .nav button{position:relative}
-#callcrm .ovd{display:inline-block;min-width:18px;margin-left:6px;padding:0 5px;border-radius:9px;background:#d12;color:#fff;font-size:11px;font-weight:bold;line-height:18px;text-align:center}
-#callcrm .nav .goal{display:inline-flex;align-items:center;gap:8px;margin-left:auto;font-size:13px}
-#callcrm .gbar{display:inline-block;width:90px;height:8px;border-radius:4px;background:var(--color-background-darker,#ddd);overflow:hidden}
-#callcrm .gbar>span{display:block;height:100%;background:#2e9e55}
-#callcrm .row.overdue{border-left:4px solid #d12;background:rgba(221,17,34,.06)}
-#callcrm .selbar{align-items:center;gap:8px;flex-wrap:wrap}
-#callcrm .shortcuts{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
-#callcrm .shortcuts button{padding:4px 10px}
-#callcrm .pbar{display:inline-block;width:80px;height:8px;border-radius:4px;background:var(--color-background-darker,#ddd);overflow:hidden;vertical-align:middle}
-#callcrm .pbar>span{display:block;height:100%;background:#2e9e55}
+#callcrm .shortcuts{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+#callcrm .shortcuts button{min-height:36px;padding:4px 12px;border-radius:var(--r3);font-weight:normal}
 #callcrm table.t{width:100%;border-collapse:collapse}
-#callcrm table.t th,#callcrm table.t td{padding:5px 6px;text-align:left;border-top:1px solid var(--color-border)}
-#callcrm .wa-thread{max-height:58vh;overflow:auto;display:flex;flex-direction:column;gap:6px;padding:10px;border:1px solid var(--color-border);border-radius:8px;background:var(--color-background-dark);margin:10px 0}
-#callcrm .wa-b{max-width:78%;padding:7px 10px;border-radius:10px;word-wrap:break-word;white-space:pre-wrap}
-#callcrm .wa-b.in{align-self:flex-start;background:var(--color-main-background);border:1px solid var(--color-border)}
-#callcrm .wa-b.out{align-self:flex-end;background:#d9fdd3;color:#111}
+#callcrm table.t th{font-size:12px;color:var(--color-text-maxcontrast,#666);text-align:left;padding:8px 10px;border-bottom:2px solid var(--line)}
+#callcrm table.t td{padding:10px;text-align:left;border-top:1px solid var(--line)}
+#callcrm table.t tr:hover td{background:var(--soft)}
+#callcrm .pbar,#callcrm .gbar{display:inline-block;height:8px;border-radius:4px;background:var(--mist);overflow:hidden;vertical-align:middle}
+#callcrm .pbar>span,#callcrm .gbar>span{display:block;height:100%;background:var(--ok);border-radius:4px;transition:width .5s}
+#callcrm .empty{text-align:center;padding:40px 16px;color:var(--color-text-maxcontrast,#666)}
+#callcrm .skel{height:68px;border-radius:var(--r2);margin-bottom:8px;background:linear-gradient(90deg,var(--soft),rgba(128,128,128,.14),var(--soft));background-size:200% 100%;animation:sk 1.2s infinite}
+@keyframes sk{to{background-position:-200% 0}}
+@media(max-width:760px){
+ #callcrm .cols,#callcrm .g2{grid-template-columns:1fr}
+ #callcrm{padding:0 12px 90px}
+ #callcrm .nav{margin:0 -12px 12px;padding-left:52px}
+ #callcrm .row .side{max-width:42%}
+ #callcrm table.t{display:block;overflow-x:auto}
+}
+@media(prefers-reduced-motion:reduce){#callcrm *{animation:none!important;transition:none!important}}
+/* statuts */
+#callcrm .badge.interesse{background:var(--ok);color:#fff}
+#callcrm .badge.pas_interesse{background:var(--steel);color:#111}
+#callcrm .badge.injoignable,#callcrm .badge.rappel{background:#f2b632;color:#222}
+#callcrm .badge.non_eligible{background:#7a4a94;color:#fff}
+#callcrm .badge.faux_numero{background:var(--bad);color:#fff}
+/* actions d'appel */
+#callcrm .big{display:flex;align-items:center;justify-content:center;gap:8px;padding:16px;font-size:18px;font-weight:bold;border-radius:var(--r2);margin:10px 0;background:var(--brand);color:var(--brand-ink);text-decoration:none;min-height:56px}
+#callcrm .big:hover{filter:brightness(1.15)}
+#callcrm .res{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}
+#callcrm .res button{padding:16px 8px;font-size:15px;border-radius:var(--r2);border:2px solid var(--line)}
+#callcrm .res button.on{border-color:var(--accent);box-shadow:0 0 0 3px rgba(74,144,226,.3);background:var(--soft)}
+#callcrm .ovd{display:inline-block;min-width:20px;margin-left:6px;padding:0 6px;border-radius:10px;background:var(--bad);color:#fff;font-size:11px;font-weight:bold;line-height:20px;text-align:center}
+#callcrm .nav .goal{display:inline-flex;align-items:center;gap:8px;margin-left:auto;padding-left:12px;white-space:nowrap;flex:none}
+#callcrm .gbar{width:90px;height:10px}
+#callcrm .selbar{align-items:center;gap:8px;flex-wrap:wrap}
+/* WhatsApp */
+#callcrm .wa-thread{max-height:62vh;overflow:auto;display:flex;flex-direction:column;gap:6px;padding:14px;border:1px solid var(--line);border-radius:var(--r2);background:var(--soft);margin:12px 0}
+#callcrm .wa-b{max-width:80%;padding:8px 12px;border-radius:14px;word-wrap:break-word;white-space:pre-wrap}
+#callcrm .wa-b.in{align-self:flex-start;background:var(--color-main-background,#fff);border:1px solid var(--line);border-bottom-left-radius:4px}
+#callcrm .wa-b.out{align-self:flex-end;background:#d9fdd3;color:#111;border-bottom-right-radius:4px}
 #callcrm .wa-meta{font-size:11px;opacity:.7;text-align:right;margin-top:3px}
-#callcrm .wa-img{max-width:260px;max-height:260px;border-radius:6px;display:block}
-#callcrm .wa-doc{display:inline-block;padding:6px 8px;border-radius:6px;background:rgba(0,0,0,.06);text-decoration:none}
+#callcrm .wa-img{max-width:260px;max-height:260px;border-radius:8px;display:block}
+#callcrm .wa-doc{display:inline-block;padding:8px 10px;border-radius:8px;background:rgba(0,0,0,.07);text-decoration:none;color:inherit}
 #callcrm .wa-prev{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#callcrm .wa-unread{border-left:4px solid #25D366}
-#callcrm .wa-ok{color:#1e8e3e}#callcrm .wa-ko{color:#c0392b}
-#callcrm .wa-read{color:#34b7f1;font-weight:bold}
+#callcrm .row.wa-unread{border-left-color:var(--wa)}
+#callcrm .wa-ok{color:var(--ok)}#callcrm .wa-ko{color:var(--bad)}#callcrm .wa-read{color:#1d9bd1;font-weight:bold}
+@media(max-width:760px){
+ /* fiche d'appel : bouton Appeler collé en bas de l'écran */
+ #callcrm .big.call{position:fixed;left:12px;right:12px;bottom:12px;z-index:30;margin:0;box-shadow:0 6px 20px rgba(0,0,0,.3)}
+ #callcrm .wa-b{max-width:90%}
+}
+/* popup de rappel */
+.ccp-bg{position:fixed;inset:0;background:rgba(30,36,71,.6);z-index:100000;display:flex;align-items:center;justify-content:center}
+.ccp{background:var(--color-main-background);color:var(--color-main-text);padding:22px;border-radius:16px;max-width:400px;width:90%;font-family:Arial,Helvetica,sans-serif;box-shadow:0 20px 50px rgba(0,0,0,.4)}
+.ccp button{display:block;width:100%;margin-top:8px;min-height:44px}

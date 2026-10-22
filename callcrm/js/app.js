@@ -150,7 +150,7 @@ function distButtons() {
 async function list(k) {
   const K = KINDS[k];
   sel.clear(); let rowsNow = [];
-  const box = h('div', {}, 'Chargement…');
+  const box = h('div', {}, skel());
   const q = h('input', {type:'search', placeholder:'Rechercher…', value:filt.q});
   const bar = h('div', {class:'bar'}, q);
   let s, a;
@@ -201,7 +201,7 @@ async function list(k) {
       const pages = pageSize ? Math.max(1, Math.ceil(r.total / pageSize)) : 1;
       if (page > pages) { page = pages; return load(true); }
       rowsNow = r.rows;
-      box.replaceChildren(...(r.rows.length ? r.rows.map(x => row(x, me.can.assign ? refreshSel : null)) : [h('p', {class:'muted'}, 'Aucun prospect.')]));
+      box.replaceChildren(...(r.rows.length ? r.rows.map(x => row(x, me.can.assign ? refreshSel : null)) : [h('div', {class:'empty'}, h('strong', {}, 'Rien à traiter ici'), h('div', {class:'muted'}, 'Aucun prospect ne correspond à ce filtre.'))]));
       refreshSel();
       const go2 = n => { page = n; load(true); window.scrollTo(0, 0); };
       const mk = () => [
@@ -242,14 +242,16 @@ async function addForm() {
   }
   show(h('button', {onclick: () => go(tab)}, '← Retour'), box);
 }
+const skel = () => [1, 2, 3, 4].map(() => h('div', {class:'skel'}));
 function row(r, onSel) {
   const late = r.callback_at && Number(r.callback_at) < Date.now() / 1000 && STD[r.status] && STD[r.status].callback;
   const ck = onSel ? h('input', {type:'checkbox', class:'rsel', checked: sel.has(r.id), onclick: e => { e.stopPropagation(); e.target.checked ? sel.add(r.id) : sel.delete(r.id); onSel(); }}) : '';
   return h('div', {class:'row' + (late ? ' overdue' : ''), onclick: () => detail(r.id)},
-    ck ? h('div', {style:'display:flex;align-items:flex-start;padding-top:2px'}, ck) : '',
-    h('div', {style:'flex:1'}, h('strong', {}, nm(r)), h('div', {class:'muted'}, [r.phone, r.c5, r.c2].filter(Boolean).join(' · ') || 'Sans numéro'),
+    ck ? h('div', {style:'display:flex;align-items:center'}, ck) : '',
+    h('div', {class:'av'}, (nm(r).match(/[\p{L}\p{N}]/gu) || ['?']).slice(0, 2).join('').toUpperCase()),
+    h('div', {class:'main'}, h('strong', {}, nm(r)), h('div', {class:'muted'}, [r.phone, r.c5, r.c2].filter(Boolean).join(' · ') || 'Sans numéro'),
       h('div', {class:'muted'}, 'Inscrit le ' + fmtD(r.created_at) + ' · ' + 'Traité le ' + (Number(r.last_call_at) ? fmtD(r.last_call_at) : '—'))),
-    h('div', {style:'text-align:right'}, badge(r.status),
+    h('div', {class:'side'}, badge(r.status),
       r.callback_at ? h('div', {class: late ? 'late' : 'muted'}, (late ? '⚠ En retard · ' : '⏰ ') + fmt(Number(r.callback_at))) : ''));
 }
 
@@ -360,7 +362,7 @@ async function detail(id) {
         p.callback_at ? h('div', {}, '⏰ Rappel : ' + fmt(Number(p.callback_at))) : '',
         attemptsBox(d.calls.filter(c => Number(c.created_at) >= Number(p.reset_at || 0))),
         p.phone && !me.can.call ? h('p', {}, '📞 ' + p.phone) : '',
-        p.phone && me.can.call ? h('a', {class:'big', href:'tel:' + p.phone}, '📞 Appeler ' + p.phone) : (p.phone ? '' : h('p', {class:'muted'}, 'Aucun numéro de téléphone renseigné.')),
+        p.phone && me.can.call ? h('a', {class:'big call', href:'tel:' + p.phone}, '📞 Appeler ' + p.phone) : (p.phone ? '' : h('p', {class:'muted'}, 'Aucun numéro de téléphone renseigné.')),
         p.phone && me.can.call ? h('a', {class:'big', style:'background:#25D366;color:#fff', target:'_blank', rel:'noopener noreferrer', href:'https://wa.me/' + waNum(p.phone)}, '💬 WhatsApp ' + p.phone) : '',
         p.phone ? waOnProspect(id) : '',
         me.can.call ? h('div', {class:'res'}, RES.map(r => h('button', {'data-r': r, onclick: () => pick(r)}, ST[r]))) : h('p', {class:'muted'}, 'Consultation seule.'),
@@ -409,7 +411,7 @@ function hoursChart(hrs) {
 }
 async function stats() {
   const nameOf = u => (me.commerciaux.find(c => c.uid === u) || {name:u}).name;
-  const box = h('div', {}, 'Chargement…'), sum = h('div');
+  const box = h('div', {}, skel()), sum = h('div');
   const from = h('input', {type:'date'}), to = h('input', {type:'date'});
   const usr = multi('Commerciaux', me.commerciaux.map(u => ({v:u.uid, t:u.name})));
   const grp = multi('Groupes', me.groups.map(g => ({v:g.id, t:g.name})));
@@ -833,7 +835,7 @@ async function waList(off = 0, keep) {
   const st = keep || {q:'', user:''};
   const q = h('input', {type:'search', placeholder:'Rechercher (nom, numéro, message)…', value: st.q});
   const u = me.can.all ? h('select', {}, h('option', {value:''}, 'Tous commerciaux'), me.commerciaux.map(x => h('option', {value:x.uid, selected: st.user === x.uid}, x.name))) : null;
-  const box = h('div', {}, 'Chargement…');
+  const box = h('div', {}, skel());
   const tabs = h('div', {class:'bar'}, boxes.map(([k, l]) => h('button', {class: waBoxSel === k ? 'primary' : '', onclick: () => { waBoxSel = k; waList(0, {q:q.value, user: u ? u.value : ''}); }}, l)));
   const load = async () => {
     try {
