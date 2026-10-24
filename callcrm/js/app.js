@@ -116,7 +116,7 @@ async function paintCounters() {
   try { CNT = await api('/counters'); } catch (e) { return; }
   const btn = root.querySelector('.nav button[data-k="rappels"]');
   if (btn) { btn.querySelector('.ovd')?.remove(); if (CNT.overdue) btn.append(h('span', {class:'ovd', title:'Rappels en retard'}, String(CNT.overdue))); }
-  const g = root.querySelector('.nav .goal');
+  const g = root.querySelector('.navwrap .goal');
   if (g && CNT.goal && CNT.today !== null) {
     const pc = Math.min(100, Math.round(100 * CNT.today / CNT.goal));
     g.replaceChildren('🎯 Aujourd’hui : ' + CNT.today + ' / ' + CNT.goal + ' appels', h('span', {class:'gbar'}, h('span', {style:'width:' + pc + '%'})));
@@ -128,8 +128,21 @@ function nav() {
   t.push(['wa', '💬 WhatsApp']);
   t.push(['stats', me.can.all ? 'Statistiques' : 'Mes statistiques']);
   if (me.can.import) t.push(['admin', 'Administration']);
-  return h('div', {class:'nav'}, t.map(([k, l]) => h('button', {class: tab === k ? 'on' : '', 'data-k': k, onclick: () => go(k)}, l)),
-    me.role === 'commercial' && me.prefs && me.prefs.goal ? h('span', {class:'goal muted'}) : '');
+  const tabs = h('div', {class:'nav'}, t.map(([k, l]) => h('button', {class: tab === k ? 'on' : '', 'data-k': k, onclick: () => go(k)}, l)));
+  const L = h('button', {class:'navarrow l', title:'Défiler à gauche', 'aria-label':'Défiler à gauche', onclick: () => tabs.scrollBy({left:-240, behavior:'smooth'})}, '‹');
+  const R = h('button', {class:'navarrow r', title:'Défiler à droite', 'aria-label':'Défiler à droite', onclick: () => tabs.scrollBy({left:240, behavior:'smooth'})}, '›');
+  const wrap = h('div', {class:'navwrap'}, L, tabs, R);
+  const upd = () => {
+    const o = tabs.scrollWidth > tabs.clientWidth + 4;
+    wrap.classList.toggle('over', o);
+    L.hidden = !o || tabs.scrollLeft < 4;
+    R.hidden = !o || tabs.scrollLeft + tabs.clientWidth >= tabs.scrollWidth - 4;
+  };
+  tabs.addEventListener('scroll', upd);
+  window.addEventListener('resize', upd);
+  setTimeout(() => { upd(); const on = tabs.querySelector('button.on'); if (on) on.scrollIntoView({inline:'center', block:'nearest'}); upd(); }, 0);
+  if (me.role === 'commercial' && me.prefs && me.prefs.goal) wrap.append(h('span', {class:'goal muted'}));
+  return wrap;
 }
 function go(k) { tab = k; if (k === 'wa') waList(); else if (k === 'stats') stats(); else if (k === 'admin') admin(); else list(k); }
 const modeOpts = none => [
