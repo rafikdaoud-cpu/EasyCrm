@@ -111,8 +111,8 @@ body[data-themes*="dark"] #callcrm,body[data-theme-dark] #callcrm{--brand:var(--
 #callcrm .navwrap .goal{flex:none;padding:0 16px 0 8px}
 @media(max-width:760px){#callcrm .navwrap{margin:0 -12px 12px}#callcrm .navwrap .navarrow{display:none}}
 /* simulateur de cuisine */
-#callcrm .sim-open{width:100%;margin:6px 0 10px;min-height:48px;border:2px solid var(--brand);color:var(--brand);background:transparent}
-#callcrm .sim-open:hover{background:var(--brand);color:var(--brand-ink)}
+#callcrm .sim-open{width:100%;margin:6px 0 10px;min-height:48px;border:0;background:var(--info);color:#fff;font-size:16px}
+#callcrm .sim-open:hover{background:var(--info);filter:brightness(1.12)}
 #callcrm .sim-bg{position:fixed;inset:56px 0 0 0;z-index:100000;background:rgba(30,36,71,.6);overflow:auto;padding:0 16px}
 #callcrm .sim{background:var(--color-main-background,#fff);border-radius:var(--r2);max-width:980px;margin:16px auto;position:relative}
 #callcrm .sim-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 18px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--color-main-background,#fff);border-radius:var(--r2) var(--r2) 0 0;z-index:2}
