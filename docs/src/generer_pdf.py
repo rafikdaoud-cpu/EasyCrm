@@ -40,7 +40,7 @@ build('/home/claude/docs/1_Resume_applications_Nextcloud.pdf','Résumé des appl
 ('p','Deux applications maison, intégrées à Nextcloud (cloud.csmtaksit.dz), donc sans licence supplémentaire. Elles utilisent les comptes de l’entreprise (Active Directory, connexion unique SSO via ADFS) et fonctionnent sur PC comme sur smartphone.'),
 ('table',([['','Call CRM (callcrm)','Réclamations (reclamations)'],
  ['Rôle','Prospection téléphonique : mini CRM et centre de contact pour les ~30 commerciaux.','Suivi des réclamations clients, de la saisie à la clôture.'],
- ['Version','0.17.0','1.2.0'],
+ ['Version','0.17.1','1.2.0'],
  ['Utilisateurs','Commerciaux, superviseurs, administrateurs, lecture seule.','Agents, superviseurs, administrateurs, lecture seule, saisie (tout autre utilisateur connecté).'],
  ['Fonctions clés','Liste de prospects, appel en un clic, résultats d’appel, rappels programmés avec limite de tentatives, objectif quotidien, simulateur de devis de cuisine, import Excel, répartition par catégorie, boîte WhatsApp partagée, statistiques, journal d’audit, invitations par e-mail.','Saisie et référence automatique, statuts (nouvelle, en cours, en attente, résolue, clôturée, rejetée), priorités, échéances et retards, affectation par service et par agent, historique daté, statistiques et export Excel, import CSV.'],
  ['Écrans','PC et mobile, mode clair et sombre, aux couleurs de la charte CSM.','Idem.']],[28,73,73])),
@@ -68,7 +68,7 @@ build('/home/claude/docs/1_Resume_applications_Nextcloud.pdf','Résumé des appl
 ])
 
 # ---------------- 2. Installation
-build('/home/claude/docs/2_Guide_installation.pdf','Guide d’installation','Call CRM 0.17.0 et Réclamations 1.2.0 sur Nextcloud (cPanel / AlmaLinux)',[
+build('/home/claude/docs/2_Guide_installation.pdf','Guide d’installation','Call CRM 0.17.1 et Réclamations 1.2.0 sur Nextcloud (cPanel / AlmaLinux)',[
 ('h1','Prérequis'),
 ('ul',['Nextcloud 28 à 40 (installé : 35). PHP 8.5 pour ce site (<b>ea-php85</b>).','Accès root SSH au VPS. Le dossier Nextcloud est <b>/home/csmtak11/cloud.csmtaksit.dz</b>, propriétaire <b>csmtak11</b>.','Les fichiers <b>callcrm.zip</b> et <b>reclamations.zip</b> transférés sur le serveur (par exemple dans /root).']),
 ('h1','1. Installer ou mettre à jour une application'),
@@ -142,7 +142,7 @@ build('/home/claude/docs/3_Guide_utilisation.pdf','Guide d’utilisation','Call 
 ('h2','Statistiques'),
 ('p','Choisissez la période et les filtres (commercial, groupe, catégorie, résultat). Vous voyez le nombre d’appels, la répartition par statut, les appels par heure, le tableau par commercial et le journal des appels. Le bouton d’export produit un fichier Excel.'),
 ('h1','Call CRM : superviseur et administrateur'),
-('ul',['<b>Importer</b> : choisissez un fichier Excel ; l’application nettoie les lignes, retire les numéros en double et affiche le bilan avant validation.','<b>Répartir</b> : par catégorie de produit, équitablement entre les commerciaux cochés, ou vers un groupe précis.','<b>Transférer</b> : dans une liste, cochez des fiches puis changez de commercial ou de statut (barre de sélection en haut). Un transfert en masse par statut existe dans Administration.','<b>Journal d’audit</b> : qui a importé, transféré, changé un statut et quand.','<b>Administration</b> (admin) : statuts et couleurs, champs de la fiche, <b>prix et coefficients du simulateur de cuisine</b>, réglages (tentatives, plage et espacement des rappels, objectif quotidien), invitations par e-mail aux commerciaux, suppression.']),
+('ul',['<b>Importer</b> : choisissez un fichier Excel ; l’application nettoie les lignes, retire les numéros en double et affiche le bilan avant validation.','<b>Répartir</b> : par catégorie de produit, équitablement entre les commerciaux cochés, ou vers un groupe précis.','<b>Transférer</b> : dans une liste, cochez des fiches puis changez de commercial ou de statut (barre de sélection en haut). Un transfert en masse par statut existe dans Administration.','<b>Journal d’audit</b> : qui a importé, transféré, changé un statut et quand.','<b>Administration</b> (admin) : statuts et couleurs, champs de la fiche, <b>prix et coefficients du simulateur de cuisine</b> (modèles, équipements avec leur déduction et leur prix, suppléments, coefficients, plan de travail, fourchette, arrondi : tout est modifiable), réglages (tentatives, plage et espacement des rappels, objectif quotidien), invitations par e-mail aux commerciaux, suppression.']),
 ('pb',''),
 ('h1','Réclamations'),
 ('h2','Saisir une réclamation'),

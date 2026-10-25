@@ -399,13 +399,14 @@ async function simCfg(force) { if (!SIM || force) SIM = (await api('/sim')).cfg;
 /** Même calcul que lib/Service/Sim.php (le serveur recalcule à l'enregistrement). */
 function simCalc(c, i) {
   const price = (c.models.find(m => m.name === i.model) || {price: 0}).price;
-  const ded = (i.column ? 0 : c.deduct) + c.deduct * ((i.cooker ? 1 : 0) + (i.washer ? 1 : 0) + (i.dish ? 1 : 0));
-  const net = Math.max(0, i.w + i.l - ded), furn = net * (i.hl ? 2 : 1) * price;
+  let ded = 0, eqp = 0;
+  c.equip.forEach(e => { const on = !!i.eq[e.name]; if ((e.when === 'yes') === on) ded += e.deduct; if (on) eqp += e.price; });
+  const net = Math.max(0, i.w + i.l - ded), furn = net * (i.hl ? c.hl_mult : 1) * price;
   const ex = c.extras.reduce((s, e) => s + (i.extras[e.name] || 0) * e.price, 0);
   const len = Math.max(0, i.w + i.l - c.wt_deduct);
   const wt = (len * c.depth * c.m2 + c.labour + (c.plinth_ml ? c.plinth * len : c.plinth)) * c.coef;
-  const total = furn + ex + wt, rd = c.round || 1000, r = x => Math.round(x / rd) * rd;
-  return {net, furn, ex, wt, total, approx: r(total), lo: r(total * (1 - c.range / 100)), hi: r(total * (1 + c.range / 100))};
+  const total = furn + ex + eqp + wt, rd = c.round || 1000, r = x => Math.round(x / rd) * rd;
+  return {net, furn, ex, eqp, wt, total, approx: r(total), lo: r(total * (1 - c.range / 100)), hi: r(total * (1 + c.range / 100))};
 }
 const SVGNS = 'http://www.w3.org/2000/svg';
 const sv = (t, a = {}, ...c) => { const e = document.createElementNS(SVGNS, t); for (const [k, v] of Object.entries(a)) e.setAttribute(k, v); c.flat().forEach(x => e.append(x)); return e; };
@@ -429,7 +430,7 @@ function seg(opts, val, on) {
 async function openSim(p) {
   let c;
   try { c = await simCfg(true); } catch (e) { alert(e.message); return; }
-  const i = {w: 4, l: 3, hl: true, column: false, cooker: false, washer: false, dish: false, model: c.models[0].name, extras: {}};
+  const i = {w: 4, l: 3, hl: true, eq: {}, model: c.models[0].name, extras: {}};
   const num = (k, lab) => h('label', {}, lab, h('input', {type: 'number', inputmode: 'decimal', step: '0.05', min: '0.5', max: '20', value: i[k], oninput: e => { const v = parseFloat(String(e.target.value).replace(',', '.')); i[k] = isFinite(v) ? v : 0; upd(); }}));
   const yn = (k, lab, hint) => h('div', {class: 'sim-row'}, h('span', {}, lab, hint ? h('small', {class: 'muted'}, ' ' + hint) : ''), seg([[true, 'Oui'], [false, 'Non']], i[k], v => { i[k] = v; upd(); }));
   const models = h('div', {class: 'sim-models'});
@@ -440,7 +441,7 @@ async function openSim(p) {
     return h('div', {class: 'sim-row'}, h('span', {}, e.name, h('small', {class: 'muted'}, ' +' + DA(e.price))), h('div', {class: 'step'}, h('button', {type: 'button', 'aria-label': 'Moins', onclick: () => set((i.extras[e.name] || 0) - 1)}, '−'), n, h('button', {type: 'button', 'aria-label': 'Plus', onclick: () => set((i.extras[e.name] || 0) + 1)}, '+'))); });
   const plan = h('div', {class: 'sim-planbox'}), res = h('div', {class: 'sim-res'}), bar = h('div', {class: 'sim-bar', 'aria-live': 'polite'}), msg = h('div', {class: 'muted'});
   const summary = r => ['Cuisine équipée — modèle ' + i.model + (i.hl ? ', meubles hauts et bas' : ', meubles bas') + ' — ' + mFmt(i.w) + ' × ' + mFmt(i.l),
-    [i.column && 'colonne', i.cooker && 'cuisinière', i.washer && 'lave-linge', i.dish && 'lave-vaisselle'].filter(Boolean).length ? 'Équipements : ' + [i.column && 'colonne', i.cooker && 'cuisinière', i.washer && 'lave-linge', i.dish && 'lave-vaisselle'].filter(Boolean).join(', ') : '',
+    c.equip.filter(e => i.eq[e.name]).length ? 'Équipements : ' + c.equip.filter(e => i.eq[e.name]).map(e => e.name).join(', ') : '',
     Object.entries(i.extras).filter(([, n]) => n).map(([k, n]) => n + ' × ' + k).join(', '),
     'Estimation : environ ' + DA(r.approx) + ' (entre ' + DA(r.lo) + ' et ' + DA(r.hi) + ')'].filter(Boolean).join('\n');
   let last;
@@ -451,7 +452,7 @@ async function openSim(p) {
     plan.replaceChildren(simPlan(i));
     bar.replaceChildren(h('span', {}, 'Estimation'), h('strong', {}, '≈ ' + DA(last.approx)), h('small', {}, 'entre ' + DA(last.lo) + ' et ' + DA(last.hi)));
     res.replaceChildren(h('table', {class: 't'}, h('tbody', {},
-        [['Meubles (' + last.net.toFixed(2).replace('.', ',') + ' ml utiles)', last.furn], ['Suppléments', last.ex], ['Plan de travail, pose et plinthe', last.wt]].map(([a, b]) => h('tr', {}, h('td', {}, a), h('td', {style: 'text-align:right;white-space:nowrap'}, DA(b)))))));
+        [['Meubles (' + last.net.toFixed(2).replace('.', ',') + ' ml utiles)', last.furn], ['Suppléments et équipements', last.ex + last.eqp], ['Plan de travail, pose et plinthe', last.wt]].map(([a, b]) => h('tr', {}, h('td', {}, a), h('td', {style: 'text-align:right;white-space:nowrap'}, DA(b)))))));
   }
   const close = () => { bg.remove(); document.removeEventListener('keydown', esc); };
   const esc = e => { if (e.key === 'Escape') close(); };
@@ -462,7 +463,7 @@ async function openSim(p) {
         h('div', {class: 'sim-form'},
           h('h3', {}, '1. Dimensions'), h('div', {class: 'g2'}, num('w', 'Largeur (m)'), num('l', 'Longueur (m)')),
           yn('hl', 'Meubles hauts et bas'),
-          h('h3', {}, '2. Équipements'), yn('column', 'Colonne'), yn('cooker', 'Cuisinière'), yn('washer', 'Machine à laver'), yn('dish', 'Lave-vaisselle'),
+          h('h3', {}, '2. Équipements'), ...c.equip.map(e => h('div', {class: 'sim-row'}, h('span', {}, e.name, e.price ? h('small', {class: 'muted'}, ' +' + DA(e.price)) : ''), seg([[true, 'Oui'], [false, 'Non']], false, v => { i.eq[e.name] = v; upd(); }))),
           h('h3', {}, '3. Modèle'), models,
           h('h3', {}, '4. Suppléments'), ...extras),
         h('div', {class: 'sim-side'}, plan, res,
@@ -494,25 +495,30 @@ function simCard() {
   const box = h('div', {class: 'card'}, h('h3', {}, 'Simulateur de cuisine : prix et coefficients'), h('div', {class: 'skel'}));
   simCfg(true).then(c => {
     const out = h('span', {class: 'muted'});
-    const lines = (arr, lab) => { const wrap = h('div', {});
+    const lines = (arr, lab, extra) => { const wrap = h('div', {});
       const paint = () => wrap.replaceChildren(...arr.map((x, n) => h('div', {class: 'bar'},
-        h('input', {value: x.name, placeholder: lab, oninput: e => x.name = e.target.value}),
-        h('input', {type: 'number', min: 0, value: x.price, style: 'max-width:140px', oninput: e => x.price = parseFloat(e.target.value) || 0}),
+        h('input', {value: x.name, placeholder: lab, 'aria-label': lab, oninput: e => x.name = e.target.value}),
+        extra ? extra(x) : '',
+        h('input', {type: 'number', min: 0, value: x.price, style: 'max-width:130px', 'aria-label': 'Prix (DA)', title: 'Prix (DA)', oninput: e => x.price = parseFloat(e.target.value) || 0}),
         h('button', {type: 'button', 'aria-label': 'Supprimer', onclick: () => { arr.splice(n, 1); paint(); }}, '✕'))),
-        h('button', {type: 'button', onclick: () => { arr.push({name: '', price: 0}); paint(); }}, '＋ Ajouter'));
+        h('button', {type: 'button', onclick: () => { arr.push(extra ? {name: '', price: 0, deduct: 0, when: 'yes'} : {name: '', price: 0}); paint(); }}, '＋ Ajouter'));
       paint(); return wrap; };
-    const models = c.models.map(x => ({...x})), extras = c.extras.map(x => ({...x}));
+    const models = c.models.map(x => ({...x})), extras = c.extras.map(x => ({...x})), equip = c.equip.map(x => ({...x}));
+    const eqExtra = x => [
+      h('input', {type: 'number', step: '0.05', min: 0, value: x.deduct, style: 'max-width:90px', 'aria-label': 'Déduction (m)', title: 'Mètres retirés', oninput: e => x.deduct = parseFloat(e.target.value) || 0}),
+      h('select', {'aria-label': 'Déduire quand', title: 'Déduire quand', onchange: e => x.when = e.target.value}, h('option', {value: 'yes', selected: x.when === 'yes' ? 'selected' : null}, 'si présent'), h('option', {value: 'no', selected: x.when === 'no' ? 'selected' : null}, 'si absent'))];
     const f = (k, lab, step) => { const el = h('input', {type: 'number', step: step || '0.01', min: 0, value: c[k], style: 'max-width:140px'}); return {k, el, label: h('label', {}, lab, el)}; };
-    const fs = [f('deduct', 'Déduction par équipement (m)'), f('depth', 'Profondeur plan de travail (m)'), f('m2', 'Prix du m² du plan (DA)', '1'), f('labour', 'Main-d’œuvre (DA)', '1'), f('plinth', 'Plinthe (DA)', '1'), f('wt_deduct', 'Déduction plan de travail (m)'), f('coef', 'Coefficient plan de travail (×)'), f('range', 'Fourchette affichée (± %)', '1'), f('round', 'Arrondi du prix (DA)', '100')];
+    const fs = [f('hl_mult', 'Coefficient meubles hauts et bas (×)'), f('depth', 'Profondeur plan de travail (m)'), f('m2', 'Prix du m² du plan (DA)', '1'), f('labour', 'Main-d’œuvre (DA)', '1'), f('plinth', 'Plinthe (DA)', '1'), f('wt_deduct', 'Déduction plan de travail (m)'), f('coef', 'Coefficient plan de travail (×)'), f('range', 'Fourchette affichée (± %)', '1'), f('round', 'Arrondi du prix (DA)', '100')];
     const pml = h('input', {type: 'checkbox', checked: c.plinth_ml ? 'checked' : null});
     box.replaceChildren(h('h3', {}, 'Simulateur de cuisine : prix et coefficients'),
       h('p', {class: 'muted'}, 'Prix des modèles (par mètre linéaire) :'), lines(models, 'Modèle'),
+      h('p', {class: 'muted'}, 'Équipements — colonnes : nom · mètres retirés des meubles · condition de la déduction (équipement présent ou absent) · prix ajouté s’il est présent (0 = aucun) :'), lines(equip, 'Équipement', eqExtra),
       h('p', {class: 'muted'}, 'Suppléments (prix unitaire) :'), lines(extras, 'Supplément'),
       h('div', {class: 'g2'}, ...fs.map(x => x.label)),
       h('label', {}, pml, ' La plinthe est facturée au mètre linéaire (sinon : forfait)'),
       h('div', {class: 'bar'}, h('button', {class: 'primary', onclick: async () => {
         out.textContent = '…';
-        const cfg = {models, extras, plinth_ml: pml.checked ? 1 : 0}; fs.forEach(x => cfg[x.k] = parseFloat(x.el.value) || 0);
+        const cfg = {models, extras, equip, plinth_ml: pml.checked ? 1 : 0}; fs.forEach(x => cfg[x.k] = parseFloat(x.el.value) || 0);
         try { SIM = (await api('/sim', {method: 'POST', body: {cfg}})).cfg; out.textContent = '✔ Prix enregistrés.'; } catch (e) { out.textContent = e.message; }
       }}, 'Enregistrer'), out));
   }).catch(e => box.replaceChildren(h('p', {class: 'err'}, e.message)));
