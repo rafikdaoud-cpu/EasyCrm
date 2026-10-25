@@ -380,7 +380,7 @@ async function detail(id) {
         p.phone && me.can.call ? h('a', {class:'big', style:'background:#25D366;color:#fff', target:'_blank', rel:'noopener noreferrer', href:'https://wa.me/' + waNum(p.phone)}, '💬 WhatsApp ' + p.phone) : '',
         p.phone ? waOnProspect(id) : '',
         h('button', {type:'button', class:'sim-open', onclick: () => openSim(p)}, '🧮 Simulateur de cuisine'),
-        me.can.call ? h('div', {class:'res'}, RES.map(r => h('button', {'data-r': r, onclick: () => pick(r)}, ST[r]))) : h('p', {class:'muted'}, 'Consultation seule.'),
+        me.can.call ? h('div', {class:'res'}, RES.map(r => h('button', {'data-r': r, style:'--sc:' + (STC[r] || '#888') + ';--si:' + inkOn(STC[r] || '#888'), onclick: () => pick(r)}, ST[r]))) : h('p', {class:'muted'}, 'Consultation seule.'),
         form, asg,
         d.recordings && d.recordings.length ? [h('h3', {}, 'Enregistrements'), d.recordings.map(recRow)] : '',
         simHistory(d.sims),

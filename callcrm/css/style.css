@@ -75,7 +75,9 @@ body[data-themes*="dark"] #callcrm,body[data-theme-dark] #callcrm{--brand:var(--
 #callcrm .big:hover{filter:brightness(1.15)}
 #callcrm .res{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}
 #callcrm .res button{padding:16px 8px;font-size:15px;border-radius:var(--r2);border:2px solid var(--line)}
-#callcrm .res button.on{border-color:var(--accent);box-shadow:0 0 0 3px rgba(74,144,226,.3);background:var(--soft)}
+#callcrm .res button{border-color:var(--sc,var(--line));border-left-width:10px;background:color-mix(in srgb,var(--sc,#888) 10%,var(--color-main-background,#fff))}
+#callcrm .res button:hover{background:color-mix(in srgb,var(--sc,#888) 22%,var(--color-main-background,#fff));border-color:var(--sc,var(--steel))}
+#callcrm .res button.on{background:var(--sc,var(--brand));color:var(--si,#fff);box-shadow:0 0 0 3px color-mix(in srgb,var(--sc,#888) 35%,transparent)}
 #callcrm .ovd{display:inline-block;min-width:20px;margin-left:6px;padding:0 6px;border-radius:10px;background:var(--bad);color:#fff;font-size:11px;font-weight:bold;line-height:20px;text-align:center}
 #callcrm .nav .goal{display:inline-flex;align-items:center;gap:8px;margin-left:auto;padding-left:12px;white-space:nowrap;flex:none}
 #callcrm .gbar{width:90px;height:10px}
