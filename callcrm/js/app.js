@@ -126,6 +126,7 @@ function nav() {
   const t = TABS.slice();
   if (me.can.all) t.push(['tous', 'Tous']);
   t.push(['wa', '💬 WhatsApp']);
+  t.push(['sim', 'Simulateur']);
   t.push(['stats', me.can.all ? 'Statistiques' : 'Mes statistiques']);
   if (me.can.import) t.push(['admin', 'Administration']);
   const tabs = h('div', {class:'nav'}, t.map(([k, l]) => h('button', {class: tab === k ? 'on' : '', 'data-k': k, onclick: () => go(k)}, l)));
@@ -144,7 +145,7 @@ function nav() {
   if (me.role === 'commercial' && me.prefs && me.prefs.goal) wrap.append(h('span', {class:'goal muted'}));
   return wrap;
 }
-function go(k) { tab = k; if (k === 'wa') waList(); else if (k === 'stats') stats(); else if (k === 'admin') admin(); else list(k); }
+function go(k) { if (k === 'sim') { openSim(null); return; } tab = k; if (k === 'wa') waList(); else if (k === 'stats') stats(); else if (k === 'admin') admin(); else list(k); }
 const modeOpts = none => [
   h('option', {value:'categorie'}, 'Par catégorie (groupe de chaque catégorie)'),
   h('option', {value:'auto'}, 'Équitablement (tous les commerciaux)'),
@@ -378,14 +379,144 @@ async function detail(id) {
         p.phone && me.can.call ? h('a', {class:'big call', href:'tel:' + p.phone}, '📞 Appeler ' + p.phone) : (p.phone ? '' : h('p', {class:'muted'}, 'Aucun numéro de téléphone renseigné.')),
         p.phone && me.can.call ? h('a', {class:'big', style:'background:#25D366;color:#fff', target:'_blank', rel:'noopener noreferrer', href:'https://wa.me/' + waNum(p.phone)}, '💬 WhatsApp ' + p.phone) : '',
         p.phone ? waOnProspect(id) : '',
+        h('button', {type:'button', class:'sim-open', onclick: () => openSim(p)}, '🧮 Simulateur de cuisine'),
         me.can.call ? h('div', {class:'res'}, RES.map(r => h('button', {'data-r': r, onclick: () => pick(r)}, ST[r]))) : h('p', {class:'muted'}, 'Consultation seule.'),
         form, asg,
         d.recordings && d.recordings.length ? [h('h3', {}, 'Enregistrements'), d.recordings.map(recRow)] : '',
+        simHistory(d.sims),
         h('h3', {}, 'Historique'),
         d.calls.length ? d.calls.map(c => h('div', {class:'card'}, h('strong', {}, ST[c.result]), ' — ', fmt(Number(c.created_at)), ' — ', c.user_id,
           c.reason ? h('div', {}, 'Motif : ' + c.reason) : '', c.note ? h('div', {}, c.note) : '',  c.callback_at ? h('div', {class:'muted'}, 'Rappel prévu : ' + fmt(Number(c.callback_at))) : '')) : h('p', {class:'muted'}, 'Aucun appel.')),
       h('div', {}, info,
         me.can.delete ? h('button', {onclick: async () => { if (confirm('Supprimer ce prospect ?')) { await api('/prospects/' + id + '/delete', {method:'POST'}); go('tous'); } }}, 'Supprimer') : '')));
+}
+
+/* ───────── Simulateur de devis « cuisine équipée » ───────── */
+let SIM = null;
+const DA = n => Math.round(n).toLocaleString('fr-FR').replace(/[  ]/g, ' ') + ' DA';
+const mFmt = n => String(n).replace('.', ',') + ' m';
+async function simCfg(force) { if (!SIM || force) SIM = (await api('/sim')).cfg; return SIM; }
+/** Même calcul que lib/Service/Sim.php (le serveur recalcule à l'enregistrement). */
+function simCalc(c, i) {
+  const price = (c.models.find(m => m.name === i.model) || {price: 0}).price;
+  const ded = (i.column ? 0 : c.deduct) + c.deduct * ((i.cooker ? 1 : 0) + (i.washer ? 1 : 0) + (i.dish ? 1 : 0));
+  const net = Math.max(0, i.w + i.l - ded), furn = net * (i.hl ? 2 : 1) * price;
+  const ex = c.extras.reduce((s, e) => s + (i.extras[e.name] || 0) * e.price, 0);
+  const len = Math.max(0, i.w + i.l - c.wt_deduct);
+  const wt = (len * c.depth * c.m2 + c.labour + (c.plinth_ml ? c.plinth * len : c.plinth)) * c.coef;
+  const total = furn + ex + wt, rd = c.round || 1000, r = x => Math.round(x / rd) * rd;
+  return {net, furn, ex, wt, total, approx: r(total), lo: r(total * (1 - c.range / 100)), hi: r(total * (1 + c.range / 100))};
+}
+const SVGNS = 'http://www.w3.org/2000/svg';
+const sv = (t, a = {}, ...c) => { const e = document.createElementNS(SVGNS, t); for (const [k, v] of Object.entries(a)) e.setAttribute(k, v); c.flat().forEach(x => e.append(x)); return e; };
+/** Schéma en L : le mur « largeur » en haut, le mur « longueur » à gauche. */
+function simPlan(i) {
+  const W = 300, H = 210, pad = 34, s = Math.min((W - 2 * pad) / i.w, (H - 2 * pad) / i.l), d = Math.max(0.6 * s, 14);
+  const x = pad, y = pad, bw = i.w * s, bh = i.l * s, fill = 'var(--brand)', t = {fill: 'var(--color-text-maxcontrast,#666)', 'font-size': 12, 'font-family': 'Arial'};
+  const hi = i.hl ? sv('g', {opacity: .35}, sv('rect', {x: x, y: y, width: bw, height: d / 2, fill}), sv('rect', {x: x, y: y + d / 2, width: d / 2, height: bh - d / 2, fill})) : '';
+  return sv('svg', {viewBox: '0 0 ' + W + ' ' + H, class: 'sim-plan', role: 'img', 'aria-label': 'Schéma de la cuisine'},
+    sv('rect', {x: x, y: y, width: bw, height: d, rx: 3, fill}), sv('rect', {x: x, y: y + d, width: d, height: bh - d, rx: 3, fill}),
+    hi,
+    sv('text', {...t, x: x + bw / 2, y: y - 12, 'text-anchor': 'middle'}, mFmt(i.w)),
+    sv('text', {...t, x: x - 12, y: y + bh / 2, 'text-anchor': 'middle', transform: 'rotate(-90 ' + (x - 12) + ' ' + (y + bh / 2) + ')'}, mFmt(i.l)),
+    sv('text', {...t, x: x + d + 12, y: y + d + 28}, i.hl ? 'Meubles hauts et bas' : 'Meubles bas'));
+}
+function seg(opts, val, on) {
+  const el = h('div', {class: 'seg', role: 'group'});
+  const paint = v => el.replaceChildren(...opts.map(([k, l]) => h('button', {type: 'button', class: k === v ? 'on' : '', 'aria-pressed': k === v ? 'true' : 'false', onclick: () => { paint(k); on(k); }}, l)));
+  paint(val); return el;
+}
+async function openSim(p) {
+  let c;
+  try { c = await simCfg(true); } catch (e) { alert(e.message); return; }
+  const i = {w: 4, l: 3, hl: true, column: false, cooker: false, washer: false, dish: false, model: c.models[0].name, extras: {}};
+  const num = (k, lab) => h('label', {}, lab, h('input', {type: 'number', inputmode: 'decimal', step: '0.05', min: '0.5', max: '20', value: i[k], oninput: e => { const v = parseFloat(String(e.target.value).replace(',', '.')); i[k] = isFinite(v) ? v : 0; upd(); }}));
+  const yn = (k, lab, hint) => h('div', {class: 'sim-row'}, h('span', {}, lab, hint ? h('small', {class: 'muted'}, ' ' + hint) : ''), seg([[true, 'Oui'], [false, 'Non']], i[k], v => { i[k] = v; upd(); }));
+  const models = h('div', {class: 'sim-models'});
+  const paintModels = () => models.replaceChildren(...c.models.map(m => h('button', {type: 'button', class: m.name === i.model ? 'on' : '', 'aria-pressed': m.name === i.model ? 'true' : 'false', onclick: () => { i.model = m.name; paintModels(); upd(); }}, h('strong', {}, m.name), h('small', {class: 'muted'}, DA(m.price) + ' / ml'))));
+  paintModels();
+  const extras = c.extras.map(e => { const n = h('output', {}, '0');
+    const set = v => { i.extras[e.name] = Math.max(0, Math.min(20, v)); n.textContent = i.extras[e.name]; upd(); };
+    return h('div', {class: 'sim-row'}, h('span', {}, e.name, h('small', {class: 'muted'}, ' +' + DA(e.price))), h('div', {class: 'step'}, h('button', {type: 'button', 'aria-label': 'Moins', onclick: () => set((i.extras[e.name] || 0) - 1)}, '−'), n, h('button', {type: 'button', 'aria-label': 'Plus', onclick: () => set((i.extras[e.name] || 0) + 1)}, '+'))); });
+  const plan = h('div', {class: 'sim-planbox'}), res = h('div', {class: 'sim-res'}), bar = h('div', {class: 'sim-bar', 'aria-live': 'polite'}), msg = h('div', {class: 'muted'});
+  const summary = r => ['Cuisine équipée — modèle ' + i.model + (i.hl ? ', meubles hauts et bas' : ', meubles bas') + ' — ' + mFmt(i.w) + ' × ' + mFmt(i.l),
+    [i.column && 'colonne', i.cooker && 'cuisinière', i.washer && 'lave-linge', i.dish && 'lave-vaisselle'].filter(Boolean).length ? 'Équipements : ' + [i.column && 'colonne', i.cooker && 'cuisinière', i.washer && 'lave-linge', i.dish && 'lave-vaisselle'].filter(Boolean).join(', ') : '',
+    Object.entries(i.extras).filter(([, n]) => n).map(([k, n]) => n + ' × ' + k).join(', '),
+    'Estimation : environ ' + DA(r.approx) + ' (entre ' + DA(r.lo) + ' et ' + DA(r.hi) + ')'].filter(Boolean).join('\n');
+  let last;
+  function upd() {
+    const ok = i.w >= 0.5 && i.l >= 0.5 && i.w <= 20 && i.l <= 20;
+    if (!ok) { bar.replaceChildren(h('span', {class: 'err'}, 'Largeur et longueur : entre 0,5 et 20 m.')); return; }
+    last = simCalc(c, i);
+    plan.replaceChildren(simPlan(i));
+    bar.replaceChildren(h('span', {}, 'Estimation'), h('strong', {}, '≈ ' + DA(last.approx)), h('small', {}, 'entre ' + DA(last.lo) + ' et ' + DA(last.hi)));
+    res.replaceChildren(h('table', {class: 't'}, h('tbody', {},
+        [['Meubles (' + last.net.toFixed(2).replace('.', ',') + ' ml utiles)', last.furn], ['Suppléments', last.ex], ['Plan de travail, pose et plinthe', last.wt]].map(([a, b]) => h('tr', {}, h('td', {}, a), h('td', {style: 'text-align:right;white-space:nowrap'}, DA(b)))))));
+  }
+  const close = () => { bg.remove(); document.removeEventListener('keydown', esc); };
+  const esc = e => { if (e.key === 'Escape') close(); };
+  const bg = h('div', {class: 'sim-bg', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Simulateur de cuisine', onclick: e => { if (e.target === bg) close(); }},
+    h('div', {class: 'sim'},
+      h('div', {class: 'sim-head'}, h('h2', {}, 'Simulateur de cuisine' + (p ? ' — ' + nm(p) : '')), h('button', {type: 'button', 'aria-label': 'Fermer', onclick: close}, '✕')),
+      h('div', {class: 'sim-body'},
+        h('div', {class: 'sim-form'},
+          h('h3', {}, '1. Dimensions'), h('div', {class: 'g2'}, num('w', 'Largeur (m)'), num('l', 'Longueur (m)')),
+          yn('hl', 'Meubles hauts et bas'),
+          h('h3', {}, '2. Équipements'), yn('column', 'Colonne'), yn('cooker', 'Cuisinière'), yn('washer', 'Machine à laver'), yn('dish', 'Lave-vaisselle'),
+          h('h3', {}, '3. Modèle'), models,
+          h('h3', {}, '4. Suppléments'), ...extras),
+        h('div', {class: 'sim-side'}, plan, res,
+          h('div', {class: 'sim-actions'},
+            p && me.can.call ? h('button', {type: 'button', class: 'primary', onclick: async () => {
+              msg.textContent = '…';
+              try { await api('/prospects/' + p.id + '/sim', {method: 'POST', body: {in: i}}); msg.textContent = '✔ Simulation enregistrée dans la fiche.'; }
+              catch (e) { msg.textContent = e.message; }
+            }}, 'Enregistrer dans la fiche') : '',
+            h('button', {type: 'button', onclick: async () => { try { await navigator.clipboard.writeText(summary(last)); msg.textContent = '✔ Résumé copié : collez-le dans une note ou un message.'; } catch (e) { msg.textContent = summary(last); } }}, 'Copier le résumé')),
+          msg,
+          h('p', {class: 'muted'}, 'Estimation indicative, à confirmer après prise de mesures.'))),
+      bar));
+  root.append(bg); document.addEventListener('keydown', esc); upd();
+  bg.querySelector('input').focus();
+}
+/** Simulations déjà enregistrées sur la fiche. */
+function simHistory(sims) {
+  if (!sims || !sims.length) return '';
+  return h('div', {}, h('h3', {}, 'Simulations de cuisine'), sims.map(s => {
+    let d = {}; try { d = JSON.parse(s.detail) || {}; } catch (e) {}
+    const i = d.in || {};
+    return h('div', {class: 'card'}, h('strong', {}, '≈ ' + DA(d.total || 0)), ' — ', fmt(Number(s.created_at)), ' — ', s.user_id,
+      h('div', {class: 'muted'}, [i.model, i.w && i.l ? mFmt(i.w) + ' × ' + mFmt(i.l) : '', i.hl ? 'haut et bas' : 'bas'].filter(Boolean).join(' · ')));
+  }));
+}
+/** Administration : prix et coefficients du simulateur. */
+function simCard() {
+  const box = h('div', {class: 'card'}, h('h3', {}, 'Simulateur de cuisine : prix et coefficients'), h('div', {class: 'skel'}));
+  simCfg(true).then(c => {
+    const out = h('span', {class: 'muted'});
+    const lines = (arr, lab) => { const wrap = h('div', {});
+      const paint = () => wrap.replaceChildren(...arr.map((x, n) => h('div', {class: 'bar'},
+        h('input', {value: x.name, placeholder: lab, oninput: e => x.name = e.target.value}),
+        h('input', {type: 'number', min: 0, value: x.price, style: 'max-width:140px', oninput: e => x.price = parseFloat(e.target.value) || 0}),
+        h('button', {type: 'button', 'aria-label': 'Supprimer', onclick: () => { arr.splice(n, 1); paint(); }}, '✕'))),
+        h('button', {type: 'button', onclick: () => { arr.push({name: '', price: 0}); paint(); }}, '＋ Ajouter'));
+      paint(); return wrap; };
+    const models = c.models.map(x => ({...x})), extras = c.extras.map(x => ({...x}));
+    const f = (k, lab, step) => { const el = h('input', {type: 'number', step: step || '0.01', min: 0, value: c[k], style: 'max-width:140px'}); return {k, el, label: h('label', {}, lab, el)}; };
+    const fs = [f('deduct', 'Déduction par équipement (m)'), f('depth', 'Profondeur plan de travail (m)'), f('m2', 'Prix du m² du plan (DA)', '1'), f('labour', 'Main-d’œuvre (DA)', '1'), f('plinth', 'Plinthe (DA)', '1'), f('wt_deduct', 'Déduction plan de travail (m)'), f('coef', 'Coefficient plan de travail (×)'), f('range', 'Fourchette affichée (± %)', '1'), f('round', 'Arrondi du prix (DA)', '100')];
+    const pml = h('input', {type: 'checkbox', checked: c.plinth_ml ? 'checked' : null});
+    box.replaceChildren(h('h3', {}, 'Simulateur de cuisine : prix et coefficients'),
+      h('p', {class: 'muted'}, 'Prix des modèles (par mètre linéaire) :'), lines(models, 'Modèle'),
+      h('p', {class: 'muted'}, 'Suppléments (prix unitaire) :'), lines(extras, 'Supplément'),
+      h('div', {class: 'g2'}, ...fs.map(x => x.label)),
+      h('label', {}, pml, ' La plinthe est facturée au mètre linéaire (sinon : forfait)'),
+      h('div', {class: 'bar'}, h('button', {class: 'primary', onclick: async () => {
+        out.textContent = '…';
+        const cfg = {models, extras, plinth_ml: pml.checked ? 1 : 0}; fs.forEach(x => cfg[x.k] = parseFloat(x.el.value) || 0);
+        try { SIM = (await api('/sim', {method: 'POST', body: {cfg}})).cfg; out.textContent = '✔ Prix enregistrés.'; } catch (e) { out.textContent = e.message; }
+      }}, 'Enregistrer'), out));
+  }).catch(e => box.replaceChildren(h('p', {class: 'err'}, e.message)));
+  return box;
 }
 
 function multi(label, opts) {
@@ -718,7 +849,7 @@ function commPicker(title) {
         h('label', {}, all, ' Tout cocher / décocher'), ...boxes.map(x => h('label', {style:'display:block'}, x.cb, ' ' + x.u.name)))),
     values: () => boxes.filter(x => x.cb.checked).map(x => x.u.uid)};
 }
-const AUDIT = {transfer:'Transfert', status:'Changement de statut', auto_close:'Clôture automatique', assign:'Affectation', import:'Import', distribute:'Répartition', release:'Réattribution', delete:'Suppression', export:'Export', settings:'Réglages'};
+const AUDIT = {transfer:'Transfert', status:'Changement de statut', auto_close:'Clôture automatique', assign:'Affectation', import:'Import', distribute:'Répartition', release:'Réattribution', delete:'Suppression', export:'Export', settings:'Réglages', sim:'Simulation cuisine'};
 function auditCard() {
   const box = h('div'), out = h('div', {class:'muted'});
   const act = h('select', {}, h('option', {value:''}, 'Toutes les actions'), Object.entries(AUDIT).map(([k, l]) => h('option', {value:k}, l)));
@@ -771,6 +902,7 @@ function admin() {
     me.can.fields ? fieldsEditor() : '',
     me.can.fields ? statusesEditor() : '',
     me.can.fields ? settingsCard() : '',
+    me.can.fields ? simCard() : '',
     me.can.assign ? transferCard() : '',
     me.can.assign ? bulkStatusCard() : '',
     me.can.audit ? auditCard() : '',

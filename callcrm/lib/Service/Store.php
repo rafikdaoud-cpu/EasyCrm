@@ -233,6 +233,13 @@ class Store {
 		try { $this->insert('callcrm_audit', ['created_at' => time(), 'user_id' => $uid, 'action' => $action, 'prospect_id' => $pid, 'detail' => mb_substr($detail, 0, 4000)]); }
 		catch (\Throwable $e) { /* le journal ne doit jamais bloquer l'action */ }
 	}
+	/** Simulations de cuisine enregistrées sur une fiche. */
+	public function simsFor(int $pid): array {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('*')->from('callcrm_audit')->where($qb->expr()->eq('action', $qb->createNamedParameter('sim')))
+			->andWhere($qb->expr()->eq('prospect_id', $qb->createNamedParameter($pid, IQueryBuilder::PARAM_INT)))->orderBy('id', 'DESC')->setMaxResults(10);
+		return $qb->executeQuery()->fetchAll();
+	}
 	public function auditList(int $limit, int $off, string $action = ''): array {
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('*')->from('callcrm_audit')->orderBy('id', 'DESC')->setMaxResults($limit)->setFirstResult($off);

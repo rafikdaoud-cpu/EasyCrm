@@ -40,9 +40,9 @@ build('/home/claude/docs/1_Resume_applications_Nextcloud.pdf','Résumé des appl
 ('p','Deux applications maison, intégrées à Nextcloud (cloud.csmtaksit.dz), donc sans licence supplémentaire. Elles utilisent les comptes de l’entreprise (Active Directory, connexion unique SSO via ADFS) et fonctionnent sur PC comme sur smartphone.'),
 ('table',([['','Call CRM (callcrm)','Réclamations (reclamations)'],
  ['Rôle','Prospection téléphonique : mini CRM et centre de contact pour les ~30 commerciaux.','Suivi des réclamations clients, de la saisie à la clôture.'],
- ['Version','0.16.1','1.2.0'],
+ ['Version','0.17.0','1.2.0'],
  ['Utilisateurs','Commerciaux, superviseurs, administrateurs, lecture seule.','Agents, superviseurs, administrateurs, lecture seule, saisie (tout autre utilisateur connecté).'],
- ['Fonctions clés','Liste de prospects, appel en un clic, résultats d’appel, rappels programmés avec limite de tentatives, objectif quotidien, import Excel, répartition par catégorie, boîte WhatsApp partagée, statistiques, journal d’audit, invitations par e-mail.','Saisie et référence automatique, statuts (nouvelle, en cours, en attente, résolue, clôturée, rejetée), priorités, échéances et retards, affectation par service et par agent, historique daté, statistiques et export Excel, import CSV.'],
+ ['Fonctions clés','Liste de prospects, appel en un clic, résultats d’appel, rappels programmés avec limite de tentatives, objectif quotidien, simulateur de devis de cuisine, import Excel, répartition par catégorie, boîte WhatsApp partagée, statistiques, journal d’audit, invitations par e-mail.','Saisie et référence automatique, statuts (nouvelle, en cours, en attente, résolue, clôturée, rejetée), priorités, échéances et retards, affectation par service et par agent, historique daté, statistiques et export Excel, import CSV.'],
  ['Écrans','PC et mobile, mode clair et sombre, aux couleurs de la charte CSM.','Idem.']],[28,73,73])),
 ('h1','Ce qui est fourni autour'),
 ('ul',['<b>SSO</b> : les utilisateurs d’un PC du domaine entrent automatiquement (ADFS + application user_saml).','<b>WhatsApp</b> : un service (wa-nextcloud) reçoit les messages de l’API officielle, enregistre photos et documents dans un dossier par numéro client et les fait remonter dans la fiche prospect du CRM. L’envoi se fait depuis le CRM, dans la fenêtre de 24 h autorisée par WhatsApp.','<b>Collabora</b> : ouverture directe des documents Office dans le navigateur (office.csmtaksit.dz).','<b>Sécurité</b> : HSTS actif, OPcache dimensionné, MariaDB réglé.']),
@@ -68,7 +68,7 @@ build('/home/claude/docs/1_Resume_applications_Nextcloud.pdf','Résumé des appl
 ])
 
 # ---------------- 2. Installation
-build('/home/claude/docs/2_Guide_installation.pdf','Guide d’installation','Call CRM 0.16.1 et Réclamations 1.2.0 sur Nextcloud (cPanel / AlmaLinux)',[
+build('/home/claude/docs/2_Guide_installation.pdf','Guide d’installation','Call CRM 0.17.0 et Réclamations 1.2.0 sur Nextcloud (cPanel / AlmaLinux)',[
 ('h1','Prérequis'),
 ('ul',['Nextcloud 28 à 40 (installé : 35). PHP 8.5 pour ce site (<b>ea-php85</b>).','Accès root SSH au VPS. Le dossier Nextcloud est <b>/home/csmtak11/cloud.csmtaksit.dz</b>, propriétaire <b>csmtak11</b>.','Les fichiers <b>callcrm.zip</b> et <b>reclamations.zip</b> transférés sur le serveur (par exemple dans /root).']),
 ('h1','1. Installer ou mettre à jour une application'),
@@ -132,6 +132,9 @@ build('/home/claude/docs/3_Guide_utilisation.pdf','Guide d’utilisation','Call 
 ('p','Les informations du client (champs configurés) sont à droite de la fiche sur PC, sous la fiche sur téléphone. Pensez à les compléter pendant l’appel, puis à enregistrer.'),
 ('h2','Rappels et tentatives'),
 ('ul',['Un rappel arrive sous forme de fenêtre contextuelle à l’heure prévue, tant que la page est ouverte.','Le nombre de tentatives est limité par l’administrateur : la fiche indique « Tentatives de rappel : 2 / 3 » dans un cadre non modifiable. À la limite, le prospect est clôturé automatiquement.','Hors connexion, vos appels sont mis en file et envoyés au retour du réseau (bandeau en bas de l’écran).']),
+('h2','Simulateur de cuisine'),
+('p','Pendant l’appel, touchez <b>Simulateur de cuisine</b> sur la fiche (ou l’onglet <b>Simulateur</b> en haut). Saisissez la largeur et la longueur, indiquez si les meubles sont hauts et bas, puis les équipements (colonne, cuisinière, machine à laver, lave-vaisselle), le modèle (Classique ou Casquette) et les suppléments (tiroir, casserolier). L’estimation s’affiche en bas de l’écran, avec une fourchette, et le schéma de la cuisine se met à jour en direct.'),
+('ul',['<b>Enregistrer dans la fiche</b> garde la simulation dans la fiche du prospect (rubrique « Simulations de cuisine »).','<b>Copier le résumé</b> met le détail dans le presse-papiers pour le coller dans une note ou un message WhatsApp.','Le prix est indicatif : à confirmer après prise de mesures.']),
 ('h2','WhatsApp depuis la fiche'),
 ('p','Le bouton vert <b>WhatsApp</b> ouvre la conversation. Les messages et pièces jointes reçus du client apparaissent dans la fiche. Vous pouvez répondre dans la fenêtre de 24 h après son dernier message ; au-delà, WhatsApp n’autorise plus que les messages modèles. Les photos arrivent comme photos dans la conversation ; la copie dans le dossier du client sur CsmCloud est enregistrée en PDF.'),
 ('h2','L’onglet WhatsApp'),
@@ -139,7 +142,7 @@ build('/home/claude/docs/3_Guide_utilisation.pdf','Guide d’utilisation','Call 
 ('h2','Statistiques'),
 ('p','Choisissez la période et les filtres (commercial, groupe, catégorie, résultat). Vous voyez le nombre d’appels, la répartition par statut, les appels par heure, le tableau par commercial et le journal des appels. Le bouton d’export produit un fichier Excel.'),
 ('h1','Call CRM : superviseur et administrateur'),
-('ul',['<b>Importer</b> : choisissez un fichier Excel ; l’application nettoie les lignes, retire les numéros en double et affiche le bilan avant validation.','<b>Répartir</b> : par catégorie de produit, équitablement entre les commerciaux cochés, ou vers un groupe précis.','<b>Transférer</b> : dans une liste, cochez des fiches puis changez de commercial ou de statut (barre de sélection en haut). Un transfert en masse par statut existe dans Administration.','<b>Journal d’audit</b> : qui a importé, transféré, changé un statut et quand.','<b>Administration</b> (admin) : statuts et couleurs, champs de la fiche, réglages (tentatives, plage et espacement des rappels, objectif quotidien), invitations par e-mail aux commerciaux, suppression.']),
+('ul',['<b>Importer</b> : choisissez un fichier Excel ; l’application nettoie les lignes, retire les numéros en double et affiche le bilan avant validation.','<b>Répartir</b> : par catégorie de produit, équitablement entre les commerciaux cochés, ou vers un groupe précis.','<b>Transférer</b> : dans une liste, cochez des fiches puis changez de commercial ou de statut (barre de sélection en haut). Un transfert en masse par statut existe dans Administration.','<b>Journal d’audit</b> : qui a importé, transféré, changé un statut et quand.','<b>Administration</b> (admin) : statuts et couleurs, champs de la fiche, <b>prix et coefficients du simulateur de cuisine</b>, réglages (tentatives, plage et espacement des rappels, objectif quotidien), invitations par e-mail aux commerciaux, suppression.']),
 ('pb',''),
 ('h1','Réclamations'),
 ('h2','Saisir une réclamation'),

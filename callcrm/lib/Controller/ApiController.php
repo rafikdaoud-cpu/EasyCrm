@@ -4,6 +4,7 @@ use OCA\CallCrm\AppInfo\Application;
 use OCA\CallCrm\Service\Access;
 use OCA\CallCrm\Service\Fields;
 use OCA\CallCrm\Service\Prefs;
+use OCA\CallCrm\Service\Sim;
 use OCA\CallCrm\Service\Statuses;
 use OCA\CallCrm\Service\Lookup;
 use OCA\CallCrm\Service\Store;
@@ -211,7 +212,7 @@ class ApiController extends Controller {
 		unset($r);
 		$ex = !empty($p['extra']) ? json_decode((string)$p['extra'], true) : null; $p['extra'] = is_array($ex) ? $ex : (object)[];
 		if ($this->a->can('mask')) { $p['phone'] = $this->maskPhone($p['phone']); $p['email'] = ''; $p['remarque'] = ''; }
-		return new JSONResponse(['prospect' => $p, 'calls' => $this->s->calls($id), 'recordings' => $recs]);
+		return new JSONResponse(['prospect' => $p, 'calls' => $this->s->calls($id), 'recordings' => $recs, 'sims' => $this->s->simsFor($id)]);
 	}
 
 	#[NoAdminRequired]
@@ -641,6 +642,34 @@ class ApiController extends Controller {
 		$v['extra'] = $extra ? json_encode($extra, JSON_UNESCAPED_UNICODE) : null;
 		$this->s->update($id, $v);
 		return new JSONResponse(['ok' => true]);
+	}
+
+	#[NoAdminRequired]
+	public function simConfig(): JSONResponse {
+		if (!$this->a->can('view')) { return $this->deny(); }
+		return new JSONResponse(['cfg' => Sim::all()]);
+	}
+	#[NoAdminRequired]
+	public function simSaveConfig(): JSONResponse {
+		if (!$this->a->can('fields')) { return $this->deny(); }
+		$in = $this->request->getParam('cfg', []);
+		if (!is_array($in)) { return $this->err('Données invalides'); }
+		try { $c = Sim::save($in); } catch (\InvalidArgumentException $e) { return $this->err($e->getMessage()); }
+		$this->s->audit($this->a->uid(), 'settings', null, 'Prix du simulateur de cuisine modifiés');
+		return new JSONResponse(['cfg' => $c]);
+	}
+	/** Enregistre une simulation sur la fiche (le montant est recalculé côté serveur). */
+	#[NoAdminRequired]
+	public function simSave(int $id): JSONResponse {
+		if (!$this->a->can('call')) { return $this->deny(); }
+		$p = $this->visible($id);
+		if (!$p) { return $this->err('Introuvable', Http::STATUS_NOT_FOUND); }
+		if ($this->a->role() === 'commercial' && $p['assigned_to'] !== $this->a->uid()) { return $this->deny(); }
+		$in = $this->request->getParam('in', []);
+		if (!is_array($in)) { return $this->err('Données invalides'); }
+		try { $r = Sim::compute(Sim::all(), $in); } catch (\InvalidArgumentException $e) { return $this->err($e->getMessage()); }
+		$this->s->audit($this->a->uid(), 'sim', $id, json_encode(['in' => $in, 'total' => $r['total']], JSON_UNESCAPED_UNICODE));
+		return new JSONResponse(['ok' => true, 'sims' => $this->s->simsFor($id)]);
 	}
 
 	#[NoAdminRequired]

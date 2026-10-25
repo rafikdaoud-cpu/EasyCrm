@@ -108,3 +108,40 @@ body[data-themes*="dark"] #callcrm,body[data-theme-dark] #callcrm{--brand:var(--
 #callcrm .navwrap .navarrow[hidden]{display:none}
 #callcrm .navwrap .goal{flex:none;padding:0 16px 0 8px}
 @media(max-width:760px){#callcrm .navwrap{margin:0 -12px 12px}#callcrm .navwrap .navarrow{display:none}}
+/* simulateur de cuisine */
+#callcrm .sim-open{width:100%;margin:6px 0 10px;min-height:48px;border:2px solid var(--brand);color:var(--brand);background:transparent}
+#callcrm .sim-open:hover{background:var(--brand);color:var(--brand-ink)}
+#callcrm .sim-bg{position:fixed;inset:56px 0 0 0;z-index:100000;background:rgba(30,36,71,.6);overflow:auto;padding:0 16px}
+#callcrm .sim{background:var(--color-main-background,#fff);border-radius:var(--r2);max-width:980px;margin:16px auto;position:relative}
+#callcrm .sim-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 18px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--color-main-background,#fff);border-radius:var(--r2) var(--r2) 0 0;z-index:2}
+#callcrm .sim-head h2{margin:0;font-size:18px}
+#callcrm .sim-head button{width:44px;padding:0}
+#callcrm .sim-body{display:grid;grid-template-columns:1fr 1fr;gap:24px;padding:8px 18px 18px}
+#callcrm .sim-form h3{margin:16px 0 6px;font-size:14px;color:var(--accent)}
+#callcrm .sim-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--line)}
+#callcrm .sim-row small{font-weight:normal}
+#callcrm .seg{display:inline-flex;border:1px solid var(--line);border-radius:var(--r3);overflow:hidden;flex:none}
+#callcrm .seg button{border:0;border-radius:0;min-width:64px;background:transparent;font-weight:normal}
+#callcrm .seg button.on{background:var(--brand);color:var(--brand-ink);font-weight:bold}
+#callcrm .sim-models{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+#callcrm .sim-models button{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:12px;border:2px solid var(--line);border-radius:var(--r2);text-align:left;font-weight:normal}
+#callcrm .sim-models button.on{border-color:var(--accent);box-shadow:0 0 0 3px rgba(74,144,226,.25);background:var(--soft)}
+#callcrm .step{display:inline-flex;align-items:center;gap:6px}
+#callcrm .step button{width:44px;padding:0;font-size:20px;border-radius:50%}
+#callcrm .step output{min-width:24px;text-align:center;font-weight:bold;font-size:17px}
+#callcrm .sim-plan{width:100%;height:auto;max-height:220px;background:var(--soft);border-radius:var(--r2)}
+#callcrm .sim-side{position:sticky;top:70px;align-self:start}
+#callcrm .sim-actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 6px}
+#callcrm .sim-bar{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:12px 18px;background:var(--navy);color:#fff;border-radius:0 0 var(--r2) var(--r2);position:sticky;bottom:0}
+#callcrm .sim-bar strong{font-size:24px}
+#callcrm .sim-bar small{opacity:.8;margin-left:auto}
+@media(max-width:760px){
+ #callcrm .sim-bg{padding:0}
+ #callcrm .sim{border-radius:0;margin:0;min-height:100%}
+ #callcrm .sim-body{grid-template-columns:1fr;padding:8px 12px 12px;gap:12px}
+ #callcrm .sim-side{position:static}
+ #callcrm .sim-bar{border-radius:0}
+ #callcrm .sim-bar small{margin-left:0;flex-basis:100%}
+}
+#callcrm .sim-form label{margin:0}
+#callcrm .sim-form label input{display:block;width:100%;margin-top:4px}
