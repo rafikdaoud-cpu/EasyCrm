@@ -1,53 +1,48 @@
-# Présence des commerciaux — EasyCrm 1.5.0
+# Présence, thème et pauses — EasyCrm 1.6.0
 
-## Utilisation
+## Interface validée
 
-- Pour le commercial : état affiché dans la navigation et bouton **Me mettre en pause**. Un écran modal bloque alors la vue et affiche le chronomètre ; seul **Reprendre le travail** permet de revenir au CRM. Échap et le clic à l’extérieur ne ferment pas la pause. Le rechargement restaure la pause depuis le serveur. En cas d’échec réseau, l’écran reste bloqué jusqu’à confirmation de la reprise.
-- Pour l'administrateur et le superviseur : onglet **Commerciaux**, affichant le nom, l'état et la dernière présence reçue dans EasyCrm. Actualisation toutes les 15 secondes tant que cet onglet est visible.
-- **En poste** : un signal du compte a été reçu depuis moins de 120 secondes.
-- **En pause** : le compte répond et le commercial a activé sa pause.
-- **Absent** : jamais connecté à EasyCrm ou aucun signal depuis au moins 120 secondes.
+- **Admin / superviseur** : navigation latérale, chiffres clés de l’équipe et tableau clair. Sur chaque ligne, le commercial conserve son total traité et tous ses compteurs par état (y compris les zéros). Un clic sur le nom ouvre le message individuel.
+- **Commercial** : la page **Ma journée** s’ouvre à la connexion. Elle affiche le temps en poste, les pauses classiques, le déjeuner, les rappels en retard, les dossiers traités et les appels du jour. Le bouton principal ouvre les dossiers **À traiter**. Les détails et filtres restent accessibles dans **Mes statistiques**.
+- **Dossiers Clients** ouvre toujours **À traiter** lorsqu’on clique dessus. Les autres états restent accessibles selon les droits. WhatsApp, annonces, statistiques et fonctions propres à chaque édition sont conservés.
+- Sur mobile, la navigation devient une barre défilable et les blocs se réorganisent. Les tableaux larges défilent dans leur propre zone.
 
-EasyCrm envoie un signal toutes les 30 secondes. La fermeture de la page, la déconnexion Nextcloud, la perte de réseau ou la mise en veille entraînent l'absence après expiration de ce délai, puis au prochain rafraîchissement du superviseur. Les navigateurs peuvent ralentir les onglets en arrière-plan ; un compte peut alors apparaître absent. Le retour sur la page envoie immédiatement un signal.
+## Présence
 
-Ce mécanisme mesure la connexion à EasyCrm et ne détecte pas physiquement la présence devant l'écran. Aucun suivi du clavier, de la souris ou de l'activité du poste n'est ajouté. Si la page reste ouverte quand le commercial s'éloigne, il doit activer la pause. La connexion à une autre application Nextcloud ne suffit pas à signaler la présence dans EasyCrm.
+Un signal est envoyé toutes les 30 secondes. Sans signal pendant 120 secondes, le commercial passe **Absent**. Les états et rapports s’actualisent toutes les 15 secondes lorsque leur page est visible. L’état actuel reste indépendant de la période choisie pour les cumuls.
 
-La pause est partagée entre les onglets et appareils du même compte. Un simple signal ne l'annule pas. Après une coupure, elle reste activée jusqu'à **Reprendre le travail**. Si le réseau échoue pendant un changement, l'interface indique **État non confirmé** au lieu d'annoncer une réussite.
+Cela indique une connexion à la page CRM et non une présence physique devant le PC. Si la page reste ouverte quand le commercial s’éloigne, il doit se mettre en pause. Mise en veille, navigateur ralenti, expiration de session ou perte réseau peuvent provoquer l’absence. Après une fermeture non détectable immédiatement, au plus 120 secondes de présence supplémentaire peuvent être comptées.
 
-## Périodes, dossiers traités et tris
+## Pause classique
 
-L’admin et le superviseur disposent du tableau **Commerciaux**. Le commercial retrouve ses propres indicateurs dans **Mes statistiques**. Les deux vues proposent le filtre :
+Le bouton **Me mettre en pause** ouvre un écran bloquant avec chronomètre. Échap et un clic à l’extérieur ne permettent pas de le fermer. **Reprendre le travail** nécessite la confirmation du serveur.
 
-- **Jour** : aujourd’hui depuis minuit ;
-- **Semaine** : depuis le lundi de la semaine en cours ;
-- **Mois** : depuis le premier du mois en cours ;
-- **Du / Au** : intervalle manuel, les deux dates incluses. Cliquer sur Appliquer.
+Après **10 minutes strictement dépassées**, l’état apparaît **rouge** dans le tableau admin / superviseur, accompagné du texte « délai dépassé ». À 10 minutes exactement, il reste dans la limite. Le retour au poste reste manuel : aucune reprise automatique n’est imposée.
 
-Le fuseau est celui configuré dans EasyCrm, `Africa/Algiers` par défaut. Le même intervalle s’applique aux temps en poste, temps de pause, dossiers traités et à leur répartition par état. Les dates invalides ou inversées sont refusées par le serveur. Les filtres du journal des appels restent indépendants.
+## Pause déjeuner — règles finales
 
-**Dossiers traités** : nombre de dossiers distincts pour lesquels le commercial a enregistré un résultat d’appel pendant la période. Plusieurs appels sur un même dossier ne le comptent pas plusieurs fois. La répartition (À rappeler, Intéressé, Pas intéressé, etc.) utilise le dernier résultat de ce commercial sur ce dossier dans l’intervalle ; il ne s’agit pas de son éventuel état actuel après d’autres traitements hors période. Les résultats simultanés sont départagés par l’identifiant d’enregistrement. La somme des états est égale au nombre de dossiers traités. Un dossier traité par deux commerciaux compte une fois pour chacun ; le total équipe additionne leurs volumes.
+- Bouton distinct **Pause déjeuner**, même écran bloquant et chronomètre.
+- **Une seule activation par jour civil**, dans le fuseau configuré du CRM (`Africa/Algiers` par défaut). Le serveur refuse une seconde activation ; le bouton reste désactivé après la reprise.
+- Pause non fractionnable et non cumulable : une partie inutilisée n’est pas récupérable lors d’une seconde pause ni reportée au lendemain.
+- Durée prévue : **1 heure**. Au-delà, **10 minutes de tolérance** : état orange « tolérance » de plus de 1 h à 1 h 10 incluses. Au-delà de **1 h 10**, état **rouge** « délai dépassé » pour les responsables.
+- Le déjeuner est enregistré dans un compteur **Déjeuner séparé**. Il n’augmente ni le temps en poste, ni le compteur de **pause classique**. Les éventuels dépassements restent dans le temps de déjeuner.
+- La reprise reste manuelle. Un clic répété pendant le même déjeuner ne crée pas une deuxième pause et ne remet pas son heure de début à zéro.
 
-Le tableau superviseur se trie en cliquant sur les titres de colonnes : commercial, état actuel, pause en cours, temps en poste, temps de pause, dossiers traités ou un état de dossier. Un premier clic trie en ordre croissant ; un second inverse le sens. Les flèches ▲ / ▼ indiquent le tri actif. Chaque état de dossier possède sa propre colonne chiffrée. Les menus de tri sont supprimés. Le tri est conservé lors des rafraîchissements. Le commercial clique sur les titres État ou Nombre dans son tableau personnel pour trier dans les deux sens. Les noms restent cliquables pour envoyer un message individuel.
+La pause est partagée entre les onglets/appareils. Un simple signal, un rechargement ou une reconnexion ne remettent pas son délai à zéro. Le serveur conserve l’heure de début pour les alertes. Les intervalles d’absence restent exclus des temps de présence mesurés ; le délai de dépassement, lui, se réfère à l’heure initiale de la pause. Le chronomètre local se suspend lorsque le signal est trop ancien puis se resynchronise au retour.
 
-Le tableau montre toujours **l’état actuel** des commerciaux, même si les cumuls sont filtrés sur une période ancienne. Le tableau et les compteurs personnels s’actualisent toutes les 15 secondes sur leur page visible ; le chronomètre de pause s’actualise chaque seconde. Une erreur réseau masque les anciens compteurs plutôt que de les présenter comme actuels.
+## Périodes, dossiers et tris
 
-Les temps sont affichés en heures:minutes:secondes, sans remise à zéro après 24 heures. Les changements d’état et les intervalles sont enregistrés côté serveur. Un compte n’a qu’un compteur, même avec plusieurs onglets. Une pause reste activée sur les autres appareils et est synchronisée au prochain signal, normalement sous 30 secondes. Une reprise est effective après confirmation serveur.
+**Jour / Semaine / Mois / Du–Au** sont disponibles dans Commerciaux et Mes statistiques. Jour = aujourd’hui ; semaine = lundi à aujourd’hui ; mois = premier à aujourd’hui. L’intervalle manuel inclut la journée Au entière, dans le fuseau du CRM.
 
-En cas de perte de signal, la présence est prolongée pendant le délai de tolérance de 120 secondes, puis le temps d’absence est exclu des cumuls. Il peut donc y avoir jusqu’à deux minutes de présence comptée après une fermeture ou une coupure. Le chronomètre se suspend au-delà de cette tolérance si la connexion ne revient pas. Au retour après une absence, un nouveau segment commence : une pause toujours activée reprend avec un nouveau chronomètre, sans ajouter l’absence au total de pause. Les durées mesurent la présence déclarée dans EasyCrm, pas un contrôle physique du travail.
+La même période s’applique aux temps en poste, pauses classiques, déjeuners, dossiers traités et répartition par état. Un dossier est compté **une fois par commercial**, selon son **dernier résultat d’appel sur la période**. Tous les résultats configurés ou présents dans l’historique sont affichés, même à zéro. Un dossier traité par deux commerciaux compte pour chacun ; le total équipe additionne leurs volumes.
 
-Le commercial ne peut accéder qu’à ses propres indicateurs. Son identité est imposée par le serveur et ne dépend pas des paramètres transmis par le navigateur.
+Le tableau distinct **Résultats d’appels par type de réponse** dans Statistiques compte chaque résultat d’appel, sans dédupliquer les dossiers. Les filtres du journal des appels restent indépendants de ceux des temps.
 
-## Message direct depuis Commerciaux
+Cliquer sur un titre de colonne trie, cliquer à nouveau inverse le sens ; ▲ / ▼ montrent le tri actif. Les libellés dans l’en-tête du détail des états permettent le tri par réponse. Le commercial peut aussi trier son tableau État / Nombre.
 
-L’admin et le superviseur peuvent cliquer sur le nom d’un commercial dans **Commerciaux** pour ouvrir une fenêtre de rédaction qui lui est exclusivement destinée. Le message utilise le même mécanisme popup sans réponse que l’onglet Annonce. Un échec réseau conserve le brouillon ; une réussite désactive l’envoi pour éviter un double clic. L’onglet Annonce reste disponible pour les envois multiples ou à tous.
+## Installation
 
-## Mise à jour
-
-Le ZIP contient le dossier `easycrm` complet, les annonces et la navigation Dossiers Clients des versions précédentes. Sauvegarder le code installé et la base avant remplacement. Le chemin communiqué pour cette installation est :
-
-`/chemin/vers/nextcloud/custom_apps/easycrm`
-
-Après installation du code, depuis la racine Nextcloud :
+Sauvegarder la base et le code, vérifier les personnalisations, puis remplacer `custom_apps/easycrm` par le dossier du ZIP. Le chemin de l’instance communiqué est `/chemin/vers/nextcloud/custom_apps/easycrm`.
 
 ```sh
 cd /chemin/vers/nextcloud
@@ -55,40 +50,26 @@ php occ upgrade
 php occ status
 ```
 
-Attendre la fin de la mise à jour. Si `needsDbUpgrade: false` et que la commande a réussi mais que `maintenance: true`, désactiver la maintenance :
+Attendre la fin. Si la mise à jour a réussi, `needsDbUpgrade: false`, mais `maintenance: true` :
 
 ```sh
 php occ maintenance:mode --off
 ```
 
-Conserver les propriétaire et permissions de l'installation. Recharger les pages et l'application Android pour charger le nouveau JavaScript. La migration 1006 crée les tables `easycrm_presence` et `easycrm_presence_log`. La migration des annonces reste incluse pour les installations venant d’une version antérieure. Les durées ne sont collectées qu’à partir de l’installation de la fonction de suivi ; aucun historique de temps ancien n’est reconstitué. Les dossiers traités utilisent l’historique d’appels conservé en base, y compris antérieur à cette version. Aucune nouvelle migration depuis la version 1.5.0 n’est nécessaire ; lancer occ upgrade pour enregistrer la version applicative reste requis.
+Recharger les navigateurs (Ctrl+F5) et l’application Android. Aucun nouvel APK n’est nécessaire.
 
-Cette version n'a pas été déployée sur le VPS. Vérifier sur une instance de test avec deux comptes : connexion commercial, pause, reprise, fermeture de tous les onglets du compte, absence après deux minutes et retour. Tester aussi plusieurs onglets et une perte réseau.
+Les migrations existantes restent inchangées : 1005 annonces ; 1006 présence/historique ; 1007 type de pause. La **nouvelle migration 1008** ajoute `pause_started_at` et `lunch_day`. Lancer `occ upgrade` avant le nouveau JavaScript. Les lignes de déjeuner déjà clôturées aujourd’hui peuvent être retrouvées dans l’historique afin d’éviter une deuxième activation après cette mise à jour.
 
-## Tests locaux
+Les temps sont collectés depuis l’installation du suivi ; ils ne sont pas inventés pour les périodes antérieures. L’historique d’appels existant peut fournir d’anciens nombres de dossiers. Les pauses anciennes sans type enregistré ne peuvent pas être reclassées automatiquement en déjeuner.
 
-Avec PHP et les extensions mbstring, PDO et pdo_sqlite :
+## Vérifications
+
+Depuis le dépôt, `tools/test-nextcloud.sh` teste les deux variantes. Voir `docs/AI_HANDOFF.md` pour les dépendances PHP/Node/jsdom et les limites. Les tests isolés ne remplacent pas une installation Nextcloud de préproduction.
+
+Un test navigateur facultatif avec données fictives couvre ordinateur/mobile, navigation, ouverture d’À traiter, alertes rouges, déjeuner bloquant et bouton déjeuner désactivé après reprise :
 
 ```sh
-php nextcloud/tests/presence.php
+CHROMIUM_BIN=/chemin/vers/chromium python3 tests/browser-smoke.py /tmp/crm-captures
 ```
 
-Ce script exécute aussi les tests des annonces. Les tests utilisent les vrais services et contrôleurs avec des doubles Nextcloud ; ils ne remplacent pas un test d'intégration sur Nextcloud.
-
-Pour les tests DOM Node.js, voir `ANNONCES.md`. Le fichier `tests/announcements-ui.cjs` couvre également Dossiers Clients et la présence : droits d'affichage, pause / reprise, erreur réseau et liste des commerciaux.
-
-## Résultats d’appels
-
-Le tableau « Résultats d’appels par type de réponse » des Statistiques affiche toutes les réponses configurées (y compris celles à zéro) et les anciennes réponses présentes dans l’historique. Il compte les résultats d’appels, avec des colonnes triables par leur titre. Il est distinct du nombre de dossiers traités, qui déduplique les dossiers sur la période.
-
-## Résultats d’appels
-
-Le tableau « Résultats d’appels par type de réponse » des Statistiques affiche toutes les réponses configurées (y compris celles à zéro) et les anciennes réponses présentes dans l’historique. Il compte les résultats d’appels, avec des colonnes triables par leur titre. Il est distinct du nombre de dossiers traités, qui déduplique les dossiers sur la période.
-
-## Détail par commercial sur la même ligne
-
-La colonne **Détail des dossiers traités**, à côté du total, affiche pour chaque commercial ses propres nombres par état (À rappeler, Faux numéro, Intéressé, Ne répond pas, Non éligible, Pas intéressé, Transmis sur Plateforme, etc.). Les valeurs à zéro restent visibles. Il ne s’agit pas seulement du récapitulatif global de l’équipe. Les libellés d’état dans l’en-tête permettent de trier les commerciaux selon ces nombres.
-
-## Pause déjeuner
-
-Le bouton **Pause déjeuner** est à côté de la pause classique. Il ouvre le même écran bloquant avec chronomètre, intitulé Pause déjeuner. Le type est conservé après rechargement et visible dans l’état du tableau superviseur. Le bouton Reprendre le travail termine cette pause. Le déjeuner est inclus dans le temps de pause total ; le type est également conservé dans l’historique pour une éventuelle analyse future. Cette version ajoute une migration pour `pause_kind` : lancer `occ upgrade` avant de recharger les pages.
+Il nécessite Playwright Python et Chromium. Il ne se connecte pas au VPS. Le déploiement réel et les intégrations Nextcloud/PBX/WhatsApp restent à vérifier sur l’instance cible.

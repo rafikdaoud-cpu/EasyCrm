@@ -1,4 +1,4 @@
-# Annonces — EasyCrm 1.5.0
+# Annonces — EasyCrm 1.6.0
 
 L'onglet **Annonce** est visible pour les administrateurs EasyCrm / Nextcloud et les superviseurs. Sélectionner un commercial, plusieurs commerciaux ou **Tous les commerciaux**, saisir le message (2 000 caractères maximum), puis cliquer sur **Envoyer le message**.
 

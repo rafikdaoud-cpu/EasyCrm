@@ -13,6 +13,24 @@ class Presence {
   $r = $q->select('*')->from('easycrm_presence')->where($q->expr()->eq('user_id', $q->createNamedParameter($uid)))->executeQuery()->fetch();
   return $r ?: null;
  }
+ private function localDay(int $now): string {
+  $tz = (string)$this->config->getAppValue('easycrm','tz','Africa/Algiers');
+  try { $zone = new \DateTimeZone($tz); } catch (\Throwable $e) { $zone = new \DateTimeZone('Africa/Algiers'); }
+  return (new \DateTimeImmutable('@'.$now))->setTimezone($zone)->format('Y-m-d');
+ }
+ private function historicalLunchDay(string $uid, int $now): string {
+  $day = $this->localDay($now);
+  $tz = (string)$this->config->getAppValue('easycrm','tz','Africa/Algiers');
+  try { $zone = new \DateTimeZone($tz); } catch (\Throwable $e) { $zone = new \DateTimeZone('Africa/Algiers'); }
+  $from = (new \DateTimeImmutable($day,$zone))->getTimestamp();
+  $q = $this->db->getQueryBuilder();
+  $found = $q->select('started_at')->from('easycrm_presence_log')
+   ->where($q->expr()->eq('user_id',$q->createNamedParameter($uid)))
+   ->andWhere($q->expr()->eq('pause_kind',$q->createNamedParameter('lunch')))
+   ->andWhere($q->expr()->gte('started_at',$q->createNamedParameter($from)))
+   ->andWhere($q->expr()->lt('started_at',$q->createNamedParameter($now+1)))->setMaxResults(1)->executeQuery()->fetch();
+  return $found ? $day : '';
+ }
  public function heartbeat(string $uid): array { return $this->touch($uid, null, time()); }
  public function pause(string $uid, bool $paused, string $kind = 'pause'): array { return $this->touch($uid, $paused, time(), $kind); }
 
@@ -26,7 +44,7 @@ class Presence {
     if (!$old) {
      $p = $paused ?? ($this->config->getUserValue($uid, 'easycrm', 'presence_pause', '0') === '1');
      $q = $this->db->getQueryBuilder(); $q->insert('easycrm_presence');
-     foreach (['user_id'=>$uid,'paused'=>(int)$p,'pause_kind'=>$p ? ($kind ?? 'pause') : 'pause','last_seen'=>$now,'segment_start'=>$now,'revision'=>1] as $k=>$v) { $q->setValue($k,$q->createNamedParameter($v)); }
+     foreach (['user_id'=>$uid,'paused'=>(int)$p,'pause_kind'=>$p ? ($kind ?? 'pause') : 'pause','pause_started_at'=>$p ? $now : 0,'lunch_day'=>$p && $kind === 'lunch' ? $this->localDay($now) : '', 'last_seen'=>$now,'segment_start'=>$now,'revision'=>1] as $k=>$v) { $q->setValue($k,$q->createNamedParameter($v)); }
      $q->executeStatement();
     } else {
      $now = max($now, (int)$old['last_seen']);
@@ -34,10 +52,19 @@ class Presence {
      $expired = $now >= (int)$old['last_seen'] + self::TIMEOUT;
      $nextKind = $p ? ($kind ?? ($old['pause_kind'] ?? 'pause')) : 'pause';
      $changed = $p !== (bool)$old['paused'] || ($p && $nextKind !== ($old['pause_kind'] ?? 'pause'));
+     $lunchDay = $old['lunch_day'] ?? '';
+     if ($lunchDay === '') { $lunchDay = $this->historicalLunchDay($uid,$now); }
+     $day = $this->localDay($now);
+     $startingLunch = $p && $nextKind === 'lunch' && (!(bool)$old['paused'] || ($old['pause_kind'] ?? 'pause') !== 'lunch');
+     if ($startingLunch && $lunchDay === $day) { throw new \DomainException('La pause déjeuner a déjà été utilisée aujourd’hui. Elle est autorisée une seule fois par jour.'); }
+     if ($startingLunch) { $lunchDay = $day; }
+     // Recover an ongoing lunch begun before this additive migration.
+     if ($p && $nextKind === 'lunch' && $lunchDay === '') { $lunchDay = $this->localDay((int)$old['segment_start']); }
+     $pauseStart = $p ? ($changed ? $now : ((int)($old['pause_started_at'] ?? 0) ?: (int)$old['segment_start'])) : 0;
      $start = ($expired || $changed) ? $now : (int)$old['segment_start'];
      $q = $this->db->getQueryBuilder();
      $affected = $q->update('easycrm_presence')->set('paused',$q->createNamedParameter((int)$p))
-      ->set('pause_kind',$q->createNamedParameter($nextKind))->set('last_seen',$q->createNamedParameter($now))->set('segment_start',$q->createNamedParameter($start))
+      ->set('lunch_day',$q->createNamedParameter($lunchDay))->set('pause_started_at',$q->createNamedParameter($pauseStart))->set('pause_kind',$q->createNamedParameter($nextKind))->set('last_seen',$q->createNamedParameter($now))->set('segment_start',$q->createNamedParameter($start))
       ->set('revision',$q->createNamedParameter((int)$old['revision']+1))
       ->where($q->expr()->eq('user_id',$q->createNamedParameter($uid)))
       ->andWhere($q->expr()->eq('revision',$q->createNamedParameter((int)$old['revision'])))->executeStatement();
@@ -55,7 +82,7 @@ class Presence {
     $this->db->commit(); return $result;
    } catch (\Throwable $e) {
     $this->db->rollBack();
-    if ($attempt === 2) { throw $e; }
+    if ($e instanceof \DomainException || $attempt === 2) { throw $e; }
    }
   }
   throw new \RuntimeException('Presence update failed');
@@ -63,8 +90,20 @@ class Presence {
  private function describe(?array $r, int $now): array {
   $seen = (int)($r['last_seen'] ?? 0); $p = (bool)($r['paused'] ?? false);
   $online = $r !== null && $now - $seen < self::TIMEOUT;
-  return ['status'=>!$online ? 'absent' : ($p ? 'pause' : 'online'), 'paused'=>$p, 'pause_kind'=>$r['pause_kind'] ?? 'pause', 'last_seen'=>$seen,
-   'pause_since'=>$online && $p ? (int)$r['segment_start'] : null, 'server_now'=>$now];
+  $kind = $r['pause_kind'] ?? 'pause';
+  $since = $p ? ((int)($r['pause_started_at'] ?? 0) ?: (int)$r['segment_start']) : null;
+  $usedDay = $r['lunch_day'] ?? '';
+  if ($usedDay === '' && $p && $kind === 'lunch') { $usedDay = $this->localDay($since); }
+  $used = $usedDay === $this->localDay($now);
+  $elapsed = $since !== null ? max(0,$now-$since) : 0;
+  $alert = 'normal';
+  if ($online && $p) {
+   if ($elapsed > ($kind === 'lunch' ? 4200 : 600)) { $alert = 'overdue'; }
+   elseif ($kind === 'lunch' && $elapsed > 3600) { $alert = 'tolerance'; }
+  }
+  return ['status'=>!$online ? 'absent' : ($p ? 'pause' : 'online'), 'paused'=>$p, 'pause_kind'=>$kind, 'last_seen'=>$seen,
+   'pause_since'=>$online && $p ? $since : null, 'server_now'=>$now, 'pause_alert'=>$alert,
+   'lunch_used_today'=>$used, 'lunch_available'=>!$used && !$p];
  }
  public function state(string $uid, ?int $now = null): array { return $this->describe($this->current($uid), $now ?? time()); }
 
@@ -81,21 +120,21 @@ class Presence {
   foreach ($starts as $key=>$from) { $periods[$key] = ['from'=>$from,'to'=>$key === 'selected' ? min($now,$range['end']) : $now]; }
   if (!$uids) { return ['rows'=>[], 'periods'=>$periods, 'timezone'=>$tz, 'server_now'=>$now, 'range'=>$range]; }
   foreach ($uids as $uid) {
-   $rows[$uid] = $this->describe(null,$now) + ['totals'=>array_fill_keys(array_keys($starts), ['online'=>0,'pause'=>0])];
+   $rows[$uid] = $this->describe(null,$now) + ['totals'=>array_fill_keys(array_keys($starts), ['online'=>0,'pause'=>0,'lunch'=>0])];
   }
   $q = $this->db->getQueryBuilder();
   $live = $q->select('*')->from('easycrm_presence')->where($q->expr()->in('user_id',$q->createNamedParameter($uids,IQueryBuilder::PARAM_STR_ARRAY)))->executeQuery()->fetchAll();
   $q = $this->db->getQueryBuilder();
-  $segments = $q->select('user_id','paused','started_at','ended_at')->from('easycrm_presence_log')
+  $segments = $q->select('user_id','paused','pause_kind','started_at','ended_at')->from('easycrm_presence_log')
    ->where($q->expr()->in('user_id',$q->createNamedParameter($uids,IQueryBuilder::PARAM_STR_ARRAY)))
    ->andWhere($q->expr()->gt('ended_at',$q->createNamedParameter(min($starts))))
    ->andWhere($q->expr()->lt('started_at',$q->createNamedParameter($now)))->executeQuery()->fetchAll();
   foreach ($live as $r) {
    $uid = $r['user_id']; $rows[$uid] = $this->describe($r,$now) + ['totals'=>$rows[$uid]['totals']];
-   $segments[] = ['user_id'=>$uid,'paused'=>$r['paused'],'started_at'=>$r['segment_start'],'ended_at'=>min($now,(int)$r['last_seen']+self::TIMEOUT)];
+   $segments[] = ['user_id'=>$uid,'paused'=>$r['paused'],'pause_kind'=>$r['pause_kind'],'started_at'=>$r['segment_start'],'ended_at'=>min($now,(int)$r['last_seen']+self::TIMEOUT)];
   }
   foreach ($segments as $s) {
-   $uid = $s['user_id']; $mode = (bool)$s['paused'] ? 'pause' : 'online';
+   $uid = $s['user_id']; $mode = (bool)$s['paused'] ? (($s['pause_kind'] ?? 'pause') === 'lunch' ? 'lunch' : 'pause') : 'online';
    foreach ($starts as $key=>$from) { $rows[$uid]['totals'][$key][$mode] += max(0,min($periods[$key]['to'],(int)$s['ended_at'])-max($from,(int)$s['started_at'])); }
   }
   foreach ($rows as &$r) { $r['processed'] = 0; $r['by_result'] = []; } unset($r);

@@ -29,7 +29,8 @@ class PresenceController extends Controller {
 		if (!is_bool($paused)) { return new JSONResponse(['error' => 'État de pause invalide'], 400); }
 		$kind = $this->request->getParam('kind','pause');
 		if (!is_string($kind) || !in_array($kind,['pause','lunch'],true)) { return new JSONResponse(['error'=>'Type de pause invalide'],400); }
-		return new JSONResponse($this->presence->pause($this->a->uid(), $paused, $kind));
+		try { return new JSONResponse($this->presence->pause($this->a->uid(), $paused, $kind)); }
+		catch (\DomainException $e) { return new JSONResponse(['error'=>$e->getMessage()],409); }
 	}
 	#[NoAdminRequired]
 	public function mine(): JSONResponse {

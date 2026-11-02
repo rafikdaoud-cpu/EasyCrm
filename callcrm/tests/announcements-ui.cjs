@@ -21,7 +21,7 @@ function setup(role = 'admin') {
     ${source.slice(source.indexOf('function nav()'), source.indexOf('const modeOpts'))}
     ${source.slice(source.indexOf('const PRESENCE_LABELS'), source.indexOf('function announcementCard()'))}
     ${source.slice(source.indexOf('function announcementCard()'), source.indexOf('function admin()'))}
-    globalThis.ui = {announcementCard, checkAnnouncements, nav, go, presenceControl, updateMyPresence, presenceBoard, refreshPresenceBoard, personalTimesCard, refreshPersonalTimes, callResponsesTable, openCommercialMessage, sortedCommercials, presencePeriodFilter, configure:(statuses, can) => { me.statuses = statuses; me.can = can; applyStatuses(); }, getPopup:() => popup};`, context);
+    globalThis.ui = {announcementCard, checkAnnouncements, nav, go, presenceControl, updateMyPresence, presenceBoard, refreshPresenceBoard, personalTimesCard, refreshPersonalTimes, myDay, refreshMyDay, callResponsesTable, openCommercialMessage, sortedCommercials, presencePeriodFilter, configure:(statuses, can) => { me.statuses = statuses; me.can = can; applyStatuses(); }, getPopup:() => popup};`, context);
   return {dom, document:dom.window.document, calls, context, ui:context.ui};
 }
 const tick = () => new Promise(resolve => setImmediate(resolve));
@@ -161,7 +161,9 @@ test('roster shows all three states and removes stale information after a failed
   assert.deepEqual(Array.from(document.querySelectorAll('.presence-badge'), b => b.textContent), ['En poste','En pause','Absent']);
   assert.match(document.body.textContent,/01:00:00/);
   assert.match(document.body.textContent,/Dossiers traités/);
-  assert.match(document.body.textContent,/1 en poste · 1 en pause · 1 absent/);
+  assert.equal(document.querySelector('[data-kpi=online] strong').textContent,'1');
+  assert.equal(document.querySelector('[data-kpi=pause] strong').textContent,'1');
+  assert.equal(document.querySelector('[data-kpi=absent] strong').textContent,'1');
   context.respond = async () => { throw Error('offline'); };
   await ui.refreshPresenceBoard();
   assert.equal(document.querySelector('tbody'),null);
@@ -225,7 +227,7 @@ test('commercial personal statistics show day, week and month work/pause and han
   assert.equal(calls.at(-1).path,'/presence/mine?period=day');
   assert.equal(calls.at(-1).options,undefined);
   const section = document.querySelector('[aria-label="Mes temps de présence"]');
-  assert.equal(section.querySelectorAll('.presence-totals .card').length,3);
+  assert.equal(section.querySelectorAll('.presence-totals .card').length,4);
   for (const expected of ['Temps travaillé','Temps de pause','Dossiers traités','01:00:00','00:10:00']) assert.ok(section.textContent.includes(expected));
   context.respond = async () => { throw Error('offline'); };
   await ui.refreshPersonalTimes();
@@ -284,6 +286,9 @@ test('full Mes statistiques page includes personal work and pause counters', asy
     return {ok:true,json:async () => data};
   };
   w.eval(source); await tick(); await tick();
+  assert.ok(w.document.querySelector('.crm-workspace .crm-sidebar'));
+  assert.ok(w.document.querySelector('.day-start'));
+  assert.match(w.document.querySelector('.day-work-time').textContent,/01:00:00/);
   w.document.querySelector('[data-k=stats]').click(); await tick(); await tick();
   assert.match(w.document.querySelector('[aria-label="Mes temps de présence"]').textContent,/01:00:00/);
   assert.match(w.document.body.textContent,/Journal des appels/);
@@ -362,10 +367,10 @@ test('every commercial row includes their own seven outcome counts beside total,
     {uid:'alice',name:'Alice',status:'online',processed:47,totals:{selected:{online:100,pause:10}},by_result:Object.fromEntries(types.map(([key,,n]) => [key,n]))},
     {uid:'bob',name:'Bob',status:'online',processed:6,totals:{selected:{online:50,pause:0}},by_result:{rappel:3,interesse:2,plateforme:1}}]});
   ui.go('commerciaux'); await tick();
-  assert.equal(document.querySelectorAll('.presence-overview th').length,7);
+  assert.equal(document.querySelectorAll('.presence-overview th').length,8);
   assert.equal(document.querySelector('.presence-outcomes'),null);
   const alice = document.querySelector('.presence-overview tbody tr');
-  assert.equal(alice.querySelectorAll('td')[5].textContent,'47');
+  assert.equal(alice.querySelectorAll('td')[6].textContent,'47');
   const detail = alice.querySelector('.commercial-outcome-detail');
   assert.equal(detail.querySelectorAll('.dossier-result-count').length,7);
   for (const [key,label,n] of types) {
@@ -375,7 +380,7 @@ test('every commercial row includes their own seven outcome counts beside total,
     assert.ok(counter); assert.equal(counter.querySelector('strong').textContent,String(n));
   }
   const bob = document.querySelectorAll('.presence-overview tbody tr')[1];
-  assert.equal(bob.querySelectorAll('td')[5].textContent,'6');
+  assert.equal(bob.querySelectorAll('td')[6].textContent,'6');
   const counts = Array.from(bob.querySelectorAll('.commercial-outcome-detail .dossier-result-count'));
   assert.equal(counts.find(x => x.textContent.includes('À rappeler')).querySelector('strong').textContent,'3');
   assert.equal(counts.find(x => x.textContent.includes('Non éligible')).querySelector('strong').textContent,'0');
@@ -394,4 +399,50 @@ test('lunch button persists its kind, blocks CRM and displays a lunch timer', as
   assert.equal(document.querySelector('.pause-timer').textContent,'00:01:00');
   assert.equal(document.body.hasAttribute('inert'),true);
   await ui.updateMyPresence(); assert.match(document.querySelector('#pause-title').textContent,/Pause déjeuner/);
+});
+
+test('My day reports own live priorities, retries errors and opens À traiter', async () => {
+  const {ui,context,document,calls} = setup('commercial');
+  let fail = true;
+  context.respond = async path => {
+    if (fail) throw Error('offline');
+    if (path === '/counters') return {overdue:4,today:9};
+    return {server_now:100,timezone:'Africa/Algiers',processed:3,totals:{selected:{online:3600,pause:600}},by_result:{interesse:2,rappel:1}};
+  };
+  ui.go('journee'); await tick();
+  assert.match(document.body.textContent,/Impossible de charger votre journée/);
+  fail = false; document.querySelector('.day-content button').click(); await tick();
+  assert.equal(document.querySelector('.day-work-time').textContent,'01:00:00');
+  assert.match(document.body.textContent,/Rappels en retard4/);
+  assert.match(document.body.textContent,/Dossiers traités aujourd’hui3/);
+  assert.match(document.body.textContent,/Appels saisis aujourd’hui9/);
+  assert.ok(calls.some(x => x.path === '/presence/mine?period=day'));
+  document.querySelector('.day-start').click(); assert.equal(context.lastList,'nouveaux');
+  const n = calls.length; await ui.refreshMyDay(); assert.equal(calls.length,n);
+});
+test('commercial dashboard entry is absent for admin, supervisor and read-only users', () => {
+  for (const role of ['admin','superviseur','lecture']) {
+    const {ui,document,calls} = setup(role);
+    assert.equal(ui.nav().querySelector('[data-k=journee]'),null);
+    ui.myDay(); assert.equal(calls.length,0); assert.equal(document.querySelector('.day-content'),null);
+  }
+});
+
+test('used lunch is disabled and supervisor sees distinct lunch totals and overdue badges', async () => {
+  const commercial = setup('commercial'); commercial.document.body.append(commercial.ui.presenceControl());
+  commercial.context.respond = async () => ({status:'online',paused:false,lunch_used_today:true,server_now:100,last_seen:100});
+  await commercial.ui.updateMyPresence();
+  assert.equal(commercial.document.querySelector('.lunch-break-button').disabled,true);
+  assert.match(commercial.document.querySelector('.lunch-break-button').title,/déjà utilisé/);
+  const {ui,context,document} = setup('superviseur');
+  context.respond = async () => ({server_now:5000,timezone:'Africa/Algiers',range:{from:'2026-11-02',to:'2026-11-02'},rows:[
+    {uid:'alice',name:'Alice',status:'pause',pause_kind:'pause',pause_since:4000,pause_alert:'overdue',processed:0,totals:{selected:{online:3600,pause:600,lunch:0}},by_result:{}},
+    {uid:'bob',name:'Bob',status:'pause',pause_kind:'lunch',pause_since:1,pause_alert:'overdue',processed:0,totals:{selected:{online:3600,pause:0,lunch:4000}},by_result:{}}]});
+  ui.go('commerciaux'); await tick();
+  assert.equal(document.querySelectorAll('.presence-overview .pause-overdue').length,2);
+  assert.match(document.querySelector('.presence-overview').textContent,/Pause déjeuner · délai dépassé/);
+  assert.equal(document.querySelector('[data-kpi=pause] strong').textContent,'1');
+  assert.equal(document.querySelector('[data-kpi=lunch] strong').textContent,'1');
+  const headers = document.querySelector('.presence-overview thead').textContent;
+  assert.match(headers,/Pause classique/); assert.match(headers,/Déjeuner/);
 });

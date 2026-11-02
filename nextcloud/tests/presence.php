@@ -13,7 +13,7 @@ namespace {
  }
  $db->pdo->exec('CREATE TABLE easycrm_calls (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, prospect_id INTEGER NOT NULL, created_at INTEGER NOT NULL, result TEXT NOT NULL DEFAULT \'interesse\')');
  $config = new PresenceConfig();
- $db->pdo->exec('CREATE TABLE easycrm_presence (user_id TEXT PRIMARY KEY, paused INTEGER NOT NULL, pause_kind TEXT NOT NULL DEFAULT \'pause\', segment_start INTEGER NOT NULL, last_seen INTEGER NOT NULL, revision INTEGER NOT NULL)');
+ $db->pdo->exec('CREATE TABLE easycrm_presence (user_id TEXT PRIMARY KEY, paused INTEGER NOT NULL, pause_kind TEXT NOT NULL DEFAULT \'pause\', pause_started_at INTEGER NOT NULL DEFAULT 0, lunch_day TEXT NOT NULL DEFAULT \'\', segment_start INTEGER NOT NULL, last_seen INTEGER NOT NULL, revision INTEGER NOT NULL)');
  $db->pdo->exec('CREATE TABLE easycrm_presence_log (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, paused INTEGER NOT NULL, pause_kind TEXT NOT NULL DEFAULT \'pause\', started_at INTEGER NOT NULL, ended_at INTEGER NOT NULL)');
  $presence = new \OCA\EasyCrm\Service\Presence($config, $db);
  check($presence->state('alice')['status'] === 'absent', 'never-connected commercial is absent');
@@ -59,23 +59,23 @@ namespace {
  $presence->touch('timeline', true, $t+90);
  $presence->touch('timeline', null, $t+120);
  $r = $presence->report(['timeline'], $t+150)['rows']['timeline'];
- check($r['totals']['day'] === ['online'=>30,'pause'=>60], 'day totals split work and pause at midnight');
- check($r['totals']['week'] === ['online'=>30,'pause'=>60], 'new Monday week excludes Sunday work');
- check($r['totals']['month'] === ['online'=>90,'pause'=>60], 'month includes Sunday work');
+ check($r['totals']['day'] === ['online'=>30,'pause'=>60,'lunch'=>0], 'day totals split work and pause at midnight');
+ check($r['totals']['week'] === ['online'=>30,'pause'=>60,'lunch'=>0], 'new Monday week excludes Sunday work');
+ check($r['totals']['month'] === ['online'=>90,'pause'=>60,'lunch'=>0], 'month includes Sunday work');
  $r = $presence->report(['timeline'], $t+1000)['rows']['timeline'];
  check($r['status'] === 'absent' && $r['totals']['day']['pause'] === 150, 'absence caps accumulated pause at last signal plus timeout');
  $presence->touch('timeline', null, $t+1000);
  $presence->touch('timeline', null, $t+1030); // Another tab must not double count.
  $r = $presence->report(['timeline'], $t+1060)['rows']['timeline'];
- check($r['pause_since'] === $t+1000 && $r['totals']['day']['pause'] === 210, 'reconnect starts new segment without counting the absence');
+ check($r['pause_since'] === $t+90 && $r['totals']['day']['pause'] === 210, 'reconnect preserves pause deadline while accounting excludes the absence');
  $presence->touch('timeline', false, $t+1060);
  $r = $presence->report(['timeline'], $t+1090)['rows']['timeline'];
- check($r['totals']['day'] === ['online'=>60,'pause'=>210], 'resume adds only elapsed work time');
+ check($r['totals']['day'] === ['online'=>60,'pause'=>210,'lunch'=>0], 'resume adds only elapsed work time');
  $before = $db->pdo->query('SELECT count(*) FROM easycrm_presence_log')->fetchColumn();
  $presence->touch('timeline', false, $t+1090);
  check($db->pdo->query('SELECT count(*) FROM easycrm_presence_log')->fetchColumn() === $before, 'repeated resume does not split or duplicate interval');
  $r = $presence->report(['never'], $t+1090)['rows']['never'];
- check($r['totals']['month'] === ['online'=>0,'pause'=>0], 'no history is shown as zero, not invented');
+ check($r['totals']['month'] === ['online'=>0,'pause'=>0,'lunch'=>0], 'no history is shown as zero, not invented');
  $old = $stamp('2026-10-31 23:59:30');
  $presence->touch('boundary', false, $old); $presence->touch('boundary', null, $old+60);
  $r = $presence->report(['boundary'], $old+90)['rows']['boundary'];
@@ -113,12 +113,12 @@ namespace {
  check($r['processed'] === 6, 'processed counts distinct dossiers, includes both day edges and excludes next midnight');
  check($r['by_result']['rappel'] === 2 && $r['by_result']['interesse'] === 3 && $r['by_result']['pas_interesse'] === 1, 'result breakdown uses last chronological outcome, id breaks same-time ties');
  check(array_sum($r['by_result']) === $r['processed'], 'result counts add up to distinct dossier count');
- check($r['totals']['selected'] === ['online'=>180,'pause'=>210], 'custom past-day accounting excludes neighboring days and absences');
+ check($r['totals']['selected'] === ['online'=>180,'pause'=>210,'lunch'=>0], 'custom past-day accounting excludes neighboring days and absences');
  check($report['range']['end'] - $report['range']['start'] === 86400, 'Au date includes full day in CRM timezone');
  $oldDay = $presence->report(['timeline'],$stamp('2026-11-03 12:00:00'),['period'=>'custom','from'=>'2026-11-01','to'=>'2026-11-01'])['rows']['timeline'];
  check($oldDay['processed'] === 1 && $oldDay['by_result']['interesse'] === 1 && $oldDay['totals']['selected']['online'] === 60, 'different selected day changes counts, outcomes and time together');
  $future = $presence->report(['timeline'],$stamp('2026-11-03 12:00:00'),['period'=>'custom','from'=>'2026-12-01','to'=>'2026-12-02'])['rows']['timeline'];
- check($future['processed'] === 0 && $future['totals']['selected'] === ['online'=>0,'pause'=>0], 'future dates do not invent work or calls');
+ check($future['processed'] === 0 && $future['totals']['selected'] === ['online'=>0,'pause'=>0,'lunch'=>0], 'future dates do not invent work or calls');
  foreach (['day','week','month'] as $key) {
   $r = $presence->report(['timeline'],$t+1090,['period'=>$key])['rows']['timeline'];
   check($r['totals']['selected'] === $r['totals'][$key], "$key preset matches its calendar accounting");
@@ -144,7 +144,30 @@ namespace {
  $presence->touch('meal',true,$t,'lunch'); $presence->touch('meal',null,$t+30);
  $presence->touch('meal',false,$t+90);
  $mealTotals = $presence->report(['meal'],$t+120)['rows']['meal']['totals']['month'];
- check($mealTotals === ['online'=>30,'pause'=>90], 'lunch time is included exactly once in pause totals');
+ check($mealTotals === ['online'=>30,'pause'=>0,'lunch'=>90], 'lunch time is separate from ordinary pause totals');
  check($db->pdo->query("SELECT pause_kind FROM easycrm_presence_log WHERE user_id = 'meal'")->fetchColumn() === 'lunch', 'lunch kind retained in interval history');
+ $base = $stamp('2026-11-02 12:00:00');
+ $presence->touch('shortpause',true,$base);
+ check($presence->touch('shortpause',null,$base+600)['pause_alert'] === 'normal', 'ordinary pause exactly ten minutes stays within limit');
+ check($presence->touch('shortpause',null,$base+601)['pause_alert'] === 'overdue', 'ordinary pause exceeding ten minutes is overdue');
+ check($presence->touch('shortpause',null,$base+1000)['pause_since'] === $base, 'reconnect cannot reset pause deadline');
+ $presence->touch('quota',true,$base,'lunch');
+ check($presence->touch('quota',true,$base+30,'lunch')['pause_since'] === $base, 'duplicate lunch activation is idempotent, not cumulative');
+ check($presence->touch('quota',null,$base+3600)['pause_alert'] === 'normal', 'lunch exactly one hour has no delay alert');
+ check($presence->touch('quota',null,$base+3601)['pause_alert'] === 'tolerance', 'lunch enters tolerance after one hour');
+ check($presence->touch('quota',null,$base+4200)['pause_alert'] === 'tolerance', 'ten minutes of lunch tolerance are accepted');
+ check($presence->touch('quota',null,$base+4201)['pause_alert'] === 'overdue', 'lunch over one hour ten is overdue');
+ $finished = $presence->touch('quota',false,$base+4300);
+ check($finished['lunch_used_today'] && !$finished['lunch_available'], 'lunch button remains unavailable after resuming');
+ try { $presence->touch('quota',true,$base+4400,'lunch'); throw new \RuntimeException('Expected daily lunch limit'); }
+ catch (\DomainException $e) { check(true,'second lunch in same CRM civil day rejected by server'); }
+ $tomorrow = $presence->touch('quota',true,$stamp('2026-11-03 08:00:00'),'lunch');
+ check($tomorrow['pause_kind'] === 'lunch' && $tomorrow['lunch_used_today'], 'new civil day allows one new lunch without carryover');
+ $presence->touch('legacymeal',true,$base,'lunch'); $presence->touch('legacymeal',false,$base+60);
+ $db->pdo->exec("UPDATE easycrm_presence SET lunch_day = '' WHERE user_id = 'legacymeal'");
+ try { $presence->touch('legacymeal',true,$base+100,'lunch'); throw new \RuntimeException('Expected recovered daily lunch limit'); }
+ catch (\DomainException $e) { check(true,'closed lunch history prevents a second meal after additive upgrade'); }
+ $request->params = ['paused'=>true,'kind'=>'lunch'];
+ check($asPresence('alice')->pause()->status === 409, 'controller reports already-used lunch as conflict');
  echo "Presence and announcement checks: $count passed\n";
 }

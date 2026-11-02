@@ -207,3 +207,73 @@ body[data-themes*="dark"] #callcrm,body[data-theme-dark] #callcrm{--brand:var(--
 @media(max-width:760px){#callcrm .presence-overview table.t{min-width:900px}}
 
 #callcrm .presence-control .lunch-break-button{background:#fff7ed;color:#9a3412;border:1px solid #fed7aa}
+
+/* Approved workspace: clear manager table and a focused commercial day. */
+#callcrm.crm-workspace{--crm-accent:var(--color-primary-element,#283b7e);--crm-surface:var(--color-main-background,#fff);--crm-border:var(--color-border,#e3e7ef);display:grid;grid-template-columns:205px minmax(0,1fr);gap:24px;max-width:1600px;padding:24px 22px 70px;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--color-main-background,#f7f9fc);line-height:1.5;align-items:start}
+#callcrm.crm-workspace>.crm-sidebar{display:block;position:sticky;top:16px;max-height:calc(100vh - 100px);overflow:auto;padding:18px 12px;border:1px solid var(--crm-border);border-radius:16px;background:var(--crm-surface)}
+#callcrm .crm-brand{display:flex;align-items:center;gap:10px;padding:6px 10px 20px;font-size:18px}
+#callcrm .crm-brand-mark{display:grid;place-items:center;background:var(--crm-accent);color:var(--color-primary-element-text,#fff);width:32px;height:32px;border-radius:10px;font-weight:700}
+#callcrm .crm-sidebar .nav{display:flex;flex-direction:column;align-items:stretch;position:static;overflow:visible;margin:0;padding:0;border:0;gap:5px;background:transparent}
+#callcrm .crm-sidebar .nav button{display:block;width:100%;min-height:42px;margin:0;padding:10px 12px;border:0;border-radius:9px;text-align:start;font-size:14px;font-weight:550;white-space:normal;color:var(--color-main-text,#334155);background:transparent}
+#callcrm .crm-sidebar .nav button:hover{background:var(--color-background-hover,#f0f3fa)}
+#callcrm .crm-sidebar .nav button.on{background:var(--crm-accent);color:var(--color-primary-element-text,#fff);font-weight:650}
+#callcrm .crm-sidebar .dossier-states{display:flex;flex-direction:column;gap:3px;margin:12px 0 4px;padding-inline-start:12px;border-inline-start:2px solid var(--crm-border)}
+#callcrm .crm-sidebar .dossier-states button{border:0;border-radius:7px;padding:7px 9px;text-align:start;font-size:12px;min-height:34px;background:transparent;color:var(--color-text-maxcontrast,#64748b)}
+#callcrm .crm-sidebar .dossier-states button.on{background:var(--color-background-hover,#edf1ff);color:var(--color-main-text,#1e293b);font-weight:700}
+#callcrm .crm-sidebar-note{padding:18px 10px 4px;border-top:1px solid var(--crm-border);margin-top:18px;font-size:11px}
+#callcrm .crm-main{min-width:0}
+#callcrm .crm-session-header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;min-height:80px;padding:0 0 20px;margin-bottom:24px;border-bottom:1px solid var(--crm-border)}
+#callcrm .crm-app-title{display:block;font-size:14px;font-weight:700;letter-spacing:.04em}
+#callcrm .crm-session-header .muted{margin-top:3px}
+#callcrm .crm-role{padding:6px 12px;border-radius:20px;background:var(--color-background-hover,#edf1f9);font-size:12px;font-weight:600}
+#callcrm .crm-session-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+#callcrm .crm-session-header .presence-control{padding:0;gap:8px}
+#callcrm .crm-session-header .presence-control button{font-size:13px;padding:8px 12px;min-height:38px;font-weight:600}
+#callcrm .crm-session-header .goal{font-size:12px}
+#callcrm .crm-page h2{font:700 26px/1.3 system-ui,sans-serif;letter-spacing:-.025em;margin:0 0 16px}
+#callcrm .crm-page h3{font-family:inherit;font-size:17px;letter-spacing:-.015em;margin:0 0 12px}
+#callcrm .crm-page .card{padding:20px;border:1px solid var(--crm-border);border-radius:14px;margin:14px 0;background:var(--crm-surface);box-shadow:0 2px 6px rgba(15,23,42,.025)}
+#callcrm .crm-page .bar{gap:10px}
+#callcrm .crm-page .presence-period{padding:14px 16px;background:var(--color-background-hover,#f7f9fc);border:1px solid var(--crm-border);border-radius:12px;margin:18px 0}
+#callcrm .crm-page .presence-period label{font-size:12px;font-weight:600;color:var(--color-text-maxcontrast,#64748b)}
+#callcrm .crm-page button,#callcrm .crm-page input,#callcrm .crm-page select{font-family:inherit;border-radius:9px}
+#callcrm .crm-page .presence-table{border:1px solid var(--crm-border);border-radius:12px;background:var(--crm-surface)}
+#callcrm .crm-page table.t{width:100%;border-collapse:collapse}
+#callcrm .crm-page table.t th{background:var(--color-background-hover,#f8fafc);font-size:11px;font-weight:600;color:var(--color-text-maxcontrast,#64748b);border-bottom:1px solid var(--crm-border)}
+#callcrm .crm-page table.t td{border-top:1px solid var(--crm-border);font-size:13px;padding-top:15px;padding-bottom:15px}
+#callcrm .crm-page button.sort-heading{font-weight:600;background:transparent}
+#callcrm .crm-page .commercial-message-link{text-decoration:none;font-weight:650}
+#callcrm .crm-page .commercial-message-link:hover{text-decoration:underline}
+#callcrm .crm-page .presence-badge{font-size:11px;padding:5px 9px}
+#callcrm .crm-page .outcome-sort-headings button{font-size:10px;font-weight:500}
+#callcrm .team-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:16px 0}
+#callcrm .team-kpi{padding:16px;border:1px solid var(--crm-border);border-radius:12px;background:var(--crm-surface)}
+#callcrm .team-kpi strong{display:block;font-size:28px;line-height:1.2;font-weight:700;font-variant-numeric:tabular-nums;margin-bottom:5px}
+#callcrm .team-kpi span{font-size:12px;color:var(--color-text-maxcontrast,#64748b)}
+#callcrm .crm-eyebrow{font-size:11px;font-weight:650;text-transform:uppercase;letter-spacing:.08em;color:var(--color-text-maxcontrast,#64748b);margin:0 0 8px}
+#callcrm .day-grid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:20px}
+#callcrm .day-grid .card{margin-top:0}
+#callcrm .day-work-time{font-size:clamp(32px,4vw,54px);font-variant-numeric:tabular-nums;letter-spacing:-.04em;font-weight:650;margin:24px 0 8px}
+#callcrm .day-start{display:block;width:100%;margin:24px 0 14px;min-height:48px}
+#callcrm .day-priority{display:flex;align-items:center;gap:12px;padding:16px 0;border-top:1px solid var(--crm-border);font-size:13px}
+#callcrm .day-priority>span{flex:1}
+#callcrm .day-priority>strong{font-size:21px;font-variant-numeric:tabular-nums}
+#callcrm .day-priority button{font-size:12px;padding:5px 10px;min-height:34px}
+#callcrm .day-results .personal-results{margin:18px 0}
+@media(max-width:1100px){#callcrm.crm-workspace{grid-template-columns:170px minmax(0,1fr);gap:16px;padding:16px 12px}#callcrm .day-grid{grid-template-columns:1fr}}
+@media(max-width:760px){#callcrm.crm-workspace{display:block;padding:12px 10px 60px}#callcrm.crm-workspace>.crm-sidebar{position:static;max-height:none;margin-bottom:18px;padding:8px;border-radius:12px}#callcrm .crm-brand,#callcrm .crm-sidebar-note{display:none}#callcrm .crm-sidebar .nav{flex-direction:row;overflow-x:auto;gap:4px}#callcrm .crm-sidebar .nav button{width:auto;flex:none;white-space:nowrap;font-size:12px;min-height:38px;padding:8px 10px}#callcrm .crm-sidebar .dossier-states{flex-direction:row;flex-wrap:wrap;border:0;padding:6px 0 0;margin:6px 0 0}#callcrm .crm-session-header{padding-bottom:14px;margin-bottom:18px;gap:10px}#callcrm .crm-session-actions{width:100%}#callcrm .team-kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}#callcrm .crm-page h2{font-size:23px}#callcrm .crm-page .card{padding:16px}}
+
+#callcrm .crm-page .presence-overview .presence-badge{white-space:normal;max-width:100%;overflow-wrap:anywhere}
+#callcrm .crm-page .outcome-sort-headings button.sort-heading{min-height:28px;padding:2px 0}
+#callcrm .day-results table.t{display:table;width:100%;overflow:visible}
+
+/* Separate lunch accounting and server-computed delay alerts. */
+#callcrm .presence-badge.pause-overdue{background:#fee2e2;color:#991b1b;outline:1px solid #fca5a5}
+#callcrm .presence-badge.pause-tolerance{background:#ffedd5;color:#9a3412}
+#callcrm .presence-overview th:first-child{width:14%}
+#callcrm .presence-overview th:nth-child(n+2):nth-child(-n+6){width:8%}
+#callcrm .presence-overview th:nth-child(7){width:6%}
+#callcrm .presence-overview th:last-child{width:40%}
+
+#callcrm .team-kpis{grid-template-columns:repeat(5,minmax(0,1fr))}
+@media(max-width:760px){#callcrm .team-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}

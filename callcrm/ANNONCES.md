@@ -1,4 +1,4 @@
-# Annonces — Call CRM 0.24.0
+# Annonces — Call CRM 0.25.0
 
 L'onglet **Annonce** est visible pour les administrateurs Call CRM / Nextcloud et les superviseurs. Sélectionner un commercial, plusieurs commerciaux ou **Tous les commerciaux**, saisir le message (2 000 caractères maximum), puis cliquer sur **Envoyer le message**.
 

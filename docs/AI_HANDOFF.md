@@ -8,16 +8,16 @@ Repository: `rafikdaoud-cpu/EasyCrm`. Starting commit: `f2189af55f246b430837aa93
 
 | Edition | Folder / namespace | App version | New migrations |
 |---|---|---|---|
-| CSM Call CRM | callcrm / OCA\CallCrm | 0.24.0 | 1009 announcements, 1010 presence/history |
-| EasyCrm Nextcloud | nextcloud / OCA\EasyCrm | 1.5.0 | 1005 announcements, 1006 presence/history |
+| CSM Call CRM | callcrm / OCA\CallCrm | 0.25.0 | 1009 announcements, 1010 presence/history, 1011 kind, 1012 daily lunch policy |
+| EasyCrm Nextcloud | nextcloud / OCA\EasyCrm | 1.6.0 | 1005 announcements, 1006 presence/history, 1007 kind, 1008 daily lunch policy |
 
-Working branch: `feat/annonces-presence-statistiques`. Changes are delivered through that feature branch for review; publication must be established from the actual Git push result, not inferred from a local commit. The new Statistiques response-type table counts all call outcomes (not distinct dossiers), includes configured zero-count types and observed historical types, and sorts by clickable headings. Never hard-code counts from the screenshot.
+Current publication branch: `main`. The original `feat/annonces-presence-statistiques` branch was merged at the user’s request; publication must be established from the actual Git push result, not inferred from a local commit. The new Statistiques response-type table counts all call outcomes (not distinct dossiers), includes configured zero-count types and observed historical types, and sorts by clickable headings. Never hard-code counts from the screenshot.
 
 Versioned ZIPs can be generated with `tools/package-nextcloud.py OUTPUT_DIRECTORY`. Never include the checkout's local environment or credentials in archives.
 
 ## Accepted user requirements
 
-1. Group client dossier states under **Dossiers Clients**. Open **À traiter** on initial load and whenever that main tab is clicked. Other states are secondary controls; retain pre-existing access restrictions for Tous.
+1. Group client dossier states under **Dossiers Clients**. Open **À traiter** whenever that main tab is clicked and initially for non-commercial roles. The approved commercial landing page is now **Ma journée**. Other states are secondary controls; retain pre-existing access restrictions for Tous.
 2. Separate **Annonce** tab for admin/supervisor: select one, several, or all commercial-group recipients. Message is one-way and shown as a popup while Call CRM/EasyCrm is open, or on the commercial's next visit. Persistent dismissal; no reply UI.
 3. **Commerciaux** tab for admin/supervisor: current En poste / En pause / Absent states, current pause duration, work/pause durations, dossiers processed and breakdown by outcome. Clicking a commercial's name opens an individually targeted message dialog.
 4. Commercial may manually enter/exit pause. A blocking dialog with a stopwatch persists across reload. Escape/outside click cannot end pause. Resume only succeeds after server confirmation. Work in the page is blocked using a modal and inert root.
@@ -62,9 +62,9 @@ NODE_PATH=/tmp/crm-ui-tests/node_modules tools/test-nextcloud.sh
 
 Set `PHP_BIN` if PHP is not on PATH. Keep test dependency downloads outside the checkout. Commands return nonzero on failure.
 
-Per edition, `tests/presence.php` includes the announcements suite and currently checks 99 conditions: roles, CSRF annotations, recipient scoping, transactional failures, manual date validation, day/week/month/DST boundaries, gap clipping, distinct dossiers and last-result tie handling. SQLite is real; Nextcloud interfaces and query builder are doubles. UI tests execute real functions plus complete app startup/statistics paths in jsdom: Call CRM 22 tests, EasyCrm 23 tests (extra conditional WhatsApp navigation regression). Shared `tests/migrations.php` executes actual new migration callbacks against a schema double, verifies required fields, repeatability, preservation of pre-existing tables and unique cross-app index names.
+Per edition, `tests/presence.php` includes the announcements suite and currently checks 112 conditions: roles, CSRF annotations, recipient scoping, transactional failures, manual date validation, day/week/month/DST boundaries, gap clipping, distinct dossiers and last-result tie handling. SQLite is real; Nextcloud interfaces and query builder are doubles. UI tests execute real functions plus complete app startup/statistics paths in jsdom: Call CRM 25 tests, EasyCrm 26 tests (extra conditional WhatsApp navigation regression). Shared `tests/migrations.php` executes actual new migration callbacks against a schema double, verifies required fields, repeatability, preservation of pre-existing tables and unique cross-app index names.
 
-These are **local validations, not proof of production Nextcloud compatibility**. No PHP/Nextcloud server integration, actual MySQL/MariaDB/PostgreSQL migration, browser visual review, real concurrent multi-process stress or live VPS deployment was performed by this agent. Before deployment, validate both apps on a staging Nextcloud with actual commercial/admin/supervisor accounts. Test pause/reload, multi-tab updates, offline/resume, custom ranges, header sorting, persistent message dismissal and sending from the roster. Verify PBX/WhatsApp and existing call stats still operate on the target installation.
+These are **local validations, not proof of production Nextcloud compatibility**. No PHP/Nextcloud server integration, actual MySQL/MariaDB/PostgreSQL migration, real concurrent multi-process stress or live VPS deployment was performed by this agent. Before deployment, validate both apps on a staging Nextcloud with actual commercial/admin/supervisor accounts. Test pause/reload, multi-tab updates, offline/resume, custom ranges, header sorting, persistent message dismissal and sending from the roster. Verify PBX/WhatsApp and existing call stats still operate on the target installation.
 
 ## Deployment / rollback
 
@@ -92,6 +92,16 @@ The initial Git push required explicit confirmation of the public destination. T
 
 ## Lunch button and UI proposals (2026-11-02)
 
-Pause déjeuner is implemented for both editions, alongside the ordinary pause button. API `POST /presence/pause` accepts optional `kind: "pause" | "lunch"`; existing clients omitting it keep ordinary pause behavior. The server persists `pause_kind` in current state and closed intervals. New additive migrations: Call CRM 1011 / EasyCrm 1007; existing rows default to ordinary pause. Lunch is labeled explicitly in the user's blocking timer screen and supervisor roster, survives reload/heartbeat and is included in aggregate pause totals (not separately reported yet). Resume clears its kind. Do not modify earlier migrations.
+Pause déjeuner is implemented for both editions, alongside the ordinary pause button. API `POST /presence/pause` accepts optional `kind: "pause" | "lunch"`; existing clients omitting it keep ordinary pause behavior. The server persists `pause_kind` in current state and closed intervals. New additive migrations: Call CRM 1011 / EasyCrm 1007; existing rows default to ordinary pause. Lunch is labeled explicitly in the user's blocking timer screen and supervisor roster, survives reload/heartbeat and is now reported separately from ordinary pause totals. Resume clears its kind. Do not modify earlier migrations.
 
-The user also requested UI/UX **proposals**, not an immediate global redesign. See `UI_PROPOSALS.md` and standalone `ui-proposals.html` for three illustrative designs. Await their selection before implementing a redesign. Recommendation: clear table for supervisors plus My day for commercials.
+The user approved the clear manager table and My day commercial dashboard. These are now implemented; the original HTML proposals are historical mockups. See `UI_THEME.md` for the current layout and lunch rules.
+
+## Approved theme and final lunch policy (2026-11-02)
+
+Call CRM 0.25.0 / EasyCrm 1.6.0 implement the sidebar workspace, session header, manager KPIs, and commercial My day landing page. Dossiers Clients still always routes to À traiter. Preserve per-row dossier details and all existing filters/sorts. Responsive mobile navigation uses a horizontally scrolling menu.
+
+The user corrected lunch policy: **lunch must NOT be included in ordinary pause totals**, once per CRM civil day, no splitting or carryover. Totals now have `online`, `pause`, `lunch` keys for every period. Ordinary pause is overdue after 600 seconds; lunch is in tolerance after 3600 and overdue after 4200 seconds (strict greater-than at thresholds). `pause_alert` is computed server-side and includes text as well as red/orange styling. No automatic resume or reassignment to ordinary pause is applied.
+
+New additive migration: Call CRM 1012 / EasyCrm 1008. `pause_started_at` preserves the original deadline across heartbeat gaps; `lunch_day` records consumption after resume. Duplicate activation of an already running meal is idempotent. A second activation after resume on the same date returns HTTP 409. The compare-and-swap transaction serializes quota updates. Existing closed lunch history is checked when an unpopulated marker could otherwise allow a duplicate after migration. Historical measurements without a known kind cannot be reliably reclassified.
+
+`tests/browser-smoke.py` was executed with real Chromium for both editions and both roles at 1440px and 390px. It uses synthetic API fixtures, not a Nextcloud server. Desktop/mobile navigation, lack of page-level horizontal overflow, per-row outcome details, red alerts and the lunch blocking/resume behavior are checked; screenshots are generated outside the repository. This does not establish live Nextcloud/PBX/WhatsApp compatibility or actual deployment.

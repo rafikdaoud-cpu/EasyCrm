@@ -109,50 +109,47 @@ function fieldsGrid(p, disabled) {
   return h('div', {class:'g2'}, vis.map(f => h('label', {class: ['textarea', 'multiselect'].includes(f.type) || f.key === 'lastname' ? 'full' : '', style:'display:block;margin:5px 0'},
     h('span', {class:'muted'}, f.label + (f.required ? ' *' : '')), fieldEl(f, fval(p, f), disabled))));
 }
-const show = (...n) => { root.replaceChildren(nav(), ...n.flat()); paintCounters(); paintWa(); };
+const show = (...n) => { root.classList.add('crm-workspace'); root.replaceChildren(nav(), h('div', {class:'crm-main'}, workspaceHeader(), h('div', {class:'crm-page'}, ...n.flat()))); paintCounters(); paintWa(); };
 let CNT = {overdue:0, today:null, goal:0};
 /** Badge des rappels en retard + progression de l'objectif quotidien (commerciaux). */
 async function paintCounters() {
   try { CNT = await api('/counters'); } catch (e) { return; }
   const btn = root.querySelector('.dossier-states button[data-k="rappels"]');
   if (btn) { btn.querySelector('.ovd')?.remove(); if (CNT.overdue) btn.append(h('span', {class:'ovd', title:'Rappels en retard'}, String(CNT.overdue))); }
-  const g = root.querySelector('.navwrap .goal');
+  const g = root.querySelector('.goal');
   if (g && CNT.goal && CNT.today !== null) {
     const pc = Math.min(100, Math.round(100 * CNT.today / CNT.goal));
     g.replaceChildren('🎯 Aujourd’hui : ' + CNT.today + ' / ' + CNT.goal + ' appels', h('span', {class:'gbar'}, h('span', {style:'width:' + pc + '%'})));
   }
 }
-function nav() {
-  const inDossiers = !!KINDS[tab];
-  const t = [['dossiers', 'Dossiers Clients']];
-  t.push(['wa', '💬 WhatsApp']);
-  t.push(['sim', 'Simulateur']);
-  t.push(['stats', me.can.all ? 'Statistiques' : 'Mes statistiques']);
-  if (me.can.import) t.push(['admin', 'Administration']);
-  if (['admin', 'superviseur'].includes(me.role)) t.push(['annonce', 'Annonce']);
-  if (['admin', 'superviseur'].includes(me.role)) t.push(['commerciaux', 'Commerciaux']);
-  const tabs = h('div', {class:'nav'}, t.map(([k, l]) => h('button', {class: (k === 'dossiers' ? inDossiers : tab === k) ? 'on' : '', 'data-k': k, onclick: () => go(k)}, l)));
-  const L = h('button', {class:'navarrow l', title:'Défiler à gauche', 'aria-label':'Défiler à gauche', onclick: () => tabs.scrollBy({left:-240, behavior:'smooth'})}, '‹');
-  const R = h('button', {class:'navarrow r', title:'Défiler à droite', 'aria-label':'Défiler à droite', onclick: () => tabs.scrollBy({left:240, behavior:'smooth'})}, '›');
-  const wrap = h('div', {class:'navwrap' + (me.role === 'commercial' ? ' with-presence' : '')}, L, tabs, R);
-  const upd = () => {
-    const o = tabs.scrollWidth > tabs.clientWidth + 4;
-    wrap.classList.toggle('over', o);
-    L.hidden = !o || tabs.scrollLeft < 4;
-    R.hidden = !o || tabs.scrollLeft + tabs.clientWidth >= tabs.scrollWidth - 4;
-  };
-  tabs.addEventListener('scroll', upd);
-  window.addEventListener('resize', upd);
-  setTimeout(() => { upd(); const on = tabs.querySelector('button.on'); if (on) on.scrollIntoView({inline:'center', block:'nearest'}); upd(); }, 0);
-  if (me.role === 'commercial' && me.prefs && me.prefs.goal) wrap.append(h('span', {class:'goal muted'}));
-  if (me.role === 'commercial') wrap.append(presenceControl());
-  const states = TABS.slice();
-  if (me.can.all) states.push(['tous', 'Tous']);
-  return h('div', {class:'client-navigation'}, wrap,
-    inDossiers ? h('div', {class:'dossier-states', role:'group', 'aria-label':'États des dossiers clients'},
-      states.map(([k, label]) => h('button', {class:tab === k ? 'on' : '', 'data-k':k, 'aria-pressed':String(tab === k), onclick:() => go(k)}, label))) : '');
+function workspaceHeader() {
+  const name = (me.commerciaux || []).find(u => u.uid === me.uid)?.name || me.uid || '';
+  return h('header', {class:'crm-session-header'}, h('div', {}, h('span', {class:'crm-app-title'}, 'Call CRM'),
+    h('div', {class:'muted'}, name)),
+    me.role === 'commercial' ? h('div', {class:'crm-session-actions'},
+      me.prefs?.goal ? h('span', {class:'goal muted'}) : '', presenceControl()) :
+      h('span', {class:'crm-role'}, me.role === 'admin' ? 'Administration' : me.role === 'superviseur' ? 'Supervision' : 'Consultation'));
 }
-function go(k) { if (k === 'dossiers') k = 'nouveaux'; if (k === 'sim') { openSim(null); return; } tab = k; if (k === 'wa') waList(); else if (k === 'stats') stats(); else if (k === 'admin') admin(); else if (k === 'annonce') show(h('h2', {}, 'Annonce'), announcementCard()); else if (k === 'commerciaux') presenceBoard(); else list(k); }
+function nav() {
+  const inDossiers = !!KINDS[tab], t = [];
+  if (me.role === 'commercial') t.push(['journee','Ma journée']);
+  t.push(['dossiers','Dossiers Clients']);
+  t.push(['wa','WhatsApp']);
+  t.push(['sim','Simulateur']);
+  t.push(['stats',me.can.all ? 'Statistiques' : 'Mes statistiques']);
+  if (me.can.import) t.push(['admin','Administration']);
+  if (['admin','superviseur'].includes(me.role)) t.push(['annonce','Annonce'],['commerciaux','Commerciaux']);
+  const states = TABS.slice(); if (me.can.all) states.push(['tous','Tous']);
+  return h('aside', {class:'client-navigation crm-sidebar', 'aria-label':'Navigation CRM'},
+    h('div', {class:'crm-brand'}, h('span', {class:'crm-brand-mark', 'aria-hidden':'true'}, 'C'), h('strong', {}, 'Call CRM')),
+    h('div', {class:'nav', role:'navigation'}, t.map(([key,label]) => h('button', {
+      class:(key === 'dossiers' ? inDossiers : tab === key) ? 'on' : '', 'data-k':key,
+      'aria-current':(key === 'dossiers' ? inDossiers : tab === key) ? 'page' : null, onclick:() => go(key)}, label))),
+    inDossiers ? h('div', {class:'dossier-states', role:'group', 'aria-label':'États des dossiers clients'},
+      states.map(([key,label]) => h('button', {class:tab === key ? 'on' : '', 'data-k':key, 'aria-pressed':String(tab === key), onclick:() => go(key)}, label))) : '',
+    h('div', {class:'crm-sidebar-note muted'}, me.role === 'commercial' ? 'Votre espace de travail' : 'Pilotage de l’activité'));
+}
+function go(k) { if (k === 'dossiers') k = 'nouveaux'; if (k === 'sim') { openSim(null); return; } tab = k; if (k === 'journee' && me.role === 'commercial') myDay(); else if (k === 'wa') waList(); else if (k === 'stats') stats(); else if (k === 'admin') admin(); else if (k === 'annonce') show(h('h2', {}, 'Annonce'), announcementCard()); else if (k === 'commerciaux') presenceBoard(); else list(k); }
 const modeOpts = none => [
   h('option', {value:'categorie'}, 'Par catégorie (groupe de chaque catégorie)'),
   h('option', {value:'auto'}, 'Équitablement (tous les commerciaux)'),
@@ -890,7 +887,44 @@ function auditCard() {
 }
 // ---- Présence des commerciaux ----
 const PRESENCE_LABELS = {online:'En poste', pause:'En pause', absent:'Absent'};
-const presenceLabel = p => p.status === 'pause' && p.pause_kind === 'lunch' ? 'Pause déjeuner' : (PRESENCE_LABELS[p.status] || 'Absent');
+const presenceLabel = p => {
+  const label = p.status === 'pause' && p.pause_kind === 'lunch' ? 'Pause déjeuner' : (PRESENCE_LABELS[p.status] || 'Absent');
+  return label + (p.pause_alert === 'overdue' ? ' · délai dépassé' : p.pause_alert === 'tolerance' ? ' · tolérance' : '');
+};
+const presenceTone = p => p.status === 'pause' && p.pause_alert === 'overdue' ? ' pause-overdue' : p.status === 'pause' && p.pause_alert === 'tolerance' ? ' pause-tolerance' : '';
+
+let dayBox = null, dayBusy = false;
+function myDay() {
+  if (me.role !== 'commercial') return;
+  dayBox = h('div', {class:'day-content'}, 'Chargement de votre journée…');
+  show(h('div', {class:'crm-page-heading'}, h('div', {}, h('p', {class:'crm-eyebrow'}, 'Mon espace commercial'),
+    h('h2', {}, 'Ma journée'), h('p', {class:'muted'}, 'Vos priorités et vos résultats, au même endroit.'))), dayBox);
+  refreshMyDay();
+}
+async function refreshMyDay() {
+  const box = dayBox;
+  if (me.role !== 'commercial' || tab !== 'journee' || !box?.isConnected || dayBusy || document.hidden) return;
+  dayBusy = true;
+  try {
+    const [report, counters] = await Promise.all([api('/presence/mine?period=day'),api('/counters')]);
+    if (box !== dayBox || !box.isConnected || tab !== 'journee') return;
+    const totals = report.totals.selected;
+    box.replaceChildren(h('div', {class:'day-grid'},
+      h('section', {class:'card day-session'}, h('p', {class:'crm-eyebrow'}, 'Aujourd’hui'),
+        h('h3', {}, 'Votre journée de travail'), h('div', {class:'day-work-time'}, duration(totals.online)),
+        h('p', {class:'muted'}, 'Temps en poste · ' + duration(totals.pause) + ' de pause classique · ' + duration(totals.lunch) + ' de déjeuner'),
+        h('button', {class:'primary day-start', onclick:() => go('dossiers')}, 'Ouvrir mes dossiers à traiter'),
+        h('div', {class:'day-priority'}, h('span', {}, 'Rappels en retard'), h('strong', {}, String(counters.overdue || 0)),
+          h('button', {onclick:() => go(KINDS.rappels ? 'rappels' : 'dossiers')}, 'Consulter')),
+        h('div', {class:'day-priority'}, h('span', {}, 'Dossiers traités aujourd’hui'), h('strong', {}, String(report.processed))),
+        h('div', {class:'day-priority'}, h('span', {}, 'Appels saisis aujourd’hui'), h('strong', {}, String(counters.today || 0)))),
+      h('section', {class:'card day-results'}, h('h3', {}, 'Mes résultats du jour'), dossierResults(report.by_result,true),
+        h('button', {onclick:() => go('stats')}, 'Voir mes statistiques'))),
+      h('p', {class:'muted'}, 'Actualisé : ' + new Date(report.server_now * 1000).toLocaleTimeString('fr-FR') + ' · ' + report.timezone));
+  } catch (e) {
+    if (box === dayBox && box.isConnected) box.replaceChildren(h('div', {class:'card'}, h('p', {class:'err', role:'status'}, 'Impossible de charger votre journée.'), h('button', {onclick:refreshMyDay}, 'Réessayer')));
+  } finally { dayBusy = false; }
+}
 let personalTimesBox = null, personalTimesBusy = false;
 let personalPeriod = {period:'day'}, rosterPeriod = {period:'day'};
 const presencePath = (base, filter) => base + '?' + new window.URLSearchParams(filter);
@@ -1000,6 +1034,7 @@ async function refreshPersonalTimes() {
       h('div', {class:'presence-totals'},
         h('div', {class:'card'}, h('strong', {}, 'Temps travaillé (en poste)'), h('p', {}, duration(selected.online))),
         h('div', {class:'card'}, h('strong', {}, 'Temps de pause'), h('p', {}, duration(selected.pause))),
+        h('div', {class:'card'}, h('strong', {}, 'Pause déjeuner'), h('p', {}, duration(selected.lunch))),
         h('div', {class:'card'}, h('strong', {}, 'Dossiers traités'), h('p', {}, String(report.processed)))),
       h('h4', {}, 'État des dossiers traités'), dossierResults(report.by_result,true),
       h('p', {class:'muted'}, 'Actualisé : ' + new Date().toLocaleTimeString('fr-FR')));
@@ -1090,10 +1125,10 @@ function openCommercialMessage(user) {
 function presenceControl() {
   const label = presenceError ? 'État non confirmé' : (myPresence ? presenceLabel(myPresence) : 'Vérification…');
   return h('div', {class:'presence-control'},
-    h('span', {class:'presence-badge ' + (!presenceError && myPresence ? myPresence.status : 'unknown'), role:'status'}, label),
+    h('span', {class:'presence-badge ' + (!presenceError && myPresence ? myPresence.status : 'unknown') + (!presenceError && myPresence ? presenceTone(myPresence) : ''), role:'status'}, label),
     h('button', {disabled:presenceBusy || !myPresence, onclick:() => updateMyPresence(!myPresence.paused)},
       myPresence && myPresence.paused ? 'Reprendre le travail' : 'Me mettre en pause'),
-    h('button', {class:'lunch-break-button', disabled:presenceBusy || !myPresence || myPresence.paused, onclick:() => updateMyPresence(true,'lunch')}, 'Pause déjeuner'),
+    h('button', {class:'lunch-break-button', disabled:presenceBusy || !myPresence || myPresence.paused || myPresence.lunch_used_today, title:myPresence?.lunch_used_today ? 'Déjeuner déjà utilisé aujourd’hui' : 'Une fois par jour · 1 h et 10 min de tolérance', onclick:() => updateMyPresence(true,'lunch')}, 'Pause déjeuner'),
     presenceError ? h('span', {class:'err', role:'status'}, presenceError) : '');
 }
 function paintMyPresence() {
@@ -1129,7 +1164,7 @@ function renderPresenceBoard(report) {
   const rows = sortedCommercials(report.rows);
     const states = responseKeys();
     rows.forEach(u => Object.keys(u.by_result || {}).forEach(key => { if (!states.includes(key)) states.push(key); }));
-    const columns = [['name','Commercial'],['status','État actuel'],['currentPause','Pause en cours'],['online','Temps en poste'],['pause','Temps de pause'],['processed','Dossiers traités']];
+    const columns = [['name','Commercial'],['status','État actuel'],['currentPause','Pause en cours'],['online','Temps en poste'],['pause','Pause classique'],['lunch','Déjeuner'],['processed','Dossiers traités']];
     const detailHeading = h('th', {scope:'col', class:'outcome-detail-heading', 'aria-sort':rosterSort.startsWith('result:') ? (rosterDirection === 'asc' ? 'ascending' : 'descending') : 'none'},
       'Détail des dossiers traités', h('div', {class:'outcome-sort-headings'}, states.map(key =>
         h('button', {class:'sort-heading', 'data-sort-key':'result:' + key, onclick:() => changeRosterSort('result:' + key)},
@@ -1139,21 +1174,23 @@ function renderPresenceBoard(report) {
       const counts = Object.fromEntries(states.map(key => [key,Number((u.by_result || {})[key] || 0)]));
       return h('tr', {},
         h('td', {}, h('button', {class:'commercial-message-link', 'aria-label':'Envoyer un message à ' + u.name, onclick:() => openCommercialMessage(u)}, u.name)),
-        h('td', {}, h('span', {class:'presence-badge ' + u.status}, presenceLabel(u))),
+        h('td', {}, h('span', {class:'presence-badge ' + u.status + presenceTone(u)}, presenceLabel(u))),
         h('td', {}, u.status === 'pause' && u.pause_since ? duration(report.server_now - u.pause_since) : '—'),
-        ['online','pause'].map(mode => h('td', {}, duration(u.totals.selected[mode]))),
+        ['online','pause','lunch'].map(mode => h('td', {}, duration(u.totals.selected[mode]))),
         h('td', {}, String(u.processed)), h('td', {class:'commercial-outcome-detail'}, dossierResults(counts)));
     });
     const table = h('table', {class:'t'}, h('thead', {}, header), h('tbody', {}, body));
-    const count = status => rows.filter(u => u.status === status).length;
-    const totals = [['online','Temps en poste'],['pause','Temps de pause'],['processed','Dossiers traités']].map(([key,label]) => {
+    const count = status => rows.filter(u => status === 'lunch' ? u.status === 'pause' && u.pause_kind === 'lunch' : status === 'pause' ? u.status === 'pause' && u.pause_kind !== 'lunch' : u.status === status).length;
+    const totals = [['online','Temps en poste'],['pause','Pause classique'],['lunch','Déjeuner']].map(([key,label]) => {
       const n = rows.reduce((sum,u) => sum + Number(key === 'processed' ? u.processed : u.totals.selected[key]),0);
       return h('div', {class:'card'}, h('strong', {}, label), h('p', {}, key === 'processed' ? String(n) : duration(n)));
     });
     const byResult = {};
     rows.forEach(u => Object.entries(u.by_result || {}).forEach(([key,n]) => { byResult[key] = (byResult[key] || 0) + Number(n); }));
     box.replaceChildren(h('p', {class:'muted'}, 'Du ' + report.range.from + ' au ' + report.range.to + ' inclus · ' + report.timezone + ' · Actualisé : ' + new Date(report.server_now * 1000).toLocaleTimeString('fr-FR')),
-      h('p', {}, count('online') + ' en poste · ' + count('pause') + ' en pause · ' + count('absent') + ' absent(s)'),
+      h('div', {class:'team-kpis'},
+        [['online','En poste maintenant'],['pause','En pause maintenant'],['lunch','Au déjeuner'],['absent','Absents'],['processed','Dossiers traités · période']].map(([key,label]) =>
+          h('div', {class:'team-kpi', 'data-kpi':key}, h('strong', {}, String(key === 'processed' ? rows.reduce((n,u) => n + Number(u.processed),0) : count(key))), h('span', {}, label)))) ,
       h('div', {class:'presence-totals'}, totals), dossierResults(byResult),
       rows.length ? h('div', {class:'presence-table presence-overview'}, table) : h('p', {}, 'Aucun commercial dans le groupe configuré.'));
 
@@ -1482,12 +1519,13 @@ async function checkReminders() {
       return;
     }
   }
-  go('dossiers');
+  go(me.role === 'commercial' ? 'journee' : 'dossiers');
   setInterval(() => updateMyPresence(), 30000);
   setInterval(refreshPresenceBoard, 15000);
   setInterval(refreshPersonalTimes, 15000);
-  window.addEventListener('online', () => { updateMyPresence(); refreshPresenceBoard(); refreshPersonalTimes(); });
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) { updateMyPresence(); refreshPresenceBoard(); refreshPersonalTimes(); } });
+  setInterval(refreshMyDay, 15000);
+  window.addEventListener('online', () => { updateMyPresence(); refreshPresenceBoard(); refreshPersonalTimes(); refreshMyDay(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { updateMyPresence(); refreshPresenceBoard(); refreshPersonalTimes(); refreshMyDay(); } });
   if (window.Notification && Notification.permission === 'default') Notification.requestPermission();
   checkAnnouncements(); setInterval(checkAnnouncements, 15000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) checkAnnouncements(); });
