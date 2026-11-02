@@ -1,6 +1,6 @@
 # Déployer Call CRM / EasyCrm
 
-Versions de ce lot : **Call CRM 0.25.0** et **EasyCrm 1.6.0**. Les deux applications sont indépendantes : ni les tables, ni les rôles, ni les préférences ne sont partagés.
+Versions de ce lot : **Call CRM 0.25.1** et **EasyCrm 1.6.1**. Les deux applications sont indépendantes : ni les tables, ni les rôles, ni les préférences ne sont partagés.
 
 ## Préparer et vérifier
 
@@ -11,8 +11,8 @@ Versions de ce lot : **Call CRM 0.25.0** et **EasyCrm 1.6.0**. Les deux applicat
 
 | ZIP | Dossier racine dans le ZIP | Destination |
 |---|---|---|
-| callcrm-0.25.0.zip | callcrm/ | custom_apps/callcrm/ |
-| easycrm-1.6.0.zip | easycrm/ | custom_apps/easycrm/ |
+| callcrm-0.25.1.zip | callcrm/ | custom_apps/callcrm/ |
+| easycrm-1.6.1.zip | easycrm/ | custom_apps/easycrm/ |
 
 Ne pas créer `callcrm/callcrm` ou `easycrm/easycrm`. Ne pas renommer les identifiants des applications pour les faire correspondre à un dossier. Le dossier Git `nextcloud/` contient l'application d'identifiant `easycrm` et le script l'archive correctement.
 
@@ -62,4 +62,8 @@ Une baisse du numéro de version n'annule pas les migrations. En cas de problèm
 
 La version Pause déjeuner nécessite les migrations additives Call CRM 1011 / EasyCrm 1007 (`pause_kind` dans l’état courant et l’historique). Même depuis le paquet précédent, exécuter `occ upgrade` avant de charger le nouveau JavaScript.
 
-Pour 0.25.0 / 1.6.0, appliquer aussi Call CRM 1012 / EasyCrm 1008 avant le nouveau JavaScript : conservation de l’heure initiale de pause et quota déjeuner quotidien. Le déjeuner est maintenant un total séparé. Vérifier qu’un second déjeuner est refusé (HTTP 409), les seuils exacts de 10 min et 70 min, et le nouveau point d’entrée Ma journée pour les commerciaux.
+Pour 0.25.1 / 1.6.1, appliquer aussi Call CRM 1012 / EasyCrm 1008 avant le nouveau JavaScript : conservation de l’heure initiale de pause et quota déjeuner quotidien. Le déjeuner est maintenant un total séparé. Vérifier qu’un second déjeuner est refusé (HTTP 409), les seuils exacts de 10 min et 70 min, et le nouveau point d’entrée Ma journée pour les commerciaux.
+
+## Reprise après l’échec de migration lunch_day
+
+Sur Nextcloud 35, la définition initiale NOT NULL avec valeur par défaut vide était refusée. Le correctif 0.25.1 / 1.6.1 utilise NULL et autorise la colonne nullable. Remplacer le paquet ou la migration échouée (Call CRM 1012 / EasyCrm 1008), puis relancer `occ upgrade`. Ne pas sauter la migration ni supprimer les tables. Garder la maintenance jusqu’à la réussite et `needsDbUpgrade: false`.

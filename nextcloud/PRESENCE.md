@@ -1,4 +1,4 @@
-# Présence, thème et pauses — EasyCrm 1.6.0
+# Présence, thème et pauses — EasyCrm 1.6.1
 
 ## Interface validée
 

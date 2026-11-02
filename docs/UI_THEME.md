@@ -1,4 +1,4 @@
-# Thème appliqué — Call CRM 0.25.0 / EasyCrm 1.6.0
+# Thème appliqué — Call CRM 0.25.1 / EasyCrm 1.6.1
 
 Le thème est implémenté, ce n’est plus uniquement une maquette.
 

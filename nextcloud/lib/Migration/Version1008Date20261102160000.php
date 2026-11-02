@@ -11,7 +11,7 @@ class Version1008Date20261102160000 extends SimpleMigrationStep {
   if ($s->hasTable('easycrm_presence')) {
    $t = $s->getTable('easycrm_presence');
    if (!$t->hasColumn('pause_started_at')) { $t->addColumn('pause_started_at',Types::BIGINT,['notnull'=>true,'default'=>0]); }
-   if (!$t->hasColumn('lunch_day')) { $t->addColumn('lunch_day',Types::STRING,['length'=>10,'notnull'=>true,'default'=>'']); }
+   if (!$t->hasColumn('lunch_day')) { $t->addColumn('lunch_day',Types::STRING,['length'=>10,'notnull'=>false,'default'=>null]); }
   }
   return $s;
  }

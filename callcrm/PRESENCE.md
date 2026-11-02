@@ -1,4 +1,4 @@
-# Présence, thème et pauses — Call CRM 0.25.0
+# Présence, thème et pauses — Call CRM 0.25.1
 
 ## Interface validée
 

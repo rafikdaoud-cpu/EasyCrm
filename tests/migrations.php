@@ -15,7 +15,13 @@ namespace {
  class Table {
   public array $columns = [], $indexes = [], $primary = [];
   public function hasColumn($name) { return isset($this->columns[$name]); }
-  public function addColumn($name,$type,$options) { $this->columns[$name] = [$type,$options]; }
+  public function addColumn($name,$type,$options) {
+   // Nextcloud rejects explicit empty/null defaults on NOT NULL fields.
+   if (($options['notnull'] ?? false) && array_key_exists('default',$options) && ($options['default'] === '' || $options['default'] === null)) {
+    throw new \RuntimeException('NotNull column with empty/null default: '.$name);
+   }
+   $this->columns[$name] = [$type,$options];
+  }
   public function setPrimaryKey($columns) { $this->primary = $columns; }
   public function addIndex($columns,$name) { $this->indexes[$name] = $columns; }
  }
@@ -38,6 +44,8 @@ namespace {
     $allIndexes[$name] = true;
    }
   }
+  $lunch = $schema->tables[$id.'_presence']->columns['lunch_day'][1];
+  if (($lunch['notnull'] ?? true) !== false || $lunch['default'] !== null) throw new \RuntimeException('lunch_day must allow NULL before first lunch');
   if ($schema->tables['existing_table'] !== ['untouched'=>true]) throw new \RuntimeException('Existing schema modified');
   echo "PASS $folder migration callbacks, repeatability, columns and isolated index names\n";
  }

@@ -13,7 +13,7 @@ namespace {
  }
  $db->pdo->exec('CREATE TABLE callcrm_calls (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, prospect_id INTEGER NOT NULL, created_at INTEGER NOT NULL, result TEXT NOT NULL DEFAULT \'interesse\')');
  $config = new PresenceConfig();
- $db->pdo->exec('CREATE TABLE callcrm_presence (user_id TEXT PRIMARY KEY, paused INTEGER NOT NULL, pause_kind TEXT NOT NULL DEFAULT \'pause\', pause_started_at INTEGER NOT NULL DEFAULT 0, lunch_day TEXT NOT NULL DEFAULT \'\', segment_start INTEGER NOT NULL, last_seen INTEGER NOT NULL, revision INTEGER NOT NULL)');
+ $db->pdo->exec('CREATE TABLE callcrm_presence (user_id TEXT PRIMARY KEY, paused INTEGER NOT NULL, pause_kind TEXT NOT NULL DEFAULT \'pause\', pause_started_at INTEGER NOT NULL DEFAULT 0, lunch_day TEXT DEFAULT NULL, segment_start INTEGER NOT NULL, last_seen INTEGER NOT NULL, revision INTEGER NOT NULL)');
  $db->pdo->exec('CREATE TABLE callcrm_presence_log (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, paused INTEGER NOT NULL, pause_kind TEXT NOT NULL DEFAULT \'pause\', started_at INTEGER NOT NULL, ended_at INTEGER NOT NULL)');
  $presence = new \OCA\CallCrm\Service\Presence($config, $db);
  check($presence->state('alice')['status'] === 'absent', 'never-connected commercial is absent');

@@ -8,8 +8,8 @@ Repository: `rafikdaoud-cpu/EasyCrm`. Starting commit: `f2189af55f246b430837aa93
 
 | Edition | Folder / namespace | App version | New migrations |
 |---|---|---|---|
-| CSM Call CRM | callcrm / OCA\CallCrm | 0.25.0 | 1009 announcements, 1010 presence/history, 1011 kind, 1012 daily lunch policy |
-| EasyCrm Nextcloud | nextcloud / OCA\EasyCrm | 1.6.0 | 1005 announcements, 1006 presence/history, 1007 kind, 1008 daily lunch policy |
+| CSM Call CRM | callcrm / OCA\CallCrm | 0.25.1 | 1009 announcements, 1010 presence/history, 1011 kind, 1012 daily lunch policy |
+| EasyCrm Nextcloud | nextcloud / OCA\EasyCrm | 1.6.1 | 1005 announcements, 1006 presence/history, 1007 kind, 1008 daily lunch policy |
 
 Current publication branch: `main`. The original `feat/annonces-presence-statistiques` branch was merged at the user’s request; publication must be established from the actual Git push result, not inferred from a local commit. The new Statistiques response-type table counts all call outcomes (not distinct dossiers), includes configured zero-count types and observed historical types, and sorts by clickable headings. Never hard-code counts from the screenshot.
 
@@ -98,10 +98,16 @@ The user approved the clear manager table and My day commercial dashboard. These
 
 ## Approved theme and final lunch policy (2026-11-02)
 
-Call CRM 0.25.0 / EasyCrm 1.6.0 implement the sidebar workspace, session header, manager KPIs, and commercial My day landing page. Dossiers Clients still always routes to À traiter. Preserve per-row dossier details and all existing filters/sorts. Responsive mobile navigation uses a horizontally scrolling menu.
+Call CRM 0.25.1 / EasyCrm 1.6.1 implement the sidebar workspace, session header, manager KPIs, and commercial My day landing page. Dossiers Clients still always routes to À traiter. Preserve per-row dossier details and all existing filters/sorts. Responsive mobile navigation uses a horizontally scrolling menu.
 
 The user corrected lunch policy: **lunch must NOT be included in ordinary pause totals**, once per CRM civil day, no splitting or carryover. Totals now have `online`, `pause`, `lunch` keys for every period. Ordinary pause is overdue after 600 seconds; lunch is in tolerance after 3600 and overdue after 4200 seconds (strict greater-than at thresholds). `pause_alert` is computed server-side and includes text as well as red/orange styling. No automatic resume or reassignment to ordinary pause is applied.
 
 New additive migration: Call CRM 1012 / EasyCrm 1008. `pause_started_at` preserves the original deadline across heartbeat gaps; `lunch_day` records consumption after resume. Duplicate activation of an already running meal is idempotent. A second activation after resume on the same date returns HTTP 409. The compare-and-swap transaction serializes quota updates. Existing closed lunch history is checked when an unpopulated marker could otherwise allow a duplicate after migration. Historical measurements without a known kind cannot be reliably reclassified.
 
 `tests/browser-smoke.py` was executed with real Chromium for both editions and both roles at 1440px and 390px. It uses synthetic API fixtures, not a Nextcloud server. Desktop/mobile navigation, lack of page-level horizontal overflow, per-row outcome details, red alerts and the lunch blocking/resume behavior are checked; screenshots are generated outside the repository. This does not establish live Nextcloud/PBX/WhatsApp compatibility or actual deployment.
+
+## Migration hotfix 0.25.1 / 1.6.1
+
+The user's actual Nextcloud 35 upgrade rejected Call CRM migration 1012: lunch_day was NOT NULL with an empty-string default. The same defect existed in the corresponding EasyCrm 1008 migration. These failed migration definitions now add a nullable string with NULL default; service code already normalizes NULL to an unused marker. Do not use an empty default on a NOT NULL column. The shared schema double now enforces this Nextcloud rule, and the real SQLite service tests use nullable lunch_day.
+
+This correction intentionally changes the migration that FAILED, so Nextcloud can retry it. Do not mark the migration completed, delete tables, force maintenance off while needsDbUpgrade is true, or restore/drop data to work around the failure. If lunch_day unexpectedly exists with incompatible metadata after a partial attempt, inspect the actual schema before another change; no remote SQL alteration has been attempted here. The user must replace the failed migration with its fixed definition (or install the hotfix package), rerun occ upgrade, verify needsDbUpgrade false and then disable maintenance if still enabled. Real VPS retry outcome is not yet known.
