@@ -44,7 +44,7 @@ Testing status: unit/integration tests run against **simulated** servers (fake A
 
 ## Announcements, presence and statistics (2026-11-02)
 
-Call CRM 0.23.1 and EasyCrm Nextcloud 1.4.1 add one-way announcements, commercial presence/pause timers, scoped time reports, dossier outcomes and sorting by clickable headings. The original Odoo editions are unchanged.
+Call CRM 0.23.2 and EasyCrm Nextcloud 1.4.2 add one-way announcements, commercial presence/pause timers, scoped time reports, dossier outcomes and sorting by clickable headings. The original Odoo editions are unchanged.
 
 - [AI / maintainer handoff](docs/AI_HANDOFF.md): requirements, architecture, tests, limits and continuation notes.
 - [Deployment and rollback](docs/DEPLOY_NEXTCLOUD.md).

@@ -1127,19 +1127,21 @@ function renderPresenceBoard(report) {
     const states = responseKeys();
     rows.forEach(u => Object.keys(u.by_result || {}).forEach(key => { if (!states.includes(key)) states.push(key); }));
     const columns = [['name','Commercial'],['status','État actuel'],['currentPause','Pause en cours'],['online','Temps en poste'],['pause','Temps de pause'],['processed','Dossiers traités']];
-    const table = h('table', {class:'t'},
-      h('thead', {}, h('tr', {}, columns.map(([key,label]) => sortableHeading(label,key,rosterSort,rosterDirection,changeRosterSort)))),
-      h('tbody', {}, rows.map(u => h('tr', {}, h('td', {}, h('button', {class:'commercial-message-link', 'aria-label':'Envoyer un message à ' + u.name, onclick:() => openCommercialMessage(u)}, u.name)),
+    const detailHeading = h('th', {scope:'col', class:'outcome-detail-heading', 'aria-sort':rosterSort.startsWith('result:') ? (rosterDirection === 'asc' ? 'ascending' : 'descending') : 'none'},
+      'Détail des dossiers traités', h('div', {class:'outcome-sort-headings'}, states.map(key =>
+        h('button', {class:'sort-heading', 'data-sort-key':'result:' + key, onclick:() => changeRosterSort('result:' + key)},
+          (ST[key] || key) + ' ' + (rosterSort === 'result:' + key ? (rosterDirection === 'asc' ? '▲' : '▼') : '⇅')))));
+    const header = h('tr', {}, columns.map(([key,label]) => sortableHeading(label,key,rosterSort,rosterDirection,changeRosterSort)), detailHeading);
+    const body = rows.map(u => {
+      const counts = Object.fromEntries(states.map(key => [key,Number((u.by_result || {})[key] || 0)]));
+      return h('tr', {},
+        h('td', {}, h('button', {class:'commercial-message-link', 'aria-label':'Envoyer un message à ' + u.name, onclick:() => openCommercialMessage(u)}, u.name)),
         h('td', {}, h('span', {class:'presence-badge ' + u.status}, PRESENCE_LABELS[u.status] || 'Absent')),
         h('td', {}, u.status === 'pause' && u.pause_since ? duration(report.server_now - u.pause_since) : '—'),
-        ['online','pause'].map(mode => h('td', {}, duration(u.totals.selected[mode]))), h('td', {}, String(u.processed))))));
-    const outcomes = h('table', {class:'t'}, h('thead', {}, h('tr', {},
-      sortableHeading('Commercial','name',rosterSort,rosterDirection,changeRosterSort),
-      sortableHeading('Total traité','processed',rosterSort,rosterDirection,changeRosterSort),
-      states.map(key => sortableHeading(ST[key] || key,'result:' + key,rosterSort,rosterDirection,changeRosterSort)))),
-      h('tbody', {}, rows.map(u => h('tr', {}, h('td', {},
-        h('button', {class:'commercial-message-link', 'aria-label':'Envoyer un message à ' + u.name, onclick:() => openCommercialMessage(u)}, u.name)),
-        h('td', {}, String(u.processed)), states.map(key => h('td', {}, String((u.by_result || {})[key] || 0)))))));
+        ['online','pause'].map(mode => h('td', {}, duration(u.totals.selected[mode]))),
+        h('td', {}, String(u.processed)), h('td', {class:'commercial-outcome-detail'}, dossierResults(counts)));
+    });
+    const table = h('table', {class:'t'}, h('thead', {}, header), h('tbody', {}, body));
     const count = status => rows.filter(u => u.status === status).length;
     const totals = [['online','Temps en poste'],['pause','Temps de pause'],['processed','Dossiers traités']].map(([key,label]) => {
       const n = rows.reduce((sum,u) => sum + Number(key === 'processed' ? u.processed : u.totals.selected[key]),0);
@@ -1150,10 +1152,7 @@ function renderPresenceBoard(report) {
     box.replaceChildren(h('p', {class:'muted'}, 'Du ' + report.range.from + ' au ' + report.range.to + ' inclus · ' + report.timezone + ' · Actualisé : ' + new Date(report.server_now * 1000).toLocaleTimeString('fr-FR')),
       h('p', {}, count('online') + ' en poste · ' + count('pause') + ' en pause · ' + count('absent') + ' absent(s)'),
       h('div', {class:'presence-totals'}, totals), dossierResults(byResult),
-      rows.length ? h('div', {}, h('h3', {}, 'Présence et temps'), h('div', {class:'presence-table presence-overview'}, table),
-        h('h3', {}, 'Dossiers traités par état'),
-        h('p', {class:'muted'}, 'Tous les états sont présentés ci-dessous, y compris ceux à zéro. Cliquez sur un titre pour trier. Sur petit écran, faites défiler le tableau horizontalement.'),
-        h('div', {class:'presence-table presence-outcomes', role:'region', 'aria-label':'Dossiers traités par état', tabindex:'0'}, outcomes)) : h('p', {}, 'Aucun commercial dans le groupe configuré.'));
+      rows.length ? h('div', {class:'presence-table presence-overview'}, table) : h('p', {}, 'Aucun commercial dans le groupe configuré.'));
 
 }
 function presenceBoard() {

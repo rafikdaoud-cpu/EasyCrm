@@ -1,4 +1,4 @@
-# Présence des commerciaux — EasyCrm 1.4.1
+# Présence des commerciaux — EasyCrm 1.4.2
 
 ## Utilisation
 
@@ -61,7 +61,7 @@ Attendre la fin de la mise à jour. Si `needsDbUpgrade: false` et que la command
 php occ maintenance:mode --off
 ```
 
-Conserver les propriétaire et permissions de l'installation. Recharger les pages et l'application Android pour charger le nouveau JavaScript. La migration 1006 crée les tables `easycrm_presence` et `easycrm_presence_log`. La migration des annonces reste incluse pour les installations venant d’une version antérieure. Les durées ne sont collectées qu’à partir de l’installation de la fonction de suivi ; aucun historique de temps ancien n’est reconstitué. Les dossiers traités utilisent l’historique d’appels conservé en base, y compris antérieur à cette version. Aucune nouvelle migration depuis la version 1.4.1 n’est nécessaire ; lancer occ upgrade pour enregistrer la version applicative reste requis.
+Conserver les propriétaire et permissions de l'installation. Recharger les pages et l'application Android pour charger le nouveau JavaScript. La migration 1006 crée les tables `easycrm_presence` et `easycrm_presence_log`. La migration des annonces reste incluse pour les installations venant d’une version antérieure. Les durées ne sont collectées qu’à partir de l’installation de la fonction de suivi ; aucun historique de temps ancien n’est reconstitué. Les dossiers traités utilisent l’historique d’appels conservé en base, y compris antérieur à cette version. Aucune nouvelle migration depuis la version 1.4.2 n’est nécessaire ; lancer occ upgrade pour enregistrer la version applicative reste requis.
 
 Cette version n'a pas été déployée sur le VPS. Vérifier sur une instance de test avec deux comptes : connexion commercial, pause, reprise, fermeture de tous les onglets du compte, absence après deux minutes et retour. Tester aussi plusieurs onglets et une perte réseau.
 
@@ -84,3 +84,7 @@ Le tableau « Résultats d’appels par type de réponse » des Statistiques aff
 ## Résultats d’appels
 
 Le tableau « Résultats d’appels par type de réponse » des Statistiques affiche toutes les réponses configurées (y compris celles à zéro) et les anciennes réponses présentes dans l’historique. Il compte les résultats d’appels, avec des colonnes triables par leur titre. Il est distinct du nombre de dossiers traités, qui déduplique les dossiers sur la période.
+
+## Détail par commercial sur la même ligne
+
+La colonne **Détail des dossiers traités**, à côté du total, affiche pour chaque commercial ses propres nombres par état (À rappeler, Faux numéro, Intéressé, Ne répond pas, Non éligible, Pas intéressé, Transmis sur Plateforme, etc.). Les valeurs à zéro restent visibles. Il ne s’agit pas seulement du récapitulatif global de l’équipe. Les libellés d’état dans l’en-tête permettent de trier les commerciaux selon ces nombres.

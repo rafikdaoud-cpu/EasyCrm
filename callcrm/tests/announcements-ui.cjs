@@ -333,7 +333,7 @@ test('roster supports numeric, name and outcome sorting and shares its selected 
   document.querySelector('[data-sort-key="result:rappel"]').click();
   document.querySelector('[data-sort-key="result:rappel"]').click(); assert.deepEqual(names(),['Bob','Alice']);
   assert.equal(document.activeElement.dataset.sortKey,'result:rappel');
-  assert.match(document.querySelector('.presence-outcomes thead').textContent,/À rappeler/);
+  assert.match(document.querySelector('.presence-overview thead').textContent,/À rappeler/);
   const period = document.querySelector('[aria-label=Période]'); period.value = 'month'; period.dispatchEvent(new dom.window.Event('change')); await tick();
   assert.equal(calls.at(-1).path,'/presence?period=month'); assert.deepEqual(names(),['Bob','Alice']);
   period.value = 'custom'; period.dispatchEvent(new dom.window.Event('change'));
@@ -354,17 +354,29 @@ test('statistics include every configured or historical response type, zero coun
   document.querySelector('[data-sort-key=rappel]').click(); assert.match(document.querySelector('tbody tr').textContent,/^Alice/);
 });
 
-test('all outcomes have dedicated visible-layout columns separated from presence times', async () => {
+test('every commercial row includes their own seven outcome counts beside total, including zero', async () => {
   const {ui,context,document} = setup('superviseur');
   const types = [['rappel','À rappeler (occupé)',18],['faux_numero','Faux numéro',0],['interesse','Intéressé',8],['injoignable','Ne répond pas',9],['non_eligible','Non éligible',7],['pas_interesse','Pas intéressé',4],['plateforme','Transmis sur Plateforme',1]];
   ui.configure(types.map(([key,label]) => ({key,label,result:true,active:true})),{});
-  context.respond = async () => ({server_now:200,timezone:'Africa/Algiers',range:{from:'2026-11-02',to:'2026-11-02'},rows:[{uid:'alice',name:'Alice',status:'online',processed:47,totals:{selected:{online:100,pause:10}},by_result:Object.fromEntries(types.map(([key,,n]) => [key,n]))}]});
+  context.respond = async () => ({server_now:200,timezone:'Africa/Algiers',range:{from:'2026-11-02',to:'2026-11-02'},rows:[
+    {uid:'alice',name:'Alice',status:'online',processed:47,totals:{selected:{online:100,pause:10}},by_result:Object.fromEntries(types.map(([key,,n]) => [key,n]))},
+    {uid:'bob',name:'Bob',status:'online',processed:6,totals:{selected:{online:50,pause:0}},by_result:{rappel:3,interesse:2,plateforme:1}}]});
   ui.go('commerciaux'); await tick();
-  assert.equal(document.querySelectorAll('.presence-overview th').length,6);
-  assert.equal(document.querySelectorAll('.presence-outcomes th').length,9);
-  for (const [key,label] of types) {
-    const header = document.querySelector('.presence-outcomes [data-sort-key="result:' + key + '"]');
+  assert.equal(document.querySelectorAll('.presence-overview th').length,7);
+  assert.equal(document.querySelector('.presence-outcomes'),null);
+  const alice = document.querySelector('.presence-overview tbody tr');
+  assert.equal(alice.querySelectorAll('td')[5].textContent,'47');
+  const detail = alice.querySelector('.commercial-outcome-detail');
+  assert.equal(detail.querySelectorAll('.dossier-result-count').length,7);
+  for (const [key,label,n] of types) {
+    const header = document.querySelector('.presence-overview [data-sort-key="result:' + key + '"]');
     assert.ok(header); assert.ok(header.textContent.includes(label));
+    const counter = Array.from(detail.querySelectorAll('.dossier-result-count')).find(x => x.textContent.includes(label));
+    assert.ok(counter); assert.equal(counter.querySelector('strong').textContent,String(n));
   }
-  assert.deepEqual(Array.from(document.querySelectorAll('.presence-outcomes tbody td')).map(x => x.textContent), ['Alice','47','18','0','8','9','7','4','1']);
+  const bob = document.querySelectorAll('.presence-overview tbody tr')[1];
+  assert.equal(bob.querySelectorAll('td')[5].textContent,'6');
+  const counts = Array.from(bob.querySelectorAll('.commercial-outcome-detail .dossier-result-count'));
+  assert.equal(counts.find(x => x.textContent.includes('À rappeler')).querySelector('strong').textContent,'3');
+  assert.equal(counts.find(x => x.textContent.includes('Non éligible')).querySelector('strong').textContent,'0');
 });

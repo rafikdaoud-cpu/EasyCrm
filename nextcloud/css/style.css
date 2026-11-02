@@ -95,10 +95,17 @@
 .announcement-popup{max-height:85vh;overflow:auto}
 .announcement-body{white-space:pre-wrap;overflow-wrap:anywhere}
 
-/* Keep every outcome visible independently of the time columns. */
-#easycrm .presence-outcomes table.t{table-layout:fixed;width:100%;display:table;overflow:visible}
-#easycrm .presence-outcomes th:first-child{width:150px}
-#easycrm .presence-outcomes th,#easycrm .presence-outcomes td{padding:8px 5px;overflow-wrap:anywhere}
-#easycrm .presence-outcomes button.sort-heading{white-space:normal;overflow-wrap:anywhere;line-height:1.35}
-#easycrm .presence-outcomes td:not(:first-child){text-align:center;font-variant-numeric:tabular-nums}
-@media(max-width:760px){#easycrm .presence-outcomes table.t{min-width:720px}}
+/* Every commercial keeps their outcome counts on the same row as their totals. */
+#easycrm .presence-overview table.t{table-layout:fixed;width:100%;display:table;overflow:visible}
+#easycrm .presence-overview th,#easycrm .presence-overview td{padding:8px 5px;vertical-align:top;overflow-wrap:anywhere}
+#easycrm .presence-overview th:first-child{width:16%}
+#easycrm .presence-overview th:nth-child(n+2):nth-child(-n+5){width:8%}
+#easycrm .presence-overview th:nth-child(6){width:7%}
+#easycrm .presence-overview th:last-child{width:45%}
+#easycrm .presence-overview button.sort-heading,#easycrm .presence-overview .commercial-message-link{white-space:normal;overflow-wrap:anywhere;max-width:100%}
+#easycrm .outcome-sort-headings{display:flex;gap:4px 10px;flex-wrap:wrap;margin-top:6px;font-weight:normal}
+#easycrm .outcome-sort-headings button.sort-heading{font-size:11px}
+#easycrm .commercial-outcome-detail .dossier-result-counts{margin:0;gap:6px}
+#easycrm .commercial-outcome-detail .dossier-result-count{white-space:normal;max-width:100%}
+#easycrm .commercial-outcome-detail .badge{white-space:normal}
+@media(max-width:760px){#easycrm .presence-overview table.t{min-width:900px}}

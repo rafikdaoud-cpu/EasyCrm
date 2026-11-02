@@ -1,4 +1,4 @@
-# Présence des commerciaux — Call CRM 0.23.1
+# Présence des commerciaux — Call CRM 0.23.2
 
 ## Utilisation
 
@@ -80,3 +80,7 @@ Pour les tests DOM Node.js, voir `ANNONCES.md`. Le fichier `tests/announcements-
 ## Résultats d’appels
 
 Le tableau « Résultats d’appels par type de réponse » des Statistiques affiche toutes les réponses configurées (y compris celles à zéro) et les anciennes réponses présentes dans l’historique. Il compte les résultats d’appels, avec des colonnes triables par leur titre. Il est distinct du nombre de dossiers traités, qui déduplique les dossiers sur la période.
+
+## Détail par commercial sur la même ligne
+
+La colonne **Détail des dossiers traités**, à côté du total, affiche pour chaque commercial ses propres nombres par état (À rappeler, Faux numéro, Intéressé, Ne répond pas, Non éligible, Pas intéressé, Transmis sur Plateforme, etc.). Les valeurs à zéro restent visibles. Il ne s’agit pas seulement du récapitulatif global de l’équipe. Les libellés d’état dans l’en-tête permettent de trier les commerciaux selon ces nombres.

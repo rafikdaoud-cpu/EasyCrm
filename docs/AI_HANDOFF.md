@@ -8,8 +8,8 @@ Repository: `rafikdaoud-cpu/EasyCrm`. Starting commit: `f2189af55f246b430837aa93
 
 | Edition | Folder / namespace | App version | New migrations |
 |---|---|---|---|
-| CSM Call CRM | callcrm / OCA\CallCrm | 0.23.1 | 1009 announcements, 1010 presence/history |
-| EasyCrm Nextcloud | nextcloud / OCA\EasyCrm | 1.4.1 | 1005 announcements, 1006 presence/history |
+| CSM Call CRM | callcrm / OCA\CallCrm | 0.23.2 | 1009 announcements, 1010 presence/history |
+| EasyCrm Nextcloud | nextcloud / OCA\EasyCrm | 1.4.2 | 1005 announcements, 1006 presence/history |
 
 Working branch: `feat/annonces-presence-statistiques`. Changes are delivered through that feature branch for review; publication must be established from the actual Git push result, not inferred from a local commit. The new Statistiques response-type table counts all call outcomes (not distinct dossiers), includes configured zero-count types and observed historical types, and sorts by clickable headings. Never hard-code counts from the screenshot.
 
@@ -82,8 +82,10 @@ An SSH public key was exchanged during the chat, but the agent environment lacke
 - The pre-existing recording upload path can leave a pending row after storage failure and falsely treat a retry as duplicate. This was identified in the original review but intentionally left outside the requested feature work. It needs a separately reviewed fix/test; do not claim it is solved.
 - Tests are duplicated per edition to exercise each actual app. Keep new service/controller changes aligned and run both suites; do not regenerate whole UI files and overwrite edition differences.
 
-## Display follow-up: all dossier outcome columns
+## Final display requirement: outcome detail on EACH commercial's row
 
-The user's live screenshot showed only the first outcome columns alongside the wide time/presence columns. The roster now renders separate **Présence et temps** (6 columns) and **Dossiers traités par état** tables. The latter includes Commercial, Total traité and every configured/observed outcome, including zero counts. It uses a fixed-width layout with wrapping headings on desktop; a labeled focusable overflow region and explanatory text support smaller screens. Both tables share the selected period and sort order; clicking a name in either still opens a targeted message. The additional UI regression asserts all seven example outcomes, not just the two initially visible. This DOM/CSS change still needs a visual check in the actual browser.
+The user rejected separating time and dossier details into two tables. **Do not restore the separate outcome table.** The current roster has seven columns: Commercial, État actuel, Pause en cours, Temps en poste, Temps de pause, Dossiers traités, and **Détail des dossiers traités**. Each commercial's last cell contains labeled counters for À rappeler (occupé), Faux numéro, Intéressé, Ne répond pas, Non éligible, Pas intéressé, Transmis sur Plateforme, and any other configured/observed outcome, including zeros. These counters come from that row's by_result, NOT the aggregate team counts. The example names showing 6 processed dossiers must show their own distribution, not the team total.
+
+The detail header provides clickable outcome labels to preserve per-outcome sorting without extending the table far off-screen. Headings and badges wrap; the detail cell receives 45% of the table width. On mobile the table can scroll horizontally. The regression uses two commercial accounts with different counts and verifies every zero/nonzero outcome on the same row as that person's total. A visual check in the user's actual browser remains necessary.
 
 The initial Git push was rejected by automatic approval review because authorization for the exact public origin destination was not considered explicit enough. Local commits and packages exist; remote publication remains unconfirmed until the user explicitly confirms the destination and a new authorized push succeeds. Never describe these local commits as already on GitHub.
