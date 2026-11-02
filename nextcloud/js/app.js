@@ -896,6 +896,7 @@ function auditCard() {
 }
 // ---- Présence des commerciaux ----
 const PRESENCE_LABELS = {online:T('En poste'), pause:T('En pause'), absent:'Absent'};
+const presenceLabel = p => p.status === 'pause' && p.pause_kind === 'lunch' ? 'Pause déjeuner' : (PRESENCE_LABELS[p.status] || 'Absent');
 let personalTimesBox = null, personalTimesBusy = false;
 let personalPeriod = {period:'day'}, rosterPeriod = {period:'day'};
 const presencePath = (base, filter) => base + '?' + new window.URLSearchParams(filter);
@@ -981,7 +982,7 @@ function changeRosterSort(key) {
   Array.from(rosterBox?.querySelectorAll('th button') || []).find(b => b.dataset.sortKey === key)?.focus();
 }
 function sortedCommercials(rows) {
-  const value = u => rosterSort === 'name' ? u.name : rosterSort === 'status' ? (PRESENCE_LABELS[u.status] || '') : rosterSort === 'currentPause' ? (u.status === 'pause' && u.pause_since ? Math.max(0,lastRosterReport.server_now - u.pause_since) : 0) : rosterSort === 'processed' ? Number(u.processed || 0) : rosterSort.startsWith('result:') ? Number((u.by_result || {})[rosterSort.slice(7)] || 0) : Number(u.totals.selected[rosterSort] || 0);
+  const value = u => rosterSort === 'name' ? u.name : rosterSort === 'status' ? presenceLabel(u) : rosterSort === 'currentPause' ? (u.status === 'pause' && u.pause_since ? Math.max(0,lastRosterReport.server_now - u.pause_since) : 0) : rosterSort === 'processed' ? Number(u.processed || 0) : rosterSort.startsWith('result:') ? Number((u.by_result || {})[rosterSort.slice(7)] || 0) : Number(u.totals.selected[rosterSort] || 0);
   return rows.slice().sort((a,b) => {
     const av = value(a), bv = value(b), order = typeof av === 'string' ? av.localeCompare(bv,'fr',{numeric:true,sensitivity:'base'}) : av - bv;
     return (rosterDirection === 'desc' ? -order : order) || a.name.localeCompare(b.name,'fr') || a.uid.localeCompare(b.uid);
@@ -1045,6 +1046,7 @@ function syncPauseScreen() {
     resume.focus();
     pauseClock = setInterval(paintPauseClock, 1000);
   }
+  pauseDialog.querySelector('#pause-title').textContent = myPresence.pause_kind === 'lunch' ? 'Pause déjeuner — bon appétit !' : 'Vous êtes en pause';
   pauseDialog.querySelector('button').disabled = presenceBusy;
   pauseDialog.querySelector('.pause-error').textContent = presenceError;
   paintPauseClock();
@@ -1092,23 +1094,24 @@ function openCommercialMessage(user) {
   text.focus();
 }
 function presenceControl() {
-  const label = presenceError ? T('État non confirmé') : (myPresence ? PRESENCE_LABELS[myPresence.status] : T('Vérification…'));
+  const label = presenceError ? T('État non confirmé') : (myPresence ? presenceLabel(myPresence) : T('Vérification…'));
   return h('div', {class:'presence-control'},
     h('span', {class:'presence-badge ' + (!presenceError && myPresence ? myPresence.status : 'unknown'), role:'status'}, label),
     h('button', {disabled:presenceBusy || !myPresence, onclick:() => updateMyPresence(!myPresence.paused)},
       myPresence && myPresence.paused ? T('Reprendre le travail') : T('Me mettre en pause')),
+    h('button', {class:'lunch-break-button', disabled:presenceBusy || !myPresence || myPresence.paused, onclick:() => updateMyPresence(true,'lunch')}, 'Pause déjeuner'),
     presenceError ? h('span', {class:'err', role:'status'}, presenceError) : '');
 }
 function paintMyPresence() {
   root.querySelector('.presence-control')?.replaceWith(presenceControl());
   syncPauseScreen();
 }
-async function updateMyPresence(paused) {
+async function updateMyPresence(paused, kind) {
   if (me.role !== 'commercial' || presenceBusy) return;
   presenceBusy = true; paintMyPresence();
   try {
     myPresence = await api(paused === undefined ? '/presence/heartbeat' : '/presence/pause',
-      {method:'POST', ...(paused === undefined ? {} : {body:{paused}})});
+      {method:'POST', ...(paused === undefined ? {} : {body:{paused, ...(kind ? {kind} : {})}})});
     presenceReceived = Date.now();
     presenceError = '';
   } catch (e) { presenceError = T('Connexion indisponible : état non confirmé.'); }
@@ -1142,7 +1145,7 @@ function renderPresenceBoard(report) {
       const counts = Object.fromEntries(states.map(key => [key,Number((u.by_result || {})[key] || 0)]));
       return h('tr', {},
         h('td', {}, h('button', {class:'commercial-message-link', 'aria-label':'Envoyer un message à ' + u.name, onclick:() => openCommercialMessage(u)}, u.name)),
-        h('td', {}, h('span', {class:'presence-badge ' + u.status}, PRESENCE_LABELS[u.status] || 'Absent')),
+        h('td', {}, h('span', {class:'presence-badge ' + u.status}, presenceLabel(u))),
         h('td', {}, u.status === 'pause' && u.pause_since ? duration(report.server_now - u.pause_since) : '—'),
         ['online','pause'].map(mode => h('td', {}, duration(u.totals.selected[mode]))),
         h('td', {}, String(u.processed)), h('td', {class:'commercial-outcome-detail'}, dossierResults(counts)));

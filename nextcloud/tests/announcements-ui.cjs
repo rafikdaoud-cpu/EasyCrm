@@ -387,3 +387,18 @@ test('every commercial row includes their own seven outcome counts beside total,
   assert.equal(counts.find(x => x.textContent.includes('À rappeler')).querySelector('strong').textContent,'3');
   assert.equal(counts.find(x => x.textContent.includes('Non éligible')).querySelector('strong').textContent,'0');
 });
+
+test('lunch button persists its kind, blocks CRM and displays a lunch timer', async () => {
+  const {ui,context,document,calls} = setup('commercial');
+  document.body.append(ui.presenceControl());
+  context.respond = async () => ({status:'online',paused:false,pause_kind:'pause',server_now:100,last_seen:100});
+  await ui.updateMyPresence();
+  context.respond = async () => ({status:'pause',paused:true,pause_kind:'lunch',pause_since:40,server_now:100,last_seen:100});
+  document.querySelector('.lunch-break-button').click(); await tick();
+  assert.equal(calls.at(-1).options.body.kind,'lunch'); assert.equal(calls.at(-1).options.body.paused,true);
+  assert.match(document.querySelector('#pause-title').textContent,/Pause déjeuner/);
+  assert.match(document.querySelector('.presence-control .presence-badge').textContent,/Pause déjeuner/);
+  assert.equal(document.querySelector('.pause-timer').textContent,'00:01:00');
+  assert.equal(document.body.hasAttribute('inert'),true);
+  await ui.updateMyPresence(); assert.match(document.querySelector('#pause-title').textContent,/Pause déjeuner/);
+});

@@ -13,8 +13,8 @@ namespace {
  }
  $db->pdo->exec('CREATE TABLE easycrm_calls (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, prospect_id INTEGER NOT NULL, created_at INTEGER NOT NULL, result TEXT NOT NULL DEFAULT \'interesse\')');
  $config = new PresenceConfig();
- $db->pdo->exec('CREATE TABLE easycrm_presence (user_id TEXT PRIMARY KEY, paused INTEGER NOT NULL, segment_start INTEGER NOT NULL, last_seen INTEGER NOT NULL, revision INTEGER NOT NULL)');
- $db->pdo->exec('CREATE TABLE easycrm_presence_log (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, paused INTEGER NOT NULL, started_at INTEGER NOT NULL, ended_at INTEGER NOT NULL)');
+ $db->pdo->exec('CREATE TABLE easycrm_presence (user_id TEXT PRIMARY KEY, paused INTEGER NOT NULL, pause_kind TEXT NOT NULL DEFAULT \'pause\', segment_start INTEGER NOT NULL, last_seen INTEGER NOT NULL, revision INTEGER NOT NULL)');
+ $db->pdo->exec('CREATE TABLE easycrm_presence_log (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, paused INTEGER NOT NULL, pause_kind TEXT NOT NULL DEFAULT \'pause\', started_at INTEGER NOT NULL, ended_at INTEGER NOT NULL)');
  $presence = new \OCA\EasyCrm\Service\Presence($config, $db);
  check($presence->state('alice')['status'] === 'absent', 'never-connected commercial is absent');
  $state = $presence->heartbeat('alice');
@@ -129,5 +129,22 @@ namespace {
  }
  $dst = \OCA\EasyCrm\Service\PresenceRange::resolve(['period'=>'custom','from'=>'2026-03-29','to'=>'2026-03-29'],new \DateTimeZone('Europe/Paris'),$stamp('2026-04-01 00:00:00'));
  check($dst['end'] - $dst['start'] === 23*3600, 'calendar end uses local next midnight across DST');
+ $request->params = ['paused'=>true,'kind'=>'lunch'];
+ $meal = $asPresence('alice')->pause()->data;
+ check($meal['paused'] && $meal['pause_kind'] === 'lunch', 'commercial starts a lunch break');
+ check($asPresence('alice')->heartbeat()->data['pause_kind'] === 'lunch', 'lunch label survives reload and heartbeat');
+ $roster = $asPresence('supervisor')->roster()->data['rows'];
+ check($roster[0]['pause_kind'] === 'lunch', 'supervisor receives lunch state');
+ foreach (['invalid',[]] as $invalid) {
+  $request->params = ['paused'=>true,'kind'=>$invalid];
+  check($asPresence('alice')->pause()->status === 400, 'invalid pause kind is rejected');
+ }
+ $request->params = ['paused'=>false];
+ check($asPresence('alice')->pause()->data['pause_kind'] === 'pause', 'resume clears lunch kind');
+ $presence->touch('meal',true,$t,'lunch'); $presence->touch('meal',null,$t+30);
+ $presence->touch('meal',false,$t+90);
+ $mealTotals = $presence->report(['meal'],$t+120)['rows']['meal']['totals']['month'];
+ check($mealTotals === ['online'=>30,'pause'=>90], 'lunch time is included exactly once in pause totals');
+ check($db->pdo->query("SELECT pause_kind FROM easycrm_presence_log WHERE user_id = 'meal'")->fetchColumn() === 'lunch', 'lunch kind retained in interval history');
  echo "Presence and announcement checks: $count passed\n";
 }

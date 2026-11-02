@@ -27,7 +27,9 @@ class PresenceController extends Controller {
 		if ($this->a->role() !== 'commercial') { return $this->denied(); }
 		$paused = $this->request->getParam('paused');
 		if (!is_bool($paused)) { return new JSONResponse(['error' => 'État de pause invalide'], 400); }
-		return new JSONResponse($this->presence->pause($this->a->uid(), $paused));
+		$kind = $this->request->getParam('kind','pause');
+		if (!is_string($kind) || !in_array($kind,['pause','lunch'],true)) { return new JSONResponse(['error'=>'Type de pause invalide'],400); }
+		return new JSONResponse($this->presence->pause($this->a->uid(), $paused, $kind));
 	}
 	#[NoAdminRequired]
 	public function mine(): JSONResponse {

@@ -8,8 +8,8 @@ Repository: `rafikdaoud-cpu/EasyCrm`. Starting commit: `f2189af55f246b430837aa93
 
 | Edition | Folder / namespace | App version | New migrations |
 |---|---|---|---|
-| CSM Call CRM | callcrm / OCA\CallCrm | 0.23.2 | 1009 announcements, 1010 presence/history |
-| EasyCrm Nextcloud | nextcloud / OCA\EasyCrm | 1.4.2 | 1005 announcements, 1006 presence/history |
+| CSM Call CRM | callcrm / OCA\CallCrm | 0.24.0 | 1009 announcements, 1010 presence/history |
+| EasyCrm Nextcloud | nextcloud / OCA\EasyCrm | 1.5.0 | 1005 announcements, 1006 presence/history |
 
 Working branch: `feat/annonces-presence-statistiques`. Changes are delivered through that feature branch for review; publication must be established from the actual Git push result, not inferred from a local commit. The new Statistiques response-type table counts all call outcomes (not distinct dossiers), includes configured zero-count types and observed historical types, and sorts by clickable headings. Never hard-code counts from the screenshot.
 
@@ -62,7 +62,7 @@ NODE_PATH=/tmp/crm-ui-tests/node_modules tools/test-nextcloud.sh
 
 Set `PHP_BIN` if PHP is not on PATH. Keep test dependency downloads outside the checkout. Commands return nonzero on failure.
 
-Per edition, `tests/presence.php` includes the announcements suite and currently checks 91 conditions: roles, CSRF annotations, recipient scoping, transactional failures, manual date validation, day/week/month/DST boundaries, gap clipping, distinct dossiers and last-result tie handling. SQLite is real; Nextcloud interfaces and query builder are doubles. UI tests execute real functions plus complete app startup/statistics paths in jsdom: Call CRM 21 tests, EasyCrm 22 tests (extra conditional WhatsApp navigation regression). Shared `tests/migrations.php` executes actual new migration callbacks against a schema double, verifies required fields, repeatability, preservation of pre-existing tables and unique cross-app index names.
+Per edition, `tests/presence.php` includes the announcements suite and currently checks 99 conditions: roles, CSRF annotations, recipient scoping, transactional failures, manual date validation, day/week/month/DST boundaries, gap clipping, distinct dossiers and last-result tie handling. SQLite is real; Nextcloud interfaces and query builder are doubles. UI tests execute real functions plus complete app startup/statistics paths in jsdom: Call CRM 22 tests, EasyCrm 23 tests (extra conditional WhatsApp navigation regression). Shared `tests/migrations.php` executes actual new migration callbacks against a schema double, verifies required fields, repeatability, preservation of pre-existing tables and unique cross-app index names.
 
 These are **local validations, not proof of production Nextcloud compatibility**. No PHP/Nextcloud server integration, actual MySQL/MariaDB/PostgreSQL migration, browser visual review, real concurrent multi-process stress or live VPS deployment was performed by this agent. Before deployment, validate both apps on a staging Nextcloud with actual commercial/admin/supervisor accounts. Test pause/reload, multi-tab updates, offline/resume, custom ranges, header sorting, persistent message dismissal and sending from the roster. Verify PBX/WhatsApp and existing call stats still operate on the target installation.
 
@@ -89,3 +89,9 @@ The user rejected separating time and dossier details into two tables. **Do not 
 The detail header provides clickable outcome labels to preserve per-outcome sorting without extending the table far off-screen. Headings and badges wrap; the detail cell receives 45% of the table width. On mobile the table can scroll horizontally. The regression uses two commercial accounts with different counts and verifies every zero/nonzero outcome on the same row as that person's total. A visual check in the user's actual browser remains necessary.
 
 The initial Git push required explicit confirmation of the public destination. The user subsequently confirmed publication. On 2026-11-02 the branch `feat/annonces-presence-statistiques` was successfully pushed to `https://github.com/rafikdaoud-cpu/EasyCrm`, including commits `6de8f8f`, `cbc9d6d` and `ec10991`. The final implementation is the inline per-commercial outcome detail from `ec10991`; the intermediate separate-table layout is superseded. At the user’s request, the feature branch was subsequently merged into `main` by fast-forward on 2026-11-02, preserving all feature commits. Git publication does not establish VPS deployment. See the branch history for subsequent documentation commits.
+
+## Lunch button and UI proposals (2026-11-02)
+
+Pause déjeuner is implemented for both editions, alongside the ordinary pause button. API `POST /presence/pause` accepts optional `kind: "pause" | "lunch"`; existing clients omitting it keep ordinary pause behavior. The server persists `pause_kind` in current state and closed intervals. New additive migrations: Call CRM 1011 / EasyCrm 1007; existing rows default to ordinary pause. Lunch is labeled explicitly in the user's blocking timer screen and supervisor roster, survives reload/heartbeat and is included in aggregate pause totals (not separately reported yet). Resume clears its kind. Do not modify earlier migrations.
+
+The user also requested UI/UX **proposals**, not an immediate global redesign. See `UI_PROPOSALS.md` and standalone `ui-proposals.html` for three illustrative designs. Await their selection before implementing a redesign. Recommendation: clear table for supervisors plus My day for commercials.

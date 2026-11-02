@@ -1,4 +1,4 @@
-# Présence des commerciaux — EasyCrm 1.4.2
+# Présence des commerciaux — EasyCrm 1.5.0
 
 ## Utilisation
 
@@ -61,7 +61,7 @@ Attendre la fin de la mise à jour. Si `needsDbUpgrade: false` et que la command
 php occ maintenance:mode --off
 ```
 
-Conserver les propriétaire et permissions de l'installation. Recharger les pages et l'application Android pour charger le nouveau JavaScript. La migration 1006 crée les tables `easycrm_presence` et `easycrm_presence_log`. La migration des annonces reste incluse pour les installations venant d’une version antérieure. Les durées ne sont collectées qu’à partir de l’installation de la fonction de suivi ; aucun historique de temps ancien n’est reconstitué. Les dossiers traités utilisent l’historique d’appels conservé en base, y compris antérieur à cette version. Aucune nouvelle migration depuis la version 1.4.2 n’est nécessaire ; lancer occ upgrade pour enregistrer la version applicative reste requis.
+Conserver les propriétaire et permissions de l'installation. Recharger les pages et l'application Android pour charger le nouveau JavaScript. La migration 1006 crée les tables `easycrm_presence` et `easycrm_presence_log`. La migration des annonces reste incluse pour les installations venant d’une version antérieure. Les durées ne sont collectées qu’à partir de l’installation de la fonction de suivi ; aucun historique de temps ancien n’est reconstitué. Les dossiers traités utilisent l’historique d’appels conservé en base, y compris antérieur à cette version. Aucune nouvelle migration depuis la version 1.5.0 n’est nécessaire ; lancer occ upgrade pour enregistrer la version applicative reste requis.
 
 Cette version n'a pas été déployée sur le VPS. Vérifier sur une instance de test avec deux comptes : connexion commercial, pause, reprise, fermeture de tous les onglets du compte, absence après deux minutes et retour. Tester aussi plusieurs onglets et une perte réseau.
 
@@ -88,3 +88,7 @@ Le tableau « Résultats d’appels par type de réponse » des Statistiques aff
 ## Détail par commercial sur la même ligne
 
 La colonne **Détail des dossiers traités**, à côté du total, affiche pour chaque commercial ses propres nombres par état (À rappeler, Faux numéro, Intéressé, Ne répond pas, Non éligible, Pas intéressé, Transmis sur Plateforme, etc.). Les valeurs à zéro restent visibles. Il ne s’agit pas seulement du récapitulatif global de l’équipe. Les libellés d’état dans l’en-tête permettent de trier les commerciaux selon ces nombres.
+
+## Pause déjeuner
+
+Le bouton **Pause déjeuner** est à côté de la pause classique. Il ouvre le même écran bloquant avec chronomètre, intitulé Pause déjeuner. Le type est conservé après rechargement et visible dans l’état du tableau superviseur. Le bouton Reprendre le travail termine cette pause. Le déjeuner est inclus dans le temps de pause total ; le type est également conservé dans l’historique pour une éventuelle analyse future. Cette version ajoute une migration pour `pause_kind` : lancer `occ upgrade` avant de recharger les pages.

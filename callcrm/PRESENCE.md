@@ -1,4 +1,4 @@
-# Présence des commerciaux — Call CRM 0.23.2
+# Présence des commerciaux — Call CRM 0.24.0
 
 ## Utilisation
 
@@ -84,3 +84,7 @@ Le tableau « Résultats d’appels par type de réponse » des Statistiques aff
 ## Détail par commercial sur la même ligne
 
 La colonne **Détail des dossiers traités**, à côté du total, affiche pour chaque commercial ses propres nombres par état (À rappeler, Faux numéro, Intéressé, Ne répond pas, Non éligible, Pas intéressé, Transmis sur Plateforme, etc.). Les valeurs à zéro restent visibles. Il ne s’agit pas seulement du récapitulatif global de l’équipe. Les libellés d’état dans l’en-tête permettent de trier les commerciaux selon ces nombres.
+
+## Pause déjeuner
+
+Le bouton **Pause déjeuner** est à côté de la pause classique. Il ouvre le même écran bloquant avec chronomètre, intitulé Pause déjeuner. Le type est conservé après rechargement et visible dans l’état du tableau superviseur. Le bouton Reprendre le travail termine cette pause. Le déjeuner est inclus dans le temps de pause total ; le type est également conservé dans l’historique pour une éventuelle analyse future. Cette version ajoute une migration pour `pause_kind` : lancer `occ upgrade` avant de recharger les pages.

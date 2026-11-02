@@ -109,3 +109,5 @@
 #easycrm .commercial-outcome-detail .dossier-result-count{white-space:normal;max-width:100%}
 #easycrm .commercial-outcome-detail .badge{white-space:normal}
 @media(max-width:760px){#easycrm .presence-overview table.t{min-width:900px}}
+
+#easycrm .presence-control .lunch-break-button{background:#fff7ed;color:#9a3412;border:1px solid #fed7aa}

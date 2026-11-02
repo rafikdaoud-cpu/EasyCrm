@@ -14,10 +14,11 @@ class Presence {
   return $r ?: null;
  }
  public function heartbeat(string $uid): array { return $this->touch($uid, null, time()); }
- public function pause(string $uid, bool $paused): array { return $this->touch($uid, $paused, time()); }
+ public function pause(string $uid, bool $paused, string $kind = 'pause'): array { return $this->touch($uid, $paused, time(), $kind); }
 
  /** Compare-and-swap transactionnel : une seule transition peut gagner par révision. */
- public function touch(string $uid, ?bool $paused, int $now): array {
+ public function touch(string $uid, ?bool $paused, int $now, ?string $kind = null): array {
+  if ($kind !== null && !in_array($kind,['pause','lunch'],true)) { throw new \InvalidArgumentException('Type de pause invalide.'); }
   for ($attempt = 0; $attempt < 3; $attempt++) {
    $this->db->beginTransaction();
    try {
@@ -25,17 +26,18 @@ class Presence {
     if (!$old) {
      $p = $paused ?? ($this->config->getUserValue($uid, 'callcrm', 'presence_pause', '0') === '1');
      $q = $this->db->getQueryBuilder(); $q->insert('callcrm_presence');
-     foreach (['user_id'=>$uid,'paused'=>(int)$p,'last_seen'=>$now,'segment_start'=>$now,'revision'=>1] as $k=>$v) { $q->setValue($k,$q->createNamedParameter($v)); }
+     foreach (['user_id'=>$uid,'paused'=>(int)$p,'pause_kind'=>$p ? ($kind ?? 'pause') : 'pause','last_seen'=>$now,'segment_start'=>$now,'revision'=>1] as $k=>$v) { $q->setValue($k,$q->createNamedParameter($v)); }
      $q->executeStatement();
     } else {
      $now = max($now, (int)$old['last_seen']);
      $p = $paused ?? (bool)$old['paused'];
      $expired = $now >= (int)$old['last_seen'] + self::TIMEOUT;
-     $changed = $p !== (bool)$old['paused'];
+     $nextKind = $p ? ($kind ?? ($old['pause_kind'] ?? 'pause')) : 'pause';
+     $changed = $p !== (bool)$old['paused'] || ($p && $nextKind !== ($old['pause_kind'] ?? 'pause'));
      $start = ($expired || $changed) ? $now : (int)$old['segment_start'];
      $q = $this->db->getQueryBuilder();
      $affected = $q->update('callcrm_presence')->set('paused',$q->createNamedParameter((int)$p))
-      ->set('last_seen',$q->createNamedParameter($now))->set('segment_start',$q->createNamedParameter($start))
+      ->set('pause_kind',$q->createNamedParameter($nextKind))->set('last_seen',$q->createNamedParameter($now))->set('segment_start',$q->createNamedParameter($start))
       ->set('revision',$q->createNamedParameter((int)$old['revision']+1))
       ->where($q->expr()->eq('user_id',$q->createNamedParameter($uid)))
       ->andWhere($q->expr()->eq('revision',$q->createNamedParameter((int)$old['revision'])))->executeStatement();
@@ -44,7 +46,7 @@ class Presence {
       $end = min($now, (int)$old['last_seen'] + self::TIMEOUT);
       if ($end > (int)$old['segment_start']) {
        $q = $this->db->getQueryBuilder(); $q->insert('callcrm_presence_log');
-       foreach (['user_id'=>$uid,'paused'=>(int)$old['paused'],'started_at'=>(int)$old['segment_start'],'ended_at'=>$end] as $k=>$v) { $q->setValue($k,$q->createNamedParameter($v)); }
+       foreach (['user_id'=>$uid,'paused'=>(int)$old['paused'],'pause_kind'=>$old['pause_kind'] ?? 'pause','started_at'=>(int)$old['segment_start'],'ended_at'=>$end] as $k=>$v) { $q->setValue($k,$q->createNamedParameter($v)); }
        $q->executeStatement();
       }
      }
@@ -61,7 +63,7 @@ class Presence {
  private function describe(?array $r, int $now): array {
   $seen = (int)($r['last_seen'] ?? 0); $p = (bool)($r['paused'] ?? false);
   $online = $r !== null && $now - $seen < self::TIMEOUT;
-  return ['status'=>!$online ? 'absent' : ($p ? 'pause' : 'online'), 'paused'=>$p, 'last_seen'=>$seen,
+  return ['status'=>!$online ? 'absent' : ($p ? 'pause' : 'online'), 'paused'=>$p, 'pause_kind'=>$r['pause_kind'] ?? 'pause', 'last_seen'=>$seen,
    'pause_since'=>$online && $p ? (int)$r['segment_start'] : null, 'server_now'=>$now];
  }
  public function state(string $uid, ?int $now = null): array { return $this->describe($this->current($uid), $now ?? time()); }

@@ -1,6 +1,6 @@
 # Déployer Call CRM / EasyCrm
 
-Versions de ce lot : **Call CRM 0.23.2** et **EasyCrm 1.4.2**. Les deux applications sont indépendantes : ni les tables, ni les rôles, ni les préférences ne sont partagés.
+Versions de ce lot : **Call CRM 0.24.0** et **EasyCrm 1.5.0**. Les deux applications sont indépendantes : ni les tables, ni les rôles, ni les préférences ne sont partagés.
 
 ## Préparer et vérifier
 
@@ -11,8 +11,8 @@ Versions de ce lot : **Call CRM 0.23.2** et **EasyCrm 1.4.2**. Les deux applicat
 
 | ZIP | Dossier racine dans le ZIP | Destination |
 |---|---|---|
-| callcrm-0.23.2.zip | callcrm/ | custom_apps/callcrm/ |
-| easycrm-1.4.2.zip | easycrm/ | custom_apps/easycrm/ |
+| callcrm-0.24.0.zip | callcrm/ | custom_apps/callcrm/ |
+| easycrm-1.5.0.zip | easycrm/ | custom_apps/easycrm/ |
 
 Ne pas créer `callcrm/callcrm` ou `easycrm/easycrm`. Ne pas renommer les identifiants des applications pour les faire correspondre à un dossier. Le dossier Git `nextcloud/` contient l'application d'identifiant `easycrm` et le script l'archive correctement.
 
@@ -59,3 +59,5 @@ Avec des comptes de test commercial / superviseur / administrateur, contrôler :
 ## Revenir en arrière
 
 Une baisse du numéro de version n'annule pas les migrations. En cas de problème, remettre l'instance en maintenance puis restaurer une sauvegarde cohérente de code ET de base selon le plan validé. Ne pas supprimer les tables manuellement pour « réessayer » : cela détruirait les annonces et l'historique des temps. Conserver une copie de l'état défaillant pour le diagnostic avant toute restauration.
+
+La version Pause déjeuner nécessite les migrations additives Call CRM 1011 / EasyCrm 1007 (`pause_kind` dans l’état courant et l’historique). Même depuis le paquet précédent, exécuter `occ upgrade` avant de charger le nouveau JavaScript.
