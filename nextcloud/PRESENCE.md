@@ -1,4 +1,4 @@
-# Présence des commerciaux — EasyCrm 1.4.0
+# Présence des commerciaux — EasyCrm 1.4.1
 
 ## Utilisation
 
@@ -61,7 +61,7 @@ Attendre la fin de la mise à jour. Si `needsDbUpgrade: false` et que la command
 php occ maintenance:mode --off
 ```
 
-Conserver les propriétaire et permissions de l'installation. Recharger les pages et l'application Android pour charger le nouveau JavaScript. La migration 1006 crée les tables `easycrm_presence` et `easycrm_presence_log`. La migration des annonces reste incluse pour les installations venant d’une version antérieure. Les durées ne sont collectées qu’à partir de l’installation de la fonction de suivi ; aucun historique de temps ancien n’est reconstitué. Les dossiers traités utilisent l’historique d’appels conservé en base, y compris antérieur à cette version. Aucune nouvelle migration depuis la version 1.4.0 n’est nécessaire ; lancer occ upgrade pour enregistrer la version applicative reste requis.
+Conserver les propriétaire et permissions de l'installation. Recharger les pages et l'application Android pour charger le nouveau JavaScript. La migration 1006 crée les tables `easycrm_presence` et `easycrm_presence_log`. La migration des annonces reste incluse pour les installations venant d’une version antérieure. Les durées ne sont collectées qu’à partir de l’installation de la fonction de suivi ; aucun historique de temps ancien n’est reconstitué. Les dossiers traités utilisent l’historique d’appels conservé en base, y compris antérieur à cette version. Aucune nouvelle migration depuis la version 1.4.1 n’est nécessaire ; lancer occ upgrade pour enregistrer la version applicative reste requis.
 
 Cette version n'a pas été déployée sur le VPS. Vérifier sur une instance de test avec deux comptes : connexion commercial, pause, reprise, fermeture de tous les onglets du compte, absence après deux minutes et retour. Tester aussi plusieurs onglets et une perte réseau.
 

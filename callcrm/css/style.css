@@ -190,3 +190,11 @@ body[data-themes*="dark"] #callcrm,body[data-theme-dark] #callcrm{--brand:var(--
 #callcrm .sim-form label{margin:0}
 #callcrm .sim-form label input{display:block;width:100%;margin-top:4px}
 #callcrm .card .g2 label input{display:block;width:100%;max-width:none!important;margin-top:4px}
+
+/* Keep every outcome visible independently of the time columns. */
+#callcrm .presence-outcomes table.t{table-layout:fixed;width:100%;display:table;overflow:visible}
+#callcrm .presence-outcomes th:first-child{width:150px}
+#callcrm .presence-outcomes th,#callcrm .presence-outcomes td{padding:8px 5px;overflow-wrap:anywhere}
+#callcrm .presence-outcomes button.sort-heading{white-space:normal;overflow-wrap:anywhere;line-height:1.35}
+#callcrm .presence-outcomes td:not(:first-child){text-align:center;font-variant-numeric:tabular-nums}
+@media(max-width:760px){#callcrm .presence-outcomes table.t{min-width:720px}}

@@ -157,7 +157,7 @@ test('roster shows all three states and removes stale information after a failed
     {uid:'bob',name:'Bob',status:'pause',last_seen:120},
     {uid:'carol',name:'Carol',status:'absent',last_seen:0}].map(u => ({...u,processed:2,totals:{selected:{online:3600,pause:600},day:{online:3600,pause:600},week:{online:7200,pause:1200},month:{online:10800,pause:1800}}}))});
   ui.go('commerciaux'); await tick();
-  assert.equal(document.querySelectorAll('tbody tr').length,3);
+  assert.equal(document.querySelectorAll('.presence-overview tbody tr').length,3);
   assert.deepEqual(Array.from(document.querySelectorAll('.presence-badge'), b => b.textContent), ['En poste','En pause','Absent']);
   assert.match(document.body.textContent,/01:00:00/);
   assert.match(document.body.textContent,/Dossiers traités/);
@@ -323,7 +323,7 @@ test('roster supports numeric, name and outcome sorting and shares its selected 
     {uid:'bob',name:'Bob',status:'online',processed:2,by_result:{rappel:2},totals:{selected:{online:20,pause:0}}},
     {uid:'alice',name:'Alice',status:'pause',processed:10,by_result:{rappel:1,interesse:9},totals:{selected:{online:4,pause:10}}}]});
   ui.go('commerciaux'); await tick();
-  const names = () => Array.from(document.querySelectorAll('tbody .commercial-message-link'),x => x.textContent);
+  const names = () => Array.from(document.querySelectorAll('.presence-overview tbody .commercial-message-link'),x => x.textContent);
   assert.deepEqual(names(),['Alice','Bob']);
   assert.equal(document.querySelector('[aria-label="Trier les commerciaux"]'),null);
   document.querySelector('[data-sort-key=processed]').click(); assert.deepEqual(names(),['Bob','Alice']);
@@ -333,7 +333,7 @@ test('roster supports numeric, name and outcome sorting and shares its selected 
   document.querySelector('[data-sort-key="result:rappel"]').click();
   document.querySelector('[data-sort-key="result:rappel"]').click(); assert.deepEqual(names(),['Bob','Alice']);
   assert.equal(document.activeElement.dataset.sortKey,'result:rappel');
-  assert.match(document.querySelector('thead').textContent,/À rappeler/);
+  assert.match(document.querySelector('.presence-outcomes thead').textContent,/À rappeler/);
   const period = document.querySelector('[aria-label=Période]'); period.value = 'month'; period.dispatchEvent(new dom.window.Event('change')); await tick();
   assert.equal(calls.at(-1).path,'/presence?period=month'); assert.deepEqual(names(),['Bob','Alice']);
   period.value = 'custom'; period.dispatchEvent(new dom.window.Event('change'));
@@ -352,4 +352,19 @@ test('statistics include every configured or historical response type, zero coun
   assert.deepEqual(Array.from(cells().querySelectorAll('td')).slice(1).map(x => x.textContent),['18','8','9','7','4','1','0']);
   document.querySelector('[data-sort-key=rappel]').click(); assert.match(document.querySelector('tbody tr').textContent,/^Bob/);
   document.querySelector('[data-sort-key=rappel]').click(); assert.match(document.querySelector('tbody tr').textContent,/^Alice/);
+});
+
+test('all outcomes have dedicated visible-layout columns separated from presence times', async () => {
+  const {ui,context,document} = setup('superviseur');
+  const types = [['rappel','À rappeler (occupé)',18],['faux_numero','Faux numéro',0],['interesse','Intéressé',8],['injoignable','Ne répond pas',9],['non_eligible','Non éligible',7],['pas_interesse','Pas intéressé',4],['plateforme','Transmis sur Plateforme',1]];
+  ui.configure(types.map(([key,label]) => ({key,label,result:true,active:true})),{});
+  context.respond = async () => ({server_now:200,timezone:'Africa/Algiers',range:{from:'2026-11-02',to:'2026-11-02'},rows:[{uid:'alice',name:'Alice',status:'online',processed:47,totals:{selected:{online:100,pause:10}},by_result:Object.fromEntries(types.map(([key,,n]) => [key,n]))}]});
+  ui.go('commerciaux'); await tick();
+  assert.equal(document.querySelectorAll('.presence-overview th').length,6);
+  assert.equal(document.querySelectorAll('.presence-outcomes th').length,9);
+  for (const [key,label] of types) {
+    const header = document.querySelector('.presence-outcomes [data-sort-key="result:' + key + '"]');
+    assert.ok(header); assert.ok(header.textContent.includes(label));
+  }
+  assert.deepEqual(Array.from(document.querySelectorAll('.presence-outcomes tbody td')).map(x => x.textContent), ['Alice','47','18','0','8','9','7','4','1']);
 });

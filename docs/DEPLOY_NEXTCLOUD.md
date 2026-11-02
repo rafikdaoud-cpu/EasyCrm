@@ -1,6 +1,6 @@
 # Déployer Call CRM / EasyCrm
 
-Versions de ce lot : **Call CRM 0.23.0** et **EasyCrm 1.4.0**. Les deux applications sont indépendantes : ni les tables, ni les rôles, ni les préférences ne sont partagés.
+Versions de ce lot : **Call CRM 0.23.1** et **EasyCrm 1.4.1**. Les deux applications sont indépendantes : ni les tables, ni les rôles, ni les préférences ne sont partagés.
 
 ## Préparer et vérifier
 
@@ -11,8 +11,8 @@ Versions de ce lot : **Call CRM 0.23.0** et **EasyCrm 1.4.0**. Les deux applicat
 
 | ZIP | Dossier racine dans le ZIP | Destination |
 |---|---|---|
-| callcrm-0.23.0.zip | callcrm/ | custom_apps/callcrm/ |
-| easycrm-1.4.0.zip | easycrm/ | custom_apps/easycrm/ |
+| callcrm-0.23.1.zip | callcrm/ | custom_apps/callcrm/ |
+| easycrm-1.4.1.zip | easycrm/ | custom_apps/easycrm/ |
 
 Ne pas créer `callcrm/callcrm` ou `easycrm/easycrm`. Ne pas renommer les identifiants des applications pour les faire correspondre à un dossier. Le dossier Git `nextcloud/` contient l'application d'identifiant `easycrm` et le script l'archive correctement.
 

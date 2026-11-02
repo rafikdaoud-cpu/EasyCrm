@@ -1,4 +1,4 @@
-# Présence des commerciaux — Call CRM 0.23.0
+# Présence des commerciaux — Call CRM 0.23.1
 
 ## Utilisation
 

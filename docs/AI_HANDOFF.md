@@ -8,8 +8,8 @@ Repository: `rafikdaoud-cpu/EasyCrm`. Starting commit: `f2189af55f246b430837aa93
 
 | Edition | Folder / namespace | App version | New migrations |
 |---|---|---|---|
-| CSM Call CRM | callcrm / OCA\CallCrm | 0.23.0 | 1009 announcements, 1010 presence/history |
-| EasyCrm Nextcloud | nextcloud / OCA\EasyCrm | 1.4.0 | 1005 announcements, 1006 presence/history |
+| CSM Call CRM | callcrm / OCA\CallCrm | 0.23.1 | 1009 announcements, 1010 presence/history |
+| EasyCrm Nextcloud | nextcloud / OCA\EasyCrm | 1.4.1 | 1005 announcements, 1006 presence/history |
 
 Working branch: `feat/annonces-presence-statistiques`. Changes are delivered through that feature branch for review; publication must be established from the actual Git push result, not inferred from a local commit. The new Statistiques response-type table counts all call outcomes (not distinct dossiers), includes configured zero-count types and observed historical types, and sorts by clickable headings. Never hard-code counts from the screenshot.
 
@@ -62,7 +62,7 @@ NODE_PATH=/tmp/crm-ui-tests/node_modules tools/test-nextcloud.sh
 
 Set `PHP_BIN` if PHP is not on PATH. Keep test dependency downloads outside the checkout. Commands return nonzero on failure.
 
-Per edition, `tests/presence.php` includes the announcements suite and currently checks 91 conditions: roles, CSRF annotations, recipient scoping, transactional failures, manual date validation, day/week/month/DST boundaries, gap clipping, distinct dossiers and last-result tie handling. SQLite is real; Nextcloud interfaces and query builder are doubles. UI tests execute real functions plus complete app startup/statistics paths in jsdom: Call CRM 20 tests, EasyCrm 21 tests (extra conditional WhatsApp navigation regression). Shared `tests/migrations.php` executes actual new migration callbacks against a schema double, verifies required fields, repeatability, preservation of pre-existing tables and unique cross-app index names.
+Per edition, `tests/presence.php` includes the announcements suite and currently checks 91 conditions: roles, CSRF annotations, recipient scoping, transactional failures, manual date validation, day/week/month/DST boundaries, gap clipping, distinct dossiers and last-result tie handling. SQLite is real; Nextcloud interfaces and query builder are doubles. UI tests execute real functions plus complete app startup/statistics paths in jsdom: Call CRM 21 tests, EasyCrm 22 tests (extra conditional WhatsApp navigation regression). Shared `tests/migrations.php` executes actual new migration callbacks against a schema double, verifies required fields, repeatability, preservation of pre-existing tables and unique cross-app index names.
 
 These are **local validations, not proof of production Nextcloud compatibility**. No PHP/Nextcloud server integration, actual MySQL/MariaDB/PostgreSQL migration, browser visual review, real concurrent multi-process stress or live VPS deployment was performed by this agent. Before deployment, validate both apps on a staging Nextcloud with actual commercial/admin/supervisor accounts. Test pause/reload, multi-tab updates, offline/resume, custom ranges, header sorting, persistent message dismissal and sending from the roster. Verify PBX/WhatsApp and existing call stats still operate on the target installation.
 
@@ -81,3 +81,9 @@ An SSH public key was exchanged during the chat, but the agent environment lacke
 - Pause blocks the UI, not every unrelated API action as a security policy. Authentication/permissions remain enforced at endpoints. It does not prove physical attendance.
 - The pre-existing recording upload path can leave a pending row after storage failure and falsely treat a retry as duplicate. This was identified in the original review but intentionally left outside the requested feature work. It needs a separately reviewed fix/test; do not claim it is solved.
 - Tests are duplicated per edition to exercise each actual app. Keep new service/controller changes aligned and run both suites; do not regenerate whole UI files and overwrite edition differences.
+
+## Display follow-up: all dossier outcome columns
+
+The user's live screenshot showed only the first outcome columns alongside the wide time/presence columns. The roster now renders separate **Présence et temps** (6 columns) and **Dossiers traités par état** tables. The latter includes Commercial, Total traité and every configured/observed outcome, including zero counts. It uses a fixed-width layout with wrapping headings on desktop; a labeled focusable overflow region and explanatory text support smaller screens. Both tables share the selected period and sort order; clicking a name in either still opens a targeted message. The additional UI regression asserts all seven example outcomes, not just the two initially visible. This DOM/CSS change still needs a visual check in the actual browser.
+
+The initial Git push was rejected by automatic approval review because authorization for the exact public origin destination was not considered explicit enough. Local commits and packages exist; remote publication remains unconfirmed until the user explicitly confirms the destination and a new authorized push succeeds. Never describe these local commits as already on GitHub.

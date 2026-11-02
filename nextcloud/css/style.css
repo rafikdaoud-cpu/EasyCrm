@@ -94,3 +94,11 @@
 #easycrm .card textarea[aria-label="Message aux commerciaux"]{width:100%;box-sizing:border-box;margin-bottom:10px}
 .announcement-popup{max-height:85vh;overflow:auto}
 .announcement-body{white-space:pre-wrap;overflow-wrap:anywhere}
+
+/* Keep every outcome visible independently of the time columns. */
+#easycrm .presence-outcomes table.t{table-layout:fixed;width:100%;display:table;overflow:visible}
+#easycrm .presence-outcomes th:first-child{width:150px}
+#easycrm .presence-outcomes th,#easycrm .presence-outcomes td{padding:8px 5px;overflow-wrap:anywhere}
+#easycrm .presence-outcomes button.sort-heading{white-space:normal;overflow-wrap:anywhere;line-height:1.35}
+#easycrm .presence-outcomes td:not(:first-child){text-align:center;font-variant-numeric:tabular-nums}
+@media(max-width:760px){#easycrm .presence-outcomes table.t{min-width:720px}}
