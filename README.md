@@ -41,3 +41,12 @@ Each user gets a PBX **extension** (Odoo: user preferences; Nextcloud: Administr
 - Nextcloud: `/apps/easycrm/api/hook/pbx?token=…`, `/apps/easycrm/api/hook/wa?token=…`
 
 Testing status: unit/integration tests run against **simulated** servers (fake AMI socket, fake Yeastar/3CX/generic HTTP, mocked WhatsApp endpoints). Nothing has been validated against a real PBX or live WhatsApp account yet — try with a test extension first, and expect to tweak vendor-specific details (API paths, versions, templates).
+
+## Announcements, presence and statistics (2026-11-02)
+
+Call CRM 0.23.0 and EasyCrm Nextcloud 1.4.0 add one-way announcements, commercial presence/pause timers, scoped time reports, dossier outcomes and sorting by clickable headings. The original Odoo editions are unchanged.
+
+- [AI / maintainer handoff](docs/AI_HANDOFF.md): requirements, architecture, tests, limits and continuation notes.
+- [Deployment and rollback](docs/DEPLOY_NEXTCLOUD.md).
+- Run both application test suites: `tools/test-nextcloud.sh` (PHP extensions and jsdom prerequisites in the handoff).
+- Build versioned ZIPs: `python3 tools/package-nextcloud.py /tmp/crm-packages`.

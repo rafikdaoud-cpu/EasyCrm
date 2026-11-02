@@ -1,5 +1,12 @@
 <?php
 return ['routes' => [
+	['name' => 'presence#mine', 'url' => '/api/presence/mine', 'verb' => 'GET'],
+	['name' => 'presence#heartbeat', 'url' => '/api/presence/heartbeat', 'verb' => 'POST'],
+	['name' => 'presence#pause', 'url' => '/api/presence/pause', 'verb' => 'POST'],
+	['name' => 'presence#roster', 'url' => '/api/presence', 'verb' => 'GET'],
+	['name' => 'announcement#send', 'url' => '/api/announcements', 'verb' => 'POST'],
+	['name' => 'announcement#pending', 'url' => '/api/announcements', 'verb' => 'GET'],
+	['name' => 'announcement#dismiss', 'url' => '/api/announcements/{id}/dismiss', 'verb' => 'POST'],
 	['name' => 'page#index', 'url' => '/', 'verb' => 'GET'],
 	['name' => 'api#me', 'url' => '/api/me', 'verb' => 'GET'],
 	['name' => 'api#prospects', 'url' => '/api/prospects', 'verb' => 'GET'],

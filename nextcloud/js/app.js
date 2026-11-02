@@ -119,7 +119,7 @@ let CNT = {overdue:0, today:null, goal:0};
 /** Badge des rappels en retard + progression de l'objectif quotidien (commerciaux). */
 async function paintCounters() {
   try { CNT = await api('/counters'); } catch (e) { return; }
-  const btn = root.querySelector('.nav button[data-k="rappels"]');
+  const btn = root.querySelector('.dossier-states button[data-k="rappels"]');
   if (btn) { btn.querySelector('.ovd')?.remove(); if (CNT.overdue) btn.append(h('span', {class:'ovd', title:T('Rappels en retard')}, String(CNT.overdue))); }
   const g = root.querySelector('.nav .goal');
   if (g && CNT.goal && CNT.today !== null) {
@@ -128,15 +128,20 @@ async function paintCounters() {
   }
 }
 function nav() {
-  const t = TABS.slice();
-  if (me.can.all) t.push(['tous', T('Tous')]);
+  const inDossiers = !!KINDS[tab], t = [['dossiers', T('Dossiers Clients')]];
   if (TEL.wa === 'api') t.push(['wa', T('💬 WhatsApp')]);
   t.push(['stats', me.can.all ? T('Statistiques') : T('Mes statistiques')]);
   if (me.can.import) t.push(['admin', T('Administration')]);
-  return h('div', {class:'nav'}, t.map(([k, l]) => h('button', {class: tab === k ? 'on' : '', 'data-k': k, onclick: () => go(k)}, l)),
-    me.role === 'commercial' && me.prefs && me.prefs.goal ? h('span', {class:'goal muted'}) : '');
+  if (['admin','superviseur'].includes(me.role)) t.push(['annonce', T('Annonce')],['commerciaux', T('Commerciaux')]);
+  const states = TABS.slice(); if (me.can.all) states.push(['tous', T('Tous')]);
+  return h('div', {class:'client-navigation'}, h('div', {class:'nav'},
+    t.map(([k,label]) => h('button', {class:(k === 'dossiers' ? inDossiers : tab === k) ? 'on' : '', 'data-k':k, onclick:() => go(k)}, label)),
+    me.role === 'commercial' && me.prefs && me.prefs.goal ? h('span', {class:'goal muted'}) : '',
+    me.role === 'commercial' ? presenceControl() : ''),
+    inDossiers ? h('div', {class:'dossier-states', role:'group', 'aria-label':T('États des dossiers clients')},
+      states.map(([k,label]) => h('button', {class:tab === k ? 'on' : '', 'data-k':k, 'aria-pressed':String(tab === k), onclick:() => go(k)}, label))) : '');
 }
-function go(k) { tab = k; if (k === 'wa') waList(); else if (k === 'stats') stats(); else if (k === 'admin') admin(); else list(k); }
+function go(k) { if (k === 'dossiers') k = 'nouveaux'; tab = k; if (k === 'wa') waList(); else if (k === 'stats') stats(); else if (k === 'admin') admin(); else if (k === 'annonce') show(h('h2', {}, T('Annonce')), announcementCard()); else if (k === 'commerciaux') presenceBoard(); else list(k); }
 const modeOpts = none => [
   h('option', {value:'categorie'}, T('Par catégorie (groupe de chaque catégorie)')),
   h('option', {value:'auto'}, T('Équitablement (tous les commerciaux)')),
@@ -480,6 +485,7 @@ async function stats() {
   const rbtn = h('button', {class:'primary', onclick: () => load()}, T('↻ Actualiser'));
   const load = async () => {
     const p = params();
+    refreshPersonalTimes();
     rbtn.disabled = true; rbtn.textContent = T('↻ Actualisation…');
     try {
       jp = p; jpage = 1;
@@ -495,6 +501,9 @@ async function stats() {
       const goal = Number(s.goal) || 0;
       const rsum = (s.reasons || []).reduce((a, x) => a + Number(x.n), 0);
       sum.replaceChildren(
+        h('h3', {}, T('Résultats d’appels par type de réponse')),
+        h('p', {class:'muted'}, T('Nombre de résultats d’appel sur la période des statistiques, y compris les rappels et les réponses personnalisées. Plusieurs appels sur un dossier sont comptés ici séparément.')),
+        callResponsesTable(s.calls),
         h('h3', {}, T('Performance par commercial')),
         Object.keys(perf).length ? h('div', {style:'overflow-x:auto'}, h('table', {class:'t'},
           h('thead', {}, h('tr', {}, [T('Commercial'), goal ? T('Aujourd’hui / objectif') : T('Aujourd’hui'), T('Appels (période)'), T('Contacts'), T('Taux de contact'), T('Intéressés'), T('Taux d’intérêt')].map(x => h('th', {}, x)))),
@@ -531,6 +540,7 @@ async function stats() {
     } catch (e) { alert(e.message); }
   };
   show(h('h2', {}, me.can.all ? T('Statistiques') : T('Mes statistiques')),
+    me.role === 'commercial' ? personalTimesCard() : '',
     h('div', {class:'bar'}, me.can.all ? [usr.el, grp.el] : '', cat.el, res, h('label', {}, T('Du '), from), h('label', {}, T('Au '), to), presets, rbtn, me.can.export ? h('button', {onclick: xl, title: me.can.export_phone ? '' : T('Export sans numéros de téléphone')}, T('⬇ Télécharger Excel') + (me.can.export_phone ? '' : T(' (sans téléphone)'))) : '', upd),
     h('h3', {}, T('Journal des appels')), h('div', {class:'bar'}, jq), jpg,
     h('div', {style:'overflow-x:auto'}, box), sum);
@@ -884,6 +894,324 @@ function auditCard() {
     h('p', {class:'muted'}, T('Transferts, clôtures automatiques, imports, exports, suppressions : qui, quand, quoi.')),
     h('div', {class:'bar'}, act, h('button', {onclick: () => { page = 1; load(); }}, T('Afficher / actualiser'))), out, box);
 }
+// ---- Présence des commerciaux ----
+const PRESENCE_LABELS = {online:T('En poste'), pause:T('En pause'), absent:'Absent'};
+let personalTimesBox = null, personalTimesBusy = false;
+let personalPeriod = {period:'day'}, rosterPeriod = {period:'day'};
+const presencePath = (base, filter) => base + '?' + new window.URLSearchParams(filter);
+function presencePeriodFilter(current, apply) {
+  const period = h('select', {'aria-label':T('Période')},
+    [['day',T('Jour')],['week',T('Semaine')],['month',T('Mois')],['custom',T('Du / Au')]].map(([value,label]) => h('option', {value, selected:current.period === value}, label)));
+  const from = h('input', {type:'date', value:current.from || '', 'aria-label':'Du'});
+  const to = h('input', {type:'date', value:current.to || '', 'aria-label':'Au'});
+  const error = h('span', {class:'err', role:'status'});
+  const submit = () => {
+    if (period.value === 'custom' && (!from.value || !to.value || from.value > to.value)) {
+      error.textContent = T('Choisissez une date Du et une date Au égale ou postérieure.'); return;
+    }
+    error.textContent = '';
+    apply(period.value === 'custom' ? {period:'custom',from:from.value,to:to.value} : {period:period.value});
+  };
+  const dates = h('span', {class:'presence-dates', hidden:current.period !== 'custom'},
+    h('label', {}, T('Du '), from), h('label', {}, T('Au '), to), h('button', {onclick:submit}, 'Appliquer'));
+  period.addEventListener('change', () => { dates.hidden = period.value !== 'custom'; error.textContent = ''; if (period.value !== 'custom') submit(); });
+  return h('div', {class:'bar presence-period'}, h('label', {}, T('Période '), period), dates, error);
+}
+function sortableHeading(label, key, active, direction, change) {
+  return h('th', {scope:'col', 'aria-sort':active === key ? (direction === 'asc' ? 'ascending' : 'descending') : 'none'},
+    h('button', {class:'sort-heading', 'data-sort-key':key, onclick:() => change(key)},
+      label + ' ' + (active === key ? (direction === 'asc' ? '▲' : '▼') : '⇅')));
+}
+let personalResultSort = 'label', personalResultDirection = 'asc';
+function responseKeys(observed = []) {
+  const keys = (me.statuses || []).filter(x => x.result).map(x => x.key);
+  observed.forEach(key => { if (!keys.includes(key)) keys.push(key); });
+  return keys;
+}
+let responseSortKey = 'name', responseSortDirection = 'asc';
+function callResponsesTable(calls) {
+  const keys = responseKeys(calls.map(x => x.result)), byUser = {};
+  calls.forEach(x => { const row = byUser[x.user_id] ||= {}; row[x.result] = (row[x.result] || 0) + Number(x.n); });
+  if (me.role === 'commercial' && me.uid) byUser[me.uid] ||= {};
+  const box = h('div', {class:'presence-table call-response-stats'});
+  const name = uid => (me.commerciaux.find(u => u.uid === uid) || {name:uid}).name;
+  const change = key => {
+    responseSortDirection = responseSortKey === key && responseSortDirection === 'asc' ? 'desc' : 'asc'; responseSortKey = key; draw();
+    Array.from(box.querySelectorAll('th button')).find(b => b.dataset.sortKey === key)?.focus();
+  };
+  const draw = () => {
+    const users = Object.keys(byUser).sort((a,b) => {
+      const order = responseSortKey === 'name' ? name(a).localeCompare(name(b),'fr') : Number(byUser[a][responseSortKey] || 0)-Number(byUser[b][responseSortKey] || 0);
+      return (responseSortDirection === 'desc' ? -order : order) || name(a).localeCompare(name(b),'fr');
+    });
+    box.replaceChildren(users.length ? h('table', {class:'t'}, h('thead', {}, h('tr', {},
+      sortableHeading('Commercial','name',responseSortKey,responseSortDirection,change),
+      keys.map(key => sortableHeading(ST[key] || key,key,responseSortKey,responseSortDirection,change)))),
+      h('tbody', {}, users.map(uid => h('tr', {}, h('td', {}, name(uid)), keys.map(key => h('td', {}, String(byUser[uid][key] || 0))))))) : h('p', {class:'muted'}, 'Aucun appel sur la période.'));
+  };
+  draw(); return box;
+}
+function dossierResults(counts, sortable = false) {
+  const entries = responseKeys(Object.keys(counts || {})).map(key => [key,Number((counts || {})[key] || 0)]);
+  if (!sortable) return h('div', {class:'dossier-result-counts'}, entries.length ? entries.sort(([a],[b]) => (ST[a] || a).localeCompare(ST[b] || b,'fr')).map(([key,n]) => h('span', {class:'dossier-result-count'}, badge(key), ' ', h('strong', {}, String(n)))) : h('span', {class:'muted'}, T('Aucun dossier traité sur cette période.')));
+  const box = h('div', {class:'presence-table personal-results'});
+  const change = key => {
+    personalResultDirection = personalResultSort === key && personalResultDirection === 'asc' ? 'desc' : 'asc';
+    personalResultSort = key; draw();
+    Array.from(box.querySelectorAll('th button')).find(b => b.dataset.sortKey === key)?.focus();
+  };
+  const draw = () => {
+    const sorted = entries.slice().sort(([a,n],[b,m]) => {
+      const label = (ST[a] || a).localeCompare(ST[b] || b,'fr'), order = personalResultSort === 'number' ? Number(n)-Number(m) : label;
+      return (personalResultDirection === 'desc' ? -order : order) || label;
+    });
+    box.replaceChildren(h('table', {class:'t'}, h('thead', {}, h('tr', {},
+      sortableHeading(T('État'),'label',personalResultSort,personalResultDirection,change),
+      sortableHeading(T('Nombre'),'number',personalResultSort,personalResultDirection,change))),
+      h('tbody', {}, sorted.map(([key,n]) => h('tr', {}, h('td', {}, badge(key)), h('td', {}, String(n)))))),
+      sorted.length ? '' : h('p', {class:'muted'}, T('Aucun dossier traité sur cette période.')));
+  };
+  draw(); return box;
+}
+let rosterSort = 'name', rosterDirection = 'asc', lastRosterReport = null;
+function changeRosterSort(key) {
+  rosterDirection = rosterSort === key && rosterDirection === 'asc' ? 'desc' : 'asc';
+  rosterSort = key;
+  if (lastRosterReport) renderPresenceBoard(lastRosterReport);
+  Array.from(rosterBox?.querySelectorAll('th button') || []).find(b => b.dataset.sortKey === key)?.focus();
+}
+function sortedCommercials(rows) {
+  const value = u => rosterSort === 'name' ? u.name : rosterSort === 'status' ? (PRESENCE_LABELS[u.status] || '') : rosterSort === 'currentPause' ? (u.status === 'pause' && u.pause_since ? Math.max(0,lastRosterReport.server_now - u.pause_since) : 0) : rosterSort === 'processed' ? Number(u.processed || 0) : rosterSort.startsWith('result:') ? Number((u.by_result || {})[rosterSort.slice(7)] || 0) : Number(u.totals.selected[rosterSort] || 0);
+  return rows.slice().sort((a,b) => {
+    const av = value(a), bv = value(b), order = typeof av === 'string' ? av.localeCompare(bv,'fr',{numeric:true,sensitivity:'base'}) : av - bv;
+    return (rosterDirection === 'desc' ? -order : order) || a.name.localeCompare(b.name,'fr') || a.uid.localeCompare(b.uid);
+  });
+}
+function personalTimesCard() {
+  personalTimesBox = h('div', {}, T('Chargement des durées…'));
+  return h('section', {class:'card', 'aria-label':T('Mes temps de présence')}, h('h3', {}, T('Mon temps travaillé, mes pauses et mes dossiers traités')),
+    h('p', {class:'muted'}, T('Période commune aux temps et aux dossiers traités. Un dossier est compté une seule fois, selon son dernier résultat d’appel sur cette période. Les filtres du journal des appels restent séparés.')),
+    presencePeriodFilter(personalPeriod, filter => { personalPeriod = filter; personalTimesBox.replaceChildren(T('Chargement…')); refreshPersonalTimes(); }), personalTimesBox);
+}
+async function refreshPersonalTimes() {
+  const box = personalTimesBox, filterKey = JSON.stringify(personalPeriod);
+  if (me.role !== 'commercial' || tab !== 'stats' || !box?.isConnected || personalTimesBusy || document.hidden) return;
+  personalTimesBusy = true;
+  try {
+    const report = await api(presencePath('/presence/mine',personalPeriod));
+    if (box !== personalTimesBox || !box.isConnected || tab !== 'stats' || filterKey !== JSON.stringify(personalPeriod)) return;
+    const selected = report.totals.selected;
+    box.replaceChildren(h('p', {class:'muted'}, T('Du ') + report.range.from + ' au ' + report.range.to + ' inclus · ' + report.timezone),
+      h('div', {class:'presence-totals'},
+        h('div', {class:'card'}, h('strong', {}, T('Temps travaillé (en poste)')), h('p', {}, duration(selected.online))),
+        h('div', {class:'card'}, h('strong', {}, T('Temps de pause')), h('p', {}, duration(selected.pause))),
+        h('div', {class:'card'}, h('strong', {}, T('Dossiers traités')), h('p', {}, String(report.processed)))),
+      h('h4', {}, T('État des dossiers traités')), dossierResults(report.by_result,true),
+      h('p', {class:'muted'}, T('Actualisé : ') + new Date().toLocaleTimeString('fr-FR')));
+  } catch (e) {
+    if (box === personalTimesBox && box.isConnected && filterKey === JSON.stringify(personalPeriod)) box.replaceChildren(h('p', {class:'err', role:'status'}, T('Impossible de charger vos durées. Réessai automatique dans quelques secondes.')));
+  } finally {
+    personalTimesBusy = false;
+    if (filterKey !== JSON.stringify(personalPeriod)) refreshPersonalTimes();
+  }
+}
+let pauseDialog = null, pauseClock = null, presenceReceived = 0;
+let myPresence = null, presenceBusy = false, presenceError = '', rosterBox = null, rosterBusy = false;
+const duration = seconds => {
+  const n = Math.max(0, Math.floor(Number(seconds) || 0));
+  return String(Math.floor(n / 3600)).padStart(2,'0') + ':' + String(Math.floor(n / 60) % 60).padStart(2,'0') + ':' + String(n % 60).padStart(2,'0');
+};
+function syncPauseScreen() {
+  if (!myPresence || !myPresence.paused) {
+    if (pauseDialog) {
+      if (typeof pauseDialog.close === 'function') pauseDialog.close();
+      pauseDialog.remove(); pauseDialog = null;
+      clearInterval(pauseClock); pauseClock = null;
+      root.removeAttribute('inert');
+    }
+    return;
+  }
+  if (!pauseDialog) {
+    const resume = h('button', {class:'primary', onclick:() => updateMyPresence(false)}, T('Reprendre le travail'));
+    pauseDialog = h('dialog', {class:'pause-screen', 'aria-labelledby':'pause-title', 'aria-modal':'true',
+      oncancel:e => e.preventDefault(),
+      onkeydown:e => { if (e.key === 'Tab') { e.preventDefault(); resume.focus(); } }},
+      h('div', {class:'pause-panel'}, h('h2', {id:'pause-title'}, T('Vous êtes en pause')),
+        h('p', {}, T('Reprenez le travail pour accéder à EasyCrm.')),
+        h('div', {class:'pause-timer', role:'timer', 'aria-label':T('Durée de la pause')}, '00:00:00'),
+        h('p', {class:'pause-error', role:'status'}), resume));
+    document.body.append(pauseDialog); root.setAttribute('inert','');
+    if (typeof pauseDialog.showModal === 'function') pauseDialog.showModal(); else pauseDialog.setAttribute('open','');
+    resume.focus();
+    pauseClock = setInterval(paintPauseClock, 1000);
+  }
+  pauseDialog.querySelector('button').disabled = presenceBusy;
+  pauseDialog.querySelector('.pause-error').textContent = presenceError;
+  paintPauseClock();
+}
+function paintPauseClock() {
+  if (!pauseDialog || !myPresence) return;
+  const now = Math.min(Number(myPresence.last_seen) + 120, Number(myPresence.server_now) + (Date.now() - presenceReceived) / 1000);
+  pauseDialog.querySelector('.pause-timer').textContent = duration(myPresence.pause_since ? now - Number(myPresence.pause_since) : 0);
+}
+let commercialMessageDialog = null;
+function openCommercialMessage(user) {
+  if (!['admin','superviseur'].includes(me.role) || commercialMessageDialog) return;
+  const previousFocus = document.activeElement;
+  let sending = false, sent = false;
+  const text = h('textarea', {rows:6, maxlength:2000, 'aria-label':T('Message pour ') + user.name, placeholder:T('Votre message…')});
+  const out = h('p', {role:'status'});
+  const close = () => {
+    if (sending) return;
+    if (typeof dialog.close === 'function') dialog.close();
+    dialog.remove(); commercialMessageDialog = null; root.removeAttribute('inert');
+    if (previousFocus?.isConnected) previousFocus.focus();
+  };
+  const cancel = h('button', {onclick:close}, T('Fermer'));
+  const send = h('button', {class:'primary', onclick:async () => {
+    if (sending || sent) return;
+    if (!text.value.trim()) { out.textContent = T('Saisissez votre message.'); text.focus(); return; }
+    sending = true; send.disabled = true; cancel.disabled = true; out.textContent = T('Envoi en cours…');
+    try {
+      await api('/announcements', {method:'POST', body:{uids:[user.uid], body:text.value}});
+      sent = true; text.disabled = true; out.textContent = T('Message envoyé à ') + user.name + '.';
+    } catch (e) { out.textContent = T('Envoi impossible : ') + e.message; }
+    finally { sending = false; send.disabled = sent; cancel.disabled = false; if (sent) cancel.focus(); }
+  }}, T('Envoyer'));
+  const dialog = h('dialog', {class:'commercial-message', 'aria-labelledby':'commercial-message-title', 'aria-modal':'true',
+    oncancel:e => { e.preventDefault(); close(); },
+    onkeydown:e => {
+      if (e.key !== 'Tab' || typeof dialog.showModal === 'function') return;
+      const targets = [text,send,cancel].filter(x => !x.disabled), i = targets.indexOf(document.activeElement);
+      e.preventDefault(); targets[(i + (e.shiftKey ? -1 : 1) + targets.length) % targets.length]?.focus();
+    }}, h('h2', {id:'commercial-message-title'}, T('Message à ') + user.name),
+    h('p', {class:'muted'}, T('Ce commercial recevra un popup dans EasyCrm, sans possibilité de réponse.')),
+    text, out, h('div', {class:'commercial-message-actions'}, send, cancel));
+  commercialMessageDialog = dialog; document.body.append(dialog); root.setAttribute('inert','');
+  if (typeof dialog.showModal === 'function') dialog.showModal(); else dialog.setAttribute('open','');
+  text.focus();
+}
+function presenceControl() {
+  const label = presenceError ? T('État non confirmé') : (myPresence ? PRESENCE_LABELS[myPresence.status] : T('Vérification…'));
+  return h('div', {class:'presence-control'},
+    h('span', {class:'presence-badge ' + (!presenceError && myPresence ? myPresence.status : 'unknown'), role:'status'}, label),
+    h('button', {disabled:presenceBusy || !myPresence, onclick:() => updateMyPresence(!myPresence.paused)},
+      myPresence && myPresence.paused ? T('Reprendre le travail') : T('Me mettre en pause')),
+    presenceError ? h('span', {class:'err', role:'status'}, presenceError) : '');
+}
+function paintMyPresence() {
+  root.querySelector('.presence-control')?.replaceWith(presenceControl());
+  syncPauseScreen();
+}
+async function updateMyPresence(paused) {
+  if (me.role !== 'commercial' || presenceBusy) return;
+  presenceBusy = true; paintMyPresence();
+  try {
+    myPresence = await api(paused === undefined ? '/presence/heartbeat' : '/presence/pause',
+      {method:'POST', ...(paused === undefined ? {} : {body:{paused}})});
+    presenceReceived = Date.now();
+    presenceError = '';
+  } catch (e) { presenceError = T('Connexion indisponible : état non confirmé.'); }
+  finally { presenceBusy = false; paintMyPresence(); }
+}
+async function refreshPresenceBoard() {
+  const box = rosterBox, filterKey = JSON.stringify(rosterPeriod);
+  if (tab !== 'commerciaux' || !box || !box.isConnected || rosterBusy || document.hidden) return;
+  rosterBusy = true;
+  try {
+    const report = await api(presencePath('/presence',rosterPeriod)), rows = report.rows;
+    if (tab !== 'commerciaux' || box !== rosterBox || !box.isConnected || filterKey !== JSON.stringify(rosterPeriod)) return;
+    lastRosterReport = report; renderPresenceBoard(report);
+  } catch (e) {
+    if (box === rosterBox && box.isConnected && filterKey === JSON.stringify(rosterPeriod)) { lastRosterReport = null; box.replaceChildren(h('p', {class:'err', role:'status'}, T('Impossible de vérifier la présence. Réessai automatique dans quelques secondes.'))); }
+  } finally { rosterBusy = false; if (filterKey !== JSON.stringify(rosterPeriod)) refreshPresenceBoard(); }
+}
+function renderPresenceBoard(report) {
+  const box = rosterBox;
+  if (!box?.isConnected || tab !== 'commerciaux') return;
+  const rows = sortedCommercials(report.rows);
+    const states = responseKeys();
+    rows.forEach(u => Object.keys(u.by_result || {}).forEach(key => { if (!states.includes(key)) states.push(key); }));
+    const columns = [['name','Commercial'],['status',T('État actuel')],['currentPause',T('Pause en cours')],['online',T('Temps en poste')],['pause',T('Temps de pause')],['processed',T('Dossiers traités')], ...states.map(key => ['result:' + key,ST[key] || key])];
+    const table = h('table', {class:'t'},
+      h('thead', {}, h('tr', {}, columns.map(([key,label]) => sortableHeading(label,key,rosterSort,rosterDirection,changeRosterSort)))),
+      h('tbody', {}, rows.map(u => h('tr', {}, h('td', {}, h('button', {class:'commercial-message-link', 'aria-label':T('Envoyer un message à ') + u.name, onclick:() => openCommercialMessage(u)}, u.name)),
+        h('td', {}, h('span', {class:'presence-badge ' + u.status}, PRESENCE_LABELS[u.status] || 'Absent')),
+        h('td', {}, u.status === 'pause' && u.pause_since ? duration(report.server_now - u.pause_since) : '—'),
+        ['online','pause'].map(mode => h('td', {}, duration(u.totals.selected[mode]))), h('td', {}, String(u.processed)), states.map(key => h('td', {}, String((u.by_result || {})[key] || 0)))))));
+    const count = status => rows.filter(u => u.status === status).length;
+    const totals = [['online',T('Temps en poste')],['pause',T('Temps de pause')],['processed',T('Dossiers traités')]].map(([key,label]) => {
+      const n = rows.reduce((sum,u) => sum + Number(key === 'processed' ? u.processed : u.totals.selected[key]),0);
+      return h('div', {class:'card'}, h('strong', {}, label), h('p', {}, key === 'processed' ? String(n) : duration(n)));
+    });
+    const byResult = {};
+    rows.forEach(u => Object.entries(u.by_result || {}).forEach(([key,n]) => { byResult[key] = (byResult[key] || 0) + Number(n); }));
+    box.replaceChildren(h('p', {class:'muted'}, T('Du ') + report.range.from + ' au ' + report.range.to + ' inclus · ' + report.timezone + ' · Actualisé : ' + new Date(report.server_now * 1000).toLocaleTimeString('fr-FR')),
+      h('p', {}, count('online') + ' en poste · ' + count('pause') + ' en pause · ' + count('absent') + ' absent(s)'),
+      h('div', {class:'presence-totals'}, totals), dossierResults(byResult),
+      rows.length ? h('div', {class:'presence-table'}, table) : h('p', {}, T('Aucun commercial dans le groupe configuré.')));
+}
+function presenceBoard() {
+  if (!['admin', 'superviseur'].includes(me.role)) return;
+  lastRosterReport = null;
+  rosterBox = h('div', {}, T('Chargement…'));
+  show(h('h2', {}, T('Commerciaux')),
+    h('p', {class:'muted'}, T('État actuel actualisé toutes les 15 secondes. Temps et dossiers traités sur la période sélectionnée, hors absences. Un dossier est compté une fois par commercial, selon son dernier résultat saisi sur cette période. La présence ne mesure pas l’activité devant le PC.')),
+    presencePeriodFilter(rosterPeriod, filter => { rosterPeriod = filter; lastRosterReport = null; rosterBox.replaceChildren(T('Chargement…')); refreshPresenceBoard(); }), rosterBox);
+  refreshPresenceBoard();
+}
+
+function announcementCard() {
+  const text = h('textarea', {rows:5, maxlength:2000, 'aria-label':T('Message aux commerciaux'), placeholder:T('Votre message…')});
+  const out = h('p', {class:'muted', role:'status'});
+  const choices = (me.commerciaux || []).map(u => ({u, cb:h('input', {type:'checkbox'})}));
+  const all = h('input', {type:'checkbox', onchange:() => choices.forEach(x => { x.cb.checked = all.checked; })});
+  const send = h('button', {onclick:async () => {
+    const uids = choices.filter(x => x.cb.checked).map(x => x.u.uid);
+    if (!uids.length) { out.textContent = T('Cochez au moins un commercial.'); return; }
+    if (!text.value.trim()) { out.textContent = T('Saisissez votre message.'); return; }
+    send.disabled = true; out.textContent = T('Envoi en cours…');
+    try {
+      const r = await api('/announcements', {method:'POST', body:{uids, body:text.value}});
+      text.value = ''; out.textContent = T('Message envoyé à ') + r.sent + ' commercial(aux).';
+    } catch (e) { out.textContent = e.message; }
+    finally { send.disabled = false; }
+  }}, T('Envoyer le message'));
+  return h('div', {class:'card'}, h('h3', {}, T('Message popup aux commerciaux')),
+    h('p', {class:'muted'}, T('Message sans réponse. Il apparaît lorsque EasyCrm est ouvert, ou à la prochaine ouverture pour les commerciaux absents.')),
+    h('div', {class:'announcement-recipients'}, h('label', {}, all, ' Tous les commerciaux'),
+      choices.map(x => h('label', {}, x.cb, ' ' + x.u.name))), text, send, out);
+}
+
+let checkingAnnouncements = false;
+async function checkAnnouncements() {
+  if (me.role !== 'commercial' || myPresence?.paused || checkingAnnouncements || popup || document.hidden) return;
+  checkingAnnouncements = true;
+  try {
+    const rows = await api('/announcements');
+    if (myPresence?.paused || popup || document.hidden || !rows.length) return;
+    const message = rows[0], previousFocus = document.activeElement;
+    popup = true;
+    const out = h('p', {role:'status', class:'err'});
+    const close = h('button', {onclick:async () => {
+      close.disabled = true; out.textContent = '';
+      try {
+        await api('/announcements/' + message.id + '/dismiss', {method:'POST'});
+        box.remove(); popup = false;
+        if (previousFocus && previousFocus.isConnected) previousFocus.focus();
+        checkAnnouncements();
+      } catch (e) { out.textContent = T('Fermeture non enregistrée : ') + e.message; close.disabled = false; }
+    }}, T('Fermer'));
+    const box = h('div', {class:'ccp-bg'}, h('div', {class:'ccp announcement-popup', role:'dialog', 'aria-modal':'true', 'aria-labelledby':'announcement-title',
+      onkeydown:e => { if (e.key === 'Tab') { e.preventDefault(); close.focus(); } }},
+      h('h3', {id:'announcement-title'}, T('Message de ') + message.sender_name),
+      h('p', {class:'muted'}, fmt(Number(message.created_at))),
+      h('p', {class:'announcement-body'}, message.body), close, out));
+    document.body.append(box); close.focus();
+  } catch (e) { /* Le message reste en attente et sera recherché au prochain passage. */ }
+  finally { checkingAnnouncements = false; }
+}
+
 function admin() {
   const m2 = h('div', {class:'muted'}), m3 = h('span', {class:'muted'});
   const file = h('input', {type:'file', accept:'.xlsx,.xls,.csv,.txt'});
@@ -1116,9 +1444,10 @@ function waOnProspect(pid) {
 
 
 async function checkReminders() {
-  if (!me.can.call || popup) return;
+  if (!me.can.call || popup || myPresence?.paused) return;
   try {
     const rows = await api('/prospects?rappels=1');
+    if (popup || myPresence?.paused) return;
     const now = Date.now() / 1000;
     const due = rows.find(r => r.assigned_to === me.uid && Number(r.callback_at) <= now && (snooze[r.id] || 0) < now);
     if (!due) return;
@@ -1142,9 +1471,23 @@ async function checkReminders() {
   catch (e) { root.textContent = e.offline ? T('Connexion indisponible : rechargez la page quand le réseau revient.') : T('Accès refusé : demandez à l’administrateur de vous ajouter à un groupe easycrm_*.'); return; }
   applyStatuses();
   document.body.append(banner); paintBanner(); flushQueue();
-  tab = me.role === 'commercial' ? 'nouveaux' : 'tous';
-  go(tab);
+  if (me.role === 'commercial') {
+    await updateMyPresence();
+    if (!myPresence) {
+      root.replaceChildren(h('p', {class:'err'}, 'Impossible de vérifier votre état de présence. Réessayez avant de reprendre EasyCrm.'),
+        h('button', {onclick:() => window.location.reload()}, 'Réessayer'));
+      return;
+    }
+  }
+  go('dossiers');
+  setInterval(() => updateMyPresence(), 30000);
+  setInterval(refreshPresenceBoard, 15000);
+  setInterval(refreshPersonalTimes, 15000);
+  window.addEventListener('online', () => { updateMyPresence(); refreshPresenceBoard(); refreshPersonalTimes(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { updateMyPresence(); refreshPresenceBoard(); refreshPersonalTimes(); } });
   if (window.Notification && Notification.permission === 'default') Notification.requestPermission();
+  checkAnnouncements(); setInterval(checkAnnouncements, 15000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) checkAnnouncements(); });
   checkReminders(); setInterval(checkReminders, 30000);
   setInterval(paintWa, 20000);
 })();
