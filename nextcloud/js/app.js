@@ -1277,6 +1277,39 @@ async function checkAnnouncements() {
   finally { checkingAnnouncements = false; }
 }
 
+function adminPanels() {
+  const page = root.querySelector('.crm-page');
+  if (!page) return;
+  const key = 'easycrm_admin_panels_v1:' + encodeURIComponent(me.uid || '');
+  let saved = {};
+  try { const value = JSON.parse(localStorage.getItem(key) || '{}'); if (value && typeof value === 'object' && !Array.isArray(value)) saved = value; } catch (e) {}
+  const remember = (title, open) => { saved[title] = open; try { localStorage.setItem(key, JSON.stringify(saved)); } catch (e) {} };
+  page.querySelectorAll(':scope > .card').forEach(card => {
+    if (card.classList.contains('crm-admin-panel')) return;
+    const heading = card.querySelector(':scope > h3');
+    if (!heading) return;
+    const title = heading.textContent;
+    const panel = h('details', {class:card.className + ' crm-admin-panel'});
+    const action = h('span', {class:'crm-admin-panel-action'});
+    const icon = h('span', {class:'crm-admin-panel-icon', 'aria-hidden':'true'});
+    const summary = h('summary', {}, heading, h('span', {class:'crm-admin-panel-state'}, action, icon));
+    card.classList.remove('card'); card.classList.add('crm-admin-panel-body');
+    card.replaceWith(panel); panel.append(summary, card);
+    const refresh = () => { action.textContent = panel.open ? T('Réduire') : T('Agrandir'); icon.textContent = panel.open ? '−' : '+'; };
+    const setOpen = open => { panel.open = open; refresh(); remember(title, open); };
+    panel.open = saved[title] !== false; refresh();
+    panel.addEventListener('toggle', () => { refresh(); remember(title, panel.open); });
+    panel.crmSetOpen = setOpen;
+  });
+  if (!page.querySelector(':scope > .crm-admin-panel-tools')) {
+    const setAll = open => page.querySelectorAll(':scope > .crm-admin-panel').forEach(panel => panel.crmSetOpen(open));
+    const tools = h('div', {class:'bar crm-admin-panel-tools'},
+      h('button', {type:'button', onclick:() => setAll(false)}, T('Tout réduire')),
+      h('button', {type:'button', onclick:() => setAll(true)}, T('Tout agrandir')));
+    page.querySelector('h2')?.after(tools);
+  }
+}
+
 function admin() {
   const m2 = h('div', {class:'muted'}), m3 = h('span', {class:'muted'});
   const file = h('input', {type:'file', accept:'.xlsx,.xls,.csv,.txt'});
@@ -1353,6 +1386,7 @@ function admin() {
       }}, T('Réattribuer aux commerciaux actuels'))),
     orph,
     h('p', {class:'muted'}, T('Profils : définis par les groupes (AD ou Nextcloud) associés aux rôles administrateur, superviseur, commercial et lecture seule.')));
+  adminPanels();
   api('/recordings').then(rows => {
     orph.replaceChildren(...(rows.length ? [h('h3', {}, T('Enregistrements non rattachés à une fiche')),
       h('p', {class:'muted'}, T('Numéro introuvable dans la base, ou appelé depuis un contact enregistré.')), ...rows.map(recRow)] : []));

@@ -117,3 +117,9 @@ This correction intentionally changes the migration that FAILED, so Nextcloud ca
 Call CRM 0.25.2 / EasyCrm 1.6.2 : destination explicite Non assigné dans le transfert administratif et la sélection de prospects. Le marqueur API `__none` est converti en SQL NULL ; une destination vide reste refusée. Droits assign inchangés, statut et quantité conservés, refus source/destination identiques, audit lisible. Aucun déploiement VPS effectué.
 
 Validation : `tools/test-nextcloud.sh` réussi avec PHP 8.4 (mbstring/PDO SQLite) et jsdom 26. Deux nouveaux parcours UI vérifient le refus du placeholder, le comptage, la quantité/statut, la confirmation et l’envoi explicite vers Non assigné dans chaque édition. Suites présence/annonces et migrations conservées. Pas de recette Nextcloud/VPS réelle.
+
+
+## Blocs d’administration repliables (2026-11-03)
+Call CRM 0.25.3 / EasyCrm 1.6.3 : chaque carte d’option possède un en-tête cliquable pour agrandir/réduire, avec commandes globales Tout réduire / Tout agrandir. Fond gris clair par bloc, champs conservés en blanc. Le repli ne supprime pas les champs ni leurs valeurs non enregistrées ; il ne les enregistre pas automatiquement. Préférence locale au navigateur, isolée par application et identifiant utilisateur, tous ouverts à la première visite. Le repli fonctionne même si le stockage local est indisponible. Les formulaires chargés de façon asynchrone (simulateur) gardent leur bloc. Aucun changement de droits ou de schéma, aucun déploiement VPS.
+
+Validation : suite `tools/test-nextcloud.sh` réussie, dont deux nouveaux parcours jsdom couvrant repli individuel/global, conservation des saisies et événements, restauration des préférences, isolation par compte, remplacement asynchrone du contenu et fonctionnement sans stockage local. Validation locale uniquement.

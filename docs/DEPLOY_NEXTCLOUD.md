@@ -11,8 +11,8 @@ Versions de ce lot : **Call CRM 0.25.1** et **EasyCrm 1.6.1**. Les deux applicat
 
 | ZIP | Dossier racine dans le ZIP | Destination |
 |---|---|---|
-| callcrm-0.25.1.zip | callcrm/ | custom_apps/callcrm/ |
-| easycrm-1.6.1.zip | easycrm/ | custom_apps/easycrm/ |
+| callcrm-0.25.3.zip | callcrm/ | custom_apps/callcrm/ |
+| easycrm-1.6.3.zip | easycrm/ | custom_apps/easycrm/ |
 
 Ne pas créer `callcrm/callcrm` ou `easycrm/easycrm`. Ne pas renommer les identifiants des applications pour les faire correspondre à un dossier. Le dossier Git `nextcloud/` contient l'application d'identifiant `easycrm` et le script l'archive correctement.
 
@@ -71,3 +71,7 @@ Sur Nextcloud 35, la définition initiale NOT NULL avec valeur par défaut vide 
 
 ## Transfert vers Non assigné (2026-11-03)
 Call CRM 0.25.2 / EasyCrm 1.6.2 : destination explicite Non assigné dans le transfert administratif et la sélection de prospects. Le marqueur API `__none` est converti en SQL NULL ; une destination vide reste refusée. Droits assign inchangés, statut et quantité conservés, refus source/destination identiques, audit lisible. Aucun déploiement VPS effectué.
+
+
+## Blocs d’administration repliables (2026-11-03)
+Call CRM 0.25.3 / EasyCrm 1.6.3 : chaque carte d’option possède un en-tête cliquable pour agrandir/réduire, avec commandes globales Tout réduire / Tout agrandir. Fond gris clair par bloc, champs conservés en blanc. Le repli ne supprime pas les champs ni leurs valeurs non enregistrées ; il ne les enregistre pas automatiquement. Préférence locale au navigateur, isolée par application et identifiant utilisateur, tous ouverts à la première visite. Le repli fonctionne même si le stockage local est indisponible. Les formulaires chargés de façon asynchrone (simulateur) gardent leur bloc. Aucun changement de droits ou de schéma, aucun déploiement VPS.

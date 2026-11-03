@@ -11,5 +11,6 @@ for edition in callcrm nextcloud; do
   node "$edition/tests/announcements-ui.cjs"
 done
 node tests/transfers-ui.cjs
+node tests/admin-panels-ui.cjs
 "$PHP_BIN" tests/migrations.php
 git diff --check
