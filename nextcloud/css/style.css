@@ -216,3 +216,8 @@
 @media(max-width:760px){#easycrm .crm-client-columns{gap:12px} #easycrm .crm-client-columns h2{margin:0} #easycrm .crm-client-columns>div:first-child>.muted{font-size:11px;margin:0} #easycrm .crm-client-columns>div:first-child>*{order:6} #easycrm .crm-client-columns .crm-chronology{order:5!important} #easycrm .crm-client-columns .crm-client-info,#easycrm .crm-client-columns .crm-client-appointments{width:100%;margin:0}}
 
 #easycrm .crm-reason-options{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}#easycrm .crm-reason-options button.on{background:#202648;color:white}
+
+#easycrm .crm-sidebar .nav button{display:flex;align-items:center;gap:10px}
+#easycrm .crm-nav-icon{flex:0 0 19px;width:19px;height:19px;pointer-events:none;color:inherit}
+#easycrm .crm-nav-label{min-width:0}
+@media(max-width:760px){#easycrm .crm-sidebar .nav button{gap:7px} #easycrm .crm-nav-icon{flex-basis:17px;width:17px;height:17px}}

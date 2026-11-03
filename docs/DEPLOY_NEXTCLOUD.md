@@ -11,8 +11,8 @@ Versions de ce lot : **Call CRM 0.25.1** et **EasyCrm 1.6.1**. Les deux applicat
 
 | ZIP | Dossier racine dans le ZIP | Destination |
 |---|---|---|
-| callcrm-0.26.0.zip | callcrm/ | custom_apps/callcrm/ |
-| easycrm-1.7.0.zip | easycrm/ | custom_apps/easycrm/ |
+| callcrm-0.26.1.zip | callcrm/ | custom_apps/callcrm/ |
+| easycrm-1.7.1.zip | easycrm/ | custom_apps/easycrm/ |
 
 Ne pas créer `callcrm/callcrm` ou `easycrm/easycrm`. Ne pas renommer les identifiants des applications pour les faire correspondre à un dossier. Le dossier Git `nextcloud/` contient l'application d'identifiant `easycrm` et le script l'archive correctement.
 
@@ -92,3 +92,7 @@ Motifs propres à chaque réponse, boutons de sélection dans la fiche et listes
 Fiche smartphone : coordonnées secondaires et RDV repliables, chronologie prioritaire et barre fixe Appeler / WhatsApp / Enregistrer. Enregistrer sauvegarde le résultat d’appel sélectionné, sinon les informations de fiche. Les appels hors ligne existants sont toujours mis en file locale. Alerte de navigation interne avec Rester / Quitter sans enregistrer pour les informations, résultat d’appel et simulation (simulateur Call CRM uniquement). Fermeture de simulation avec modification non sauvée demande confirmation. Fermeture ou actualisation du navigateur : avertissement natif, au texte décidé par le navigateur. Les champs restent en mémoire, pas d’autosauvegarde ni de restauration après fermeture.
 Nouvelles migrations additives : Call CRM 1013 / EasyCrm 1009, tables client_events et appointments ; aucune ancienne migration réécrite. Installer le bon ZIP, sauvegarder base/code, puis lancer `occ upgrade` sous l’utilisateur Nextcloud. Vérifier needsDbUpgrade=false avant de désactiver la maintenance. Ne pas installer sur le VPS sans accès réel et opération explicitement effectuée.
 Validation : suite PHP/SQLite + jsdom existante et tests client-activity dans les deux éditions (périmètres, motifs serveur, transitions/RDV, rollback, auteur supprimé, pagination avec événements simultanés, bornes jour/DST). tests/activity-browser.cjs exécute les deux applications dans Chromium avec API fictive, vérifie agenda, fiche, chronologie, barre mobile, sélection de motifs et prévention de perte de saisie ; captures réelles du code générées dans les artefacts, pas du VPS. Pas de recette intégrée Nextcloud/LDAP/PBX et pas de test de charge concurrente. La pagination de l’agenda utilise un décalage et peut bouger si de nouvelles tâches sont ajoutées entre deux pages ; actualiser la liste.
+
+
+## Icônes du menu (2026-11-03)
+Call CRM 0.26.1 / EasyCrm 1.7.1 : icônes SVG locales pour Ma journée, Agenda, Dossiers Clients, WhatsApp, Simulateur (Call CRM), Statistiques, Administration, Annonce et Commerciaux. Traits currentColor pour suivre la couleur active ; tailles desktop/mobile adaptées ; SVG décoratifs aria-hidden et libellés conservés. Aucune dépendance externe et aucun changement de droits ou de migration.

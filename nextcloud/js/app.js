@@ -203,6 +203,23 @@ function workspaceHeader() {
       h('span', {class:'crm-role'}, me.role === 'admin' ? T('Administration') : me.role === 'superviseur' ? T('Supervision') : T('Consultation')));
 }
 function nav() {
+  const icon = key => {
+    const paths = {
+      journee:['M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4','M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0'],
+      agenda:['M7 3v4m10-4v4M4 10h16','M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1Z','m8 15 2 2 5-5'],
+      dossiers:['M3 7V5h6l2 2h10v13H3V7Z'],
+      wa:['M20 11.5a8 8 0 0 1-11.8 7L3 20l1.5-5.2A8 8 0 1 1 20 11.5Z','M8 8c0 4 4 8 8 8l1-2-3-1-1 1-3-3 1-1-1-3-2 1Z'],
+      sim:['M5 3h14v18H5Z','M8 6h8v4H8Z','M8 14h1m6 0h1m-8 3h1m6 0h1'],
+      stats:['M4 3v18h17','M8 16v-4m5 4V8m5 8V5'],
+      admin:['M12 8a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z','M9 3h6l.5 3 2.5 1 2.5-1 2 5-2.5 1v2l2.5 1-2 5-2.5-1-2.5 1-.5 3H9l-.5-3L6 19l-2.5 1-2-5L4 14v-2L1.5 11l2-5L6 7l2.5-1L9 3Z'],
+      annonce:['M3 10v5h5l11 5V5L8 10H3Z','m8 15 2 6h3l-2-5M22 9v7'],
+      commerciaux:['M9 3a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z','M2 21v-3a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v3','M17 4a4 4 0 0 1 0 7m2 3a5 5 0 0 1 3 4v3']
+    };
+    const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+    for(const [name,value] of Object.entries({viewBox:'0 0 24 24',width:'19',height:'19',fill:'none',stroke:'currentColor','stroke-width':'1.7','stroke-linecap':'round','stroke-linejoin':'round','aria-hidden':'true',focusable:'false',class:'crm-nav-icon'}))svg.setAttribute(name,value);
+    (paths[key]||paths.dossiers).forEach(d=>{const p=document.createElementNS(svg.namespaceURI,'path');p.setAttribute('d',d);svg.append(p);});return svg;
+  };
+
   const inDossiers = !!KINDS[tab], t = [];
   if (me.role === 'commercial') t.push(['journee',T('Ma journée')]);
   t.push(['agenda','Agenda']);
@@ -216,7 +233,7 @@ function nav() {
     h('div', {class:'crm-brand'}, h('span', {class:'crm-brand-mark', 'aria-hidden':'true'}, 'C'), h('strong', {}, 'EasyCrm')),
     h('div', {class:'nav', role:'navigation'}, t.map(([key,label]) => h('button', {
       class:(key === 'dossiers' ? inDossiers : tab === key) ? 'on' : '', 'data-k':key,
-      'aria-current':(key === 'dossiers' ? inDossiers : tab === key) ? 'page' : null, onclick:() => go(key)}, label))),
+      'aria-current':(key === 'dossiers' ? inDossiers : tab === key) ? 'page' : null, onclick:() => go(key)}, icon(key), h('span',{class:'crm-nav-label'},label)))),
     inDossiers ? h('div', {class:'dossier-states', role:'group', 'aria-label':T('États des dossiers clients')},
       states.map(([key,label]) => h('button', {class:tab === key ? 'on' : '', 'data-k':key, 'aria-pressed':String(tab === key), onclick:() => go(key)}, label))) : '',
     h('div', {class:'crm-sidebar-note muted'}, me.role === 'commercial' ? T('Votre espace de travail') : T('Pilotage de l’activité')));
