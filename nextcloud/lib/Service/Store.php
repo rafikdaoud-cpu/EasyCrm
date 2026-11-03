@@ -62,14 +62,35 @@ class Store {
 		$qb->executeStatement();
 		return (int)$qb->getLastInsertId();
 	}
-	public function update(int $id, array $v): void {
-		$qb = $this->db->getQueryBuilder();
-		$qb->update('easycrm_prospects');
-		foreach ($v as $k => $x) { $qb->set($k, $qb->createNamedParameter($x)); }
-		$qb->where($qb->expr()->eq('id', $qb->createNamedParameter($id)))->executeStatement();
+	private function clientEvent(int $id, string $actor, string $kind, array $body): void {
+		$this->insert('easycrm_client_events',['prospect_id'=>$id,'user_id'=>$actor,'kind'=>$kind,'body'=>json_encode($body,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),'created_at'=>time()]);
+	}
+	private function changedClient(int $id, string $actor, array $old, array $values): void {
+		if (array_key_exists('remarque',$values) && (string)($old['remarque']??'')!==(string)$values['remarque']) $this->clientEvent($id,$actor,'note',['note'=>(string)$values['remarque']]);
+		if (array_key_exists('assigned_to',$values) && ($old['assigned_to']??null)!==$values['assigned_to']) $this->clientEvent($id,$actor,'assign',['from'=>$old['assigned_to']??null,'to'=>$values['assigned_to']]);
+	}
+	public function update(int $id, array $v, ?string $actor=null, ?array $expected=null): void {
+		$track=$actor!==null && (array_key_exists('remarque',$v)||array_key_exists('assigned_to',$v));
+		if ($track) $this->db->beginTransaction();
+		try {
+			$old=$track?$this->get($id):null;
+			if ($track && !$old) throw new \OutOfBoundsException('Dossier introuvable.');
+			$q=$this->db->getQueryBuilder();$q->update('easycrm_prospects');
+			foreach ($v as $k=>$x) $q->set($k,$q->createNamedParameter($x));
+			$q->where($q->expr()->eq('id',$q->createNamedParameter($id)));
+			if ($expected!==null) {
+				$note=$expected['remarque']??null;$assigned=$expected['assigned_to']??null;
+				$q->andWhere($note===null?$q->expr()->isNull('remarque'):$q->expr()->eq('remarque',$q->createNamedParameter($note)));
+				$q->andWhere($assigned===null?$q->expr()->isNull('assigned_to'):$q->expr()->eq('assigned_to',$q->createNamedParameter($assigned)));
+			}
+			$changed=$q->executeStatement();
+			// MySQL returns zero on an unchanged row; check expectations before treating it as a conflict.
+			if ($expected!==null && $changed===0) { $now=$this->get($id);foreach ($v as $column=>$value) { if (!$now || (string)($now[$column]??'')!==(string)$value) throw new \DomainException('La fiche a changé. Rechargez-la avant d’enregistrer.'); } if (!$now || (string)($now['remarque']??'')!==(string)($v['remarque']??$expected['remarque']??'') || ($now['assigned_to']??null)!==($expected['assigned_to']??null)) throw new \DomainException('La fiche a changé. Rechargez-la avant d’enregistrer.'); }
+			if ($track) { $this->changedClient($id,$actor,$old,$v);$this->db->commit(); }
+		} catch (\Throwable $e) { if ($track) $this->db->rollBack();throw $e; }
 	}
 	public function delete(int $id): void {
-		foreach (['easycrm_recordings' => 'prospect_id', 'easycrm_calls' => 'prospect_id', 'easycrm_prospects' => 'id'] as $t => $c) {
+		foreach (['easycrm_client_events'=>'prospect_id', 'easycrm_appointments'=>'prospect_id', 'easycrm_recordings' => 'prospect_id', 'easycrm_calls' => 'prospect_id', 'easycrm_prospects' => 'id'] as $t => $c) {
 			$qb = $this->db->getQueryBuilder();
 			$qb->delete($t)->where($qb->expr()->eq($c, $qb->createNamedParameter($id)))->executeStatement();
 		}
@@ -190,15 +211,23 @@ class Store {
 		return array_map('intval', array_column($qb->executeQuery()->fetchAll(), 'id'));
 	}
 	/** Réassigne une liste de prospects ; retourne le nombre de lignes modifiées. */
-	public function reassign(array $ids, ?string $to): int {
-		$n = 0;
-		foreach (array_chunk($ids, 500) as $chunk) {
-			$qb = $this->db->getQueryBuilder();
-			$qb->update('easycrm_prospects')->set('assigned_to', $qb->createNamedParameter($to, $to === null ? IQueryBuilder::PARAM_NULL : IQueryBuilder::PARAM_STR))
-				->where($qb->expr()->in('id', $qb->createNamedParameter($chunk, IQueryBuilder::PARAM_INT_ARRAY)));
-			$n += $qb->executeStatement();
-		}
-		return $n;
+	public function reassign(array $ids, ?string $to, ?string $actor=null): int {
+		if ($actor!==null) $this->db->beginTransaction();
+		try {
+			$n=0;
+			foreach (array_chunk($ids,500) as $chunk) {
+				$old=$actor!==null?$this->assignmentSnapshot($chunk):[];
+				$q=$this->db->getQueryBuilder();$q->update('easycrm_prospects')->set('assigned_to',$q->createNamedParameter($to,$to===null?IQueryBuilder::PARAM_NULL:IQueryBuilder::PARAM_STR))
+					->where($q->expr()->in('id',$q->createNamedParameter($chunk,IQueryBuilder::PARAM_INT_ARRAY)));
+				$n+=$q->executeStatement();
+				foreach ($old as $row) $this->changedClient((int)$row['id'],$actor,$row,['assigned_to'=>$to]);
+			}
+			if ($actor!==null) $this->db->commit();return $n;
+		} catch (\Throwable $e) { if ($actor!==null) $this->db->rollBack();throw $e; }
+	}
+	private function assignmentSnapshot(array $ids): array {
+		$q=$this->db->getQueryBuilder();$q->select('id','assigned_to')->from('easycrm_prospects')->where($q->expr()->in('id',$q->createNamedParameter($ids,IQueryBuilder::PARAM_INT_ARRAY)));
+		return $q->executeQuery()->fetchAll();
 	}
 	/** Prospects par statut(s) (vide = tous) et par commercial ('__all' = tous, '' = non assignés, sinon identifiant). */
 	public function idsByStatus(array $statuses, string $assigned, int $limit = 0): array {
@@ -212,9 +241,12 @@ class Store {
 		return array_map('intval', array_column($qb->executeQuery()->fetchAll(), 'id'));
 	}
 	/** Change le statut en masse (rappel effacé, compteur de tentatives remis à zéro) ; $assign : false = inchangé, null = non assigné, sinon identifiant. */
-	public function setStatus(array $ids, string $status, $assign = false): int {
+	public function setStatus(array $ids, string $status, $assign = false, ?string $actor=null): int {
+		if ($actor!==null) $this->db->beginTransaction();
+		try {
 		$n = 0; $now = time();
 		foreach (array_chunk($ids, 500) as $chunk) {
+			$old=$actor!==null && $assign!==false?$this->assignmentSnapshot($chunk):[];
 			$qb = $this->db->getQueryBuilder();
 			$qb->update('easycrm_prospects')->set('status', $qb->createNamedParameter($status))
 				->set('callback_at', $qb->createNamedParameter(null, IQueryBuilder::PARAM_NULL))
@@ -222,8 +254,10 @@ class Store {
 			if ($assign !== false) { $qb->set('assigned_to', $qb->createNamedParameter($assign, $assign === null ? IQueryBuilder::PARAM_NULL : IQueryBuilder::PARAM_STR)); }
 			$qb->where($qb->expr()->in('id', $qb->createNamedParameter($chunk, IQueryBuilder::PARAM_INT_ARRAY)));
 			$n += $qb->executeStatement();
+			foreach ($old as $row) $this->changedClient((int)$row['id'],$actor,$row,['assigned_to'=>$assign]);
 		}
-		return $n;
+		if ($actor!==null) $this->db->commit();return $n;
+		} catch (\Throwable $e) { if ($actor!==null) $this->db->rollBack();throw $e; }
 	}
 	/** Nombre d'appels de ce prospect dont le résultat demande un rappel (statuts « avec date de rappel »). */
 	public function callbackCalls(int $prospectId): int {

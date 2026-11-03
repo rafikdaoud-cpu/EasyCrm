@@ -235,9 +235,7 @@ class ApiController extends Controller {
 		if ($sd['callback'] && !$cb) { return $this->err('Date et heure de rappel obligatoires'); }
 		if ($sd['callback'] && $cb && ($e = Prefs::checkCallback($cb, $ref))) { return $this->err($e); }
 		if ($sd['note'] && $note === '') { return $this->err('Une note est obligatoire pour « ' . $sd['label'] . ' »'); }
-		if (!empty($sd['reason'])) {
-			if ($reason === '' || !in_array($reason, Prefs::all()['reasons'], true)) { return $this->err('Un motif est obligatoire pour « ' . $sd['label'] . ' »'); }
-		} else { $reason = ''; }
+		if ((!empty($sd['reason']) && $reason==='') || ($reason!=='' && !in_array($reason, $sd['reason_options'], true))) { return $this->err('Choisissez un motif valide pour « ' . $sd['label'] . ' »'); }
 		if (!$sd['callback']) { $cb = null; }
 		$this->s->insert('callcrm_calls', ['prospect_id' => $id, 'user_id' => $this->a->uid(), 'result' => $res, 'note' => $note, 'reason' => $reason !== '' ? $reason : null, 'callback_at' => $cb, 'created_at' => $now]);
 		$max = $this->maxCallbacks(); $auto = false; $n = 0;
@@ -261,7 +259,7 @@ class ApiController extends Controller {
 		if ($uid !== '' && !in_array($uid, array_column($this->commerciaux(), 'uid'), true)) { return $this->err('Utilisateur non commercial'); }
 		if (!$this->s->get($id)) { return $this->err('Introuvable', Http::STATUS_NOT_FOUND); }
 		$old = $this->s->get($id);
-		$this->s->update($id, ['assigned_to' => $uid === '' ? null : $uid]);
+		$this->s->update($id, ['assigned_to' => $uid === '' ? null : $uid], $this->a->uid());
 		$this->s->audit($this->a->uid(), 'assign', $id, ($old['assigned_to'] ?? '—') . ' → ' . ($uid === '' ? '—' : $uid));
 		return new JSONResponse(['ok' => true]);
 	}
@@ -293,7 +291,7 @@ class ApiController extends Controller {
 	public function duplicate(): JSONResponse {
 		if (!$this->a->can('view')) { return $this->deny(); }
 		$ph = $this->normPhone(trim((string)$this->request->getParam('phone', '')));
-		$ex = $this->request->getParam('except'); 
+		$ex = $this->request->getParam('except');
 		if ($ph === null) { return new JSONResponse(['exists' => false]); }
 		$r = $this->s->prospectByPhone($ph);
 		if (!$r || ($ex !== null && (int)$ex === (int)$r['id'])) { return new JSONResponse(['exists' => false]); }
@@ -335,7 +333,7 @@ class ApiController extends Controller {
 			if (!$ids) { return $this->err('Aucun prospect sélectionné'); }
 		} else { $ids = $this->s->idsFor($from, $st, $limit); }
 		if ($dry) { return new JSONResponse(['count' => count($ids)]); }
-		$n = $ids ? $this->s->reassign($ids, $to === '__none' ? null : $to) : 0;
+		$n = $ids ? $this->s->reassign($ids, $to === '__none' ? null : $to, $this->a->uid()) : 0;
 		$this->s->audit($this->a->uid(), 'transfer', null, $n . ' prospect(s) → ' . ($to === '__none' ? 'Non assigné' : $to) . (is_array($sel) ? ' (sélection dans la liste)' : ' depuis ' . ($from === '' ? 'non assignés' : $from) . ($st !== '' ? ', statut ' . $st : '')) . ' · ids : ' . implode(',', array_slice($ids, 0, 30)) . (count($ids) > 30 ? '…' : ''));
 		return new JSONResponse(['transferred' => $n]);
 	}
@@ -370,7 +368,7 @@ class ApiController extends Controller {
 			$from = ($fs ? implode('+', $fs) : 'tous statuts') . ', ' . ($who === '__all' ? 'tous commerciaux' : ($who === '' ? 'non assignés' : $who));
 		}
 		if ($dry) { return new JSONResponse(['count' => count($ids)]); }
-		$n = $ids ? $this->s->setStatus($ids, $to, $assign) : 0;
+		$n = $ids ? $this->s->setStatus($ids, $to, $assign, $this->a->uid()) : 0;
 		$this->s->audit($this->a->uid(), 'status', null, $n . ' prospect(s) → statut ' . $to . ($assign === false ? '' : ($assign === null ? ', rendus non assignés' : ', affectés à ' . $assign)) . (is_array($sel) ? ' (sélection dans la liste)' : ' depuis ' . $from) . ' · ids : ' . implode(',', array_slice($ids, 0, 30)) . (count($ids) > 30 ? '…' : ''));
 		return new JSONResponse(['changed' => $n]);
 	}
@@ -453,7 +451,7 @@ class ApiController extends Controller {
 		$teams = $this->getTeams(); $rr = []; $n = 0;
 		foreach ($this->s->unassigned() as $r) {
 			$to = $this->pick($mode, (string)$r['c2'], $team, $teams, $rr);
-			if ($to) { $this->s->update((int)$r['id'], ['assigned_to' => $to]); $n++; }
+			if ($to) { $this->s->update((int)$r['id'], ['assigned_to' => $to], $this->a->uid()); $n++; }
 		}
 		$this->s->audit($this->a->uid(), 'distribute', null, $n . ' prospect(s) répartis (' . $mode . ') entre : ' . implode(', ', $team));
 		return new JSONResponse(['assigned' => $n]);
@@ -471,7 +469,7 @@ class ApiController extends Controller {
 		$teams = $this->getTeams(); $rr = []; $n = 0; $none = 0;
 		foreach ($this->s->orphans($team, !$all) as $r) {
 			$to = $this->pick($mode, (string)$r['c2'], $team, $teams, $rr);
-			if ($to) { $this->s->update((int)$r['id'], ['assigned_to' => $to]); $n++; } else { $none++; }
+			if ($to) { $this->s->update((int)$r['id'], ['assigned_to' => $to], $this->a->uid()); $n++; } else { $none++; }
 		}
 		$this->s->audit($this->a->uid(), 'release', null, $n . ' prospect(s) réattribué(s)');
 		return new JSONResponse(['reassigned' => $n, 'not_assigned' => $none]);
@@ -640,7 +638,10 @@ class ApiController extends Controller {
 		if ($err) { return $this->err($err); }
 		if (!empty($v['phone']) && $v['phone'] !== ($p['phone'] ?? '') && ($dup = $this->s->prospectByPhone($v['phone']))) { return $this->err($this->dupMsg($dup)); }
 		$v['extra'] = $extra ? json_encode($extra, JSON_UNESCAPED_UNICODE) : null;
-		$this->s->update($id, $v);
+
+		$base=$this->request->getParam('_base_note');
+		if ($base!==null && (!is_string($base) || $base!==(string)($p['remarque']??''))) return $this->err('La note a changé. Rechargez la fiche avant de sauvegarder.',409);
+		try { $this->s->update($id, $v, $this->a->uid(), $p); } catch (\DomainException $e) { return $this->err($e->getMessage(),409); }
 		return new JSONResponse(['ok' => true]);
 	}
 

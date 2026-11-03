@@ -296,3 +296,22 @@ body[data-themes*="dark"] #callcrm,body[data-theme-dark] #callcrm{--brand:var(--
 
 #callcrm .sim-client-picker{display:grid;gap:8px;margin:16px 0}
 #callcrm .sim-client-picker input,#callcrm .sim-client-picker select{width:100%;min-width:0}
+
+#callcrm .crm-dialog-bg{position:fixed;inset:0;background:#20264888;z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px}
+#callcrm .crm-dialog{background:#fff;color:#182237;border-radius:16px;padding:24px;width:min(600px,100%);max-height:90dvh;overflow:auto;box-shadow:0 15px 70px #18223744}
+#callcrm .crm-dialog label{display:block;margin:12px 0}#callcrm .crm-dialog input,#callcrm .crm-dialog textarea{display:block;width:100%;margin-top:6px}
+#callcrm .crm-dialog button{margin:4px}#callcrm .crm-event{padding:12px 0 18px 18px;margin-left:6px;border-left:2px solid #d7dfed}#callcrm .crm-event .bar{justify-content:space-between;gap:10px}
+#callcrm .crm-event-body{background:#f3f4f6;border:1px solid #e0e5ed;border-radius:10px;padding:12px;white-space:pre-wrap;color:#182237;margin:8px 0}
+#callcrm .crm-timeline-filters{flex-wrap:wrap;gap:5px}#callcrm .crm-timeline-filters button{font-size:12px;padding:6px 9px}#callcrm .crm-timeline-filters .on{background:#202648;color:white}
+#callcrm .crm-agenda-entry,#callcrm .crm-appointment{background:#f3f4f6!important;border-radius:12px;padding:16px;margin:12px 0}#callcrm .crm-agenda-entry.is-late{border-left:3px solid #c44b62}
+#callcrm .crm-agenda-call{padding:10px 14px;border-radius:8px;background:#e4f0ff;color:#2364a6;display:inline-flex;min-height:44px;align-items:center}
+#callcrm .crm-client-info{background:#f3f4f6!important}#callcrm .crm-client-info summary{font-weight:700;cursor:pointer;min-height:44px;display:list-item}#callcrm .crm-client-info[open] summary{margin-bottom:14px}
+#callcrm .crm-client-footer{display:none}#callcrm .crm-client-columns{padding-bottom:20px}#callcrm .crm-chronology p{margin:6px 0}#callcrm .crm-chronology small{color:#65758b}
+@media(max-width:760px){#callcrm .crm-client-columns{display:flex;flex-direction:column-reverse;padding-bottom:75px}#callcrm .crm-client-footer{position:fixed;bottom:0;left:0;right:0;z-index:80;display:flex;gap:8px;background:#fff;border-top:1px solid #dfe4eb;padding:10px 12px max(10px,env(safe-area-inset-bottom))}#callcrm .crm-client-footer>*{flex:1;text-align:center;min-height:46px;border-radius:8px;padding:12px 5px;font-size:12px;font-weight:700}#callcrm .footer-call{background:#e5f0ff;color:#2461a0}#callcrm .footer-wa{background:#e3f5e9;color:#156b45}#callcrm .crm-dialog-bg{padding:12px}#callcrm .crm-dialog{padding:18px}#callcrm .crm-agenda-tabs{flex-wrap:wrap}#callcrm .crm-agenda-entry .bar{flex-wrap:wrap}#callcrm .crm-client-info{margin-bottom:12px}}
+
+@media(max-width:760px){#callcrm .crm-client-columns{flex-direction:column} #callcrm .crm-client-columns>div{display:contents} #callcrm .crm-client-columns>div:first-child>*{order:5} #callcrm .crm-client-columns h2{order:0!important} #callcrm .crm-client-columns>div:first-child>.badge{order:1} #callcrm .crm-client-columns>div:first-child>.muted{order:2} #callcrm .crm-client-info{order:3} #callcrm .crm-client-appointments{order:4} #callcrm .crm-client-columns .big{display:none} #callcrm .crm-chronology{order:7!important}}
+
+#callcrm .crm-client-appointments summary{min-height:44px;font-weight:700;cursor:pointer}
+@media(max-width:760px){#callcrm .crm-client-columns{gap:12px} #callcrm .crm-client-columns h2{margin:0} #callcrm .crm-client-columns>div:first-child>.muted{font-size:11px;margin:0} #callcrm .crm-client-columns>div:first-child>*{order:6} #callcrm .crm-client-columns .crm-chronology{order:5!important} #callcrm .crm-client-columns .crm-client-info,#callcrm .crm-client-columns .crm-client-appointments{width:100%;margin:0}}
+
+#callcrm .crm-reason-options{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}#callcrm .crm-reason-options button.on{background:#202648;color:white}

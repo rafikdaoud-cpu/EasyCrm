@@ -114,7 +114,74 @@ function fieldsGrid(p, disabled) {
   return h('div', {class:'g2'}, vis.map(f => h('label', {class: ['textarea', 'multiselect'].includes(f.type) || f.key === 'lastname' ? 'full' : '', style:'display:block;margin:5px 0'},
     h('span', {class:'muted'}, f.label + (f.required ? ' *' : '')), fieldEl(f, fval(p, f), disabled))));
 }
-const show = (...n) => { root.classList.add('crm-workspace'); root.replaceChildren(nav(), h('div', {class:'crm-main'}, workspaceHeader(), h('div', {class:'crm-page'}, ...n.flat()))); paintCounters(); paintWa(); };
+// Agenda, client chronicle and unsaved-change protection.
+const dirtyChecks = new Map();
+function watchEdits(key,label,check){dirtyChecks.set(key,{label,check});}
+function canLeave(action,only=null){
+ const pending=[...dirtyChecks.entries()].filter(([key,v])=>(!only||only.includes(key))&&v.check());
+ if(!pending.length)return true;
+ if(root.querySelector('.crm-leave-warning'))return false;
+ const close=()=>{overlay.remove();};
+ const overlay=h('div',{class:'crm-dialog-bg crm-leave-warning'},h('section',{class:'crm-dialog',role:'dialog','aria-modal':'true','aria-label':'Modifications non enregistrées'},
+ h('h2',{},'Modifications non enregistrées'),h('p',{},'Ces informations seront perdues si vous quittez cette fiche.'),h('ul',{},pending.map(([,v])=>h('li',{},v.label))),
+ h('button',{class:'primary',onclick:close},'Rester sur la fiche'),h('button',{onclick:()=>{pending.forEach(([key])=>dirtyChecks.delete(key));close();action();}},'Quitter sans enregistrer')));
+ root.append(overlay);overlay.querySelector('button').focus();return false;
+}
+window.addEventListener('beforeunload',e=>{if([...dirtyChecks.values()].some(v=>v.check())){e.preventDefault();e.returnValue='';}});
+function chronology(pid){
+ const box=h('div',{class:'card crm-chronology'}),items=h('div'),message=h('p',{class:'muted'});let kind='all',cursor='',sequence=0;
+ const more=h('button',{onclick:()=>load(true)},'Afficher les événements précédents');
+ const title={call:'Appel',note:'Commentaire modifié',sim:'Simulation enregistrée',assign:'Affectation modifiée',appointment:'Rendez-vous'};
+ const render=e=>{const b=e.body||{};let body;
+  if(e.kind==='call')body=[h('strong',{},ST[b.result]||b.result),b.reason?h('p',{},'Motif : '+b.reason):'',b.note?h('p',{},b.note):'',b.callback_at?h('small',{},'Rappel : '+fmt(b.callback_at)):''];
+  else if(e.kind==='assign')body=[b.from+' → '+b.to];
+  else if(e.kind==='sim')body=[h('strong',{},Math.round(b.total||0).toLocaleString('fr-FR')+' DA'),h('p',{},[b.in?.model,b.in?.w&&b.in?.l?b.in.w+' × '+b.in.l+' m':''].filter(Boolean).join(' · '))];
+  else if(e.kind==='appointment')body=[h('strong',{},b.title),h('p',{},fmt(b.starts_at)+' · '+({open:'Prévu',done:'Terminé',cancelled:'Annulé'}[b.state]||'')),b.notes||''];
+  else body=[b.note||'Commentaire effacé'];
+  return h('article',{class:'crm-event','data-kind':e.kind},h('div',{class:'bar'},h('strong',{},title[e.kind]||'Événement'),h('small',{},fmt(e.created_at))),h('div',{class:'crm-event-body'},body),h('small',{},e.author));
+ };
+ async function load(append=false){const request=++sequence;more.disabled=true;message.textContent='Chargement…';
+  try{const r=await api('/prospects/'+pid+'/timeline?'+new URLSearchParams({kind,cursor:append?cursor:''}));if(request!==sequence)return;if(!box.isConnected)return;
+   if(!append)items.replaceChildren();items.append(...r.rows.map(render));cursor=r.cursor;more.hidden=!r.has_more;message.textContent=items.children.length?'':'Aucun événement pour ce filtre.';
+  }catch(e){if(request===sequence)message.textContent=e.message;}finally{if(request===sequence)more.disabled=false;}}
+ const filters=h('div',{class:'bar crm-timeline-filters'},[['all','Tout'],['call','Appels'],['note','Notes'],['sim','Simulations'],['assign','Affectations'],['appointment','Rendez-vous']].map(([key,label])=>h('button',{class:key==='all'?'on':'',onclick:e=>{kind=key;filters.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b===e.currentTarget));load();}},label)));
+ box.append(h('h3',{},'Chronologie du client'),filters,message,items,more);setTimeout(()=>load(),0);return box;
+}
+function appointmentEditor(pid,appointment=null,after=()=>{}){
+ const zone=me.prefs?.tz||'Africa/Algiers';const local=t=>{const parts=new Intl.DateTimeFormat('sv-SE',{timeZone:zone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(t*1000));return parts.replace(' ','T');};
+ const date=h('input',{type:'datetime-local',value:appointment?local(appointment.starts_at):'',required:true}),title=h('input',{value:appointment?.title||'Rendez-vous client',maxlength:120}),notes=h('textarea',{rows:3,maxlength:2000},appointment?.notes||''),msg=h('p',{class:'muted',role:'status'});
+ const initial=()=>JSON.stringify([date.value,title.value,notes.value]);const baseline=initial(),key='appointment';watchEdits(key,'Rendez-vous non enregistré',()=>overlay.isConnected&&initial()!==baseline);
+ const close=()=>{if(canLeave(()=>{dirtyChecks.delete(key);overlay.remove();},[key])){dirtyChecks.delete(key);overlay.remove();}};
+ const submit=async state=>{buttons.querySelectorAll('button').forEach(b=>b.disabled=true);msg.textContent='Enregistrement…';try{await api('/prospects/'+pid+'/appointments',{method:'POST',body:{id:appointment?.id||0,revision:appointment?.revision||0,date:date.value,title:title.value,notes:notes.value,state}});dirtyChecks.delete(key);overlay.remove();after();}catch(e){msg.textContent=e.message;}finally{buttons.querySelectorAll('button').forEach(b=>b.disabled=false);}};
+ const buttons=h('div',{class:'bar'},h('button',{class:'primary',onclick:()=>submit('open')},'Enregistrer le rendez-vous'),appointment?h('button',{onclick:()=>submit('done')},'Terminé'):'',appointment?h('button',{onclick:()=>submit('cancelled')},'Annuler le rendez-vous'):'');
+ const overlay=h('div',{class:'crm-dialog-bg'},h('section',{class:'crm-dialog',role:'dialog','aria-modal':'true','aria-label':'Rendez-vous client'},h('div',{class:'bar'},h('h2',{},appointment?'Modifier le rendez-vous':'Nouveau rendez-vous'),h('button',{'aria-label':'Fermer',onclick:close},'×')),h('label',{},'Date et heure · '+zone,date),h('label',{},'Objet',title),h('label',{},'Consignes',notes),msg,buttons));root.append(overlay);date.focus();
+}
+function clientAppointments(p){const box=h('details',{class:'card crm-client-appointments',open:window.innerWidth>760}),rows=h('div'),out=h('p',{class:'muted'});const refresh=async()=>{try{const r=await api('/prospects/'+p.id+'/appointments');if(!box.isConnected)return;rows.replaceChildren(...r.rows.map(a=>h('div',{class:'crm-appointment'},h('strong',{},a.title),h('p',{},fmt(a.starts_at)),a.notes?h('p',{},a.notes):'',me.can.call||me.can.assign?h('button',{onclick:()=>appointmentEditor(p.id,a,refresh)},'Modifier / terminer'):'')));out.textContent=r.rows.length?'':'Aucun rendez-vous prévu.';}catch(e){out.textContent=e.message;}};
+ box.append(h('summary',{},'Rendez-vous'),rows,out,me.can.call||me.can.assign?h('button',{class:'primary',onclick:()=>appointmentEditor(p.id,null,refresh)},'+ Nouveau rendez-vous'):'');setTimeout(refresh,0);return box;}
+function clientWorkspace(p,info,form,note,reason,cb,getResult,saveCall){
+ let baseline=JSON.stringify(collect(info));const saved=e=>{baseline=JSON.stringify(e.detail||collect(info));};
+ watchEdits('client','Informations du client modifiées',()=>info.isConnected&&JSON.stringify(collect(info))!==baseline);
+ watchEdits('call','Résultat d’appel non enregistré',()=>form.isConnected&&!!getResult());
+ info.addEventListener('crm-saved',saved);
+ const wrap=h('details',{class:'card crm-client-info'},h('summary',{},'Informations du client'));info.classList.remove('card');info.replaceWith(wrap);wrap.append(info);if(window.innerWidth>760)wrap.open=true;
+ const columns=root.querySelector('.cols');if(columns){columns.classList.add('crm-client-columns');columns.children[1].append(clientAppointments(p));}
+ const footer=h('div',{class:'crm-client-footer'},p.phone&&me.can.call?h('a',{class:'footer-call',href:'tel:'+p.phone},'☎ Appeler'):'',p.phone&&me.can.call?h('a',{class:'footer-wa',href:'https://wa.me/'+waNum(p.phone),target:'_blank',rel:'noopener noreferrer'},'WhatsApp'):'',me.can.call?h('button',{class:'primary',onclick:()=>{if(getResult())saveCall();else{wrap.open=true;info.querySelector('button')?.click();}}},'Enregistrer'):'');root.querySelector('.crm-page')?.append(footer);
+}
+function agenda(){
+ let period='today',offset=0,sequence=0;const box=h('div'),rows=h('div'),counts=h('div',{class:'team-kpis'}),msg=h('p',{class:'muted'}),search=h('input',{type:'search',placeholder:'Rechercher un client…','aria-label':'Rechercher un client'}),type=h('select',{'aria-label':'Type'},h('option',{value:'all'},'Tous les types'),h('option',{value:'callback'},'Rappels'),h('option',{value:'appointment'},'Rendez-vous'));
+ const assigned=h('select',{'aria-label':'Commercial'},h('option',{value:''},'Toute l’équipe'),(me.commerciaux||[]).map(u=>h('option',{value:u.uid},u.name)));
+ const tabs=h('div',{class:'bar crm-agenda-tabs'},[['today','Aujourd’hui'],['tomorrow','Demain'],['late','En retard']].map(([k,l])=>h('button',{class:k===period?'primary':'',onclick:e=>{period=k;tabs.querySelectorAll('button').forEach(b=>b.classList.toggle('primary',b===e.currentTarget));load();}},l)));
+ const more=h('button',{onclick:()=>load(true)},'Afficher les suivants');
+ async function load(append=false){const request=++sequence;more.disabled=true;msg.textContent='Chargement…';if(!append)offset=0;
+  try{const r=await api('/agenda?'+new URLSearchParams({period,type:type.value,assigned:me.can.all?assigned.value:'',q:search.value,offset,limit:20}));if(request!==sequence||!box.isConnected)return;counts.replaceChildren(...[['today','À faire aujourd’hui'],['late','En retard'],['tomorrow','Prévus demain']].map(([k,l])=>h('div',{class:'team-kpi'},h('strong',{},String(r.counts[k])),h('span',{},l))));
+   if(!append)rows.replaceChildren();rows.append(...r.rows.map(a=>h('article',{class:'card crm-agenda-entry'+(a.late?' is-late':'')},h('div',{class:'bar'},h('strong',{},fmt(a.starts_at)),h('span',{class:'badge'},a.type==='callback'?'Rappel':'Rendez-vous'),a.late?h('span',{class:'err'},'En retard'):''),h('h3',{},a.client_name),h('p',{},a.title),h('p',{class:'muted'},a.notes),h('small',{},a.owner),h('div',{class:'bar'},h('button',{onclick:()=>detail(a.prospect_id)},'Ouvrir la fiche ↗'),a.phone&&me.can.call?h('a',{href:'tel:'+a.phone,class:'crm-agenda-call'},'☎ Appeler'):'',a.type==='appointment'&&(me.can.call||me.can.assign)?h('button',{onclick:()=>appointmentEditor(a.prospect_id,{id:a.appointment_id,starts_at:a.starts_at,title:a.title,notes:a.notes,revision:a.revision},()=>load())},'Modifier / terminer'):''))));
+   offset=r.next_offset;more.hidden=!r.has_more;msg.textContent=r.rows.length?'Fuseau : '+r.timezone:'Aucun élément pour cette période.';
+  }catch(e){if(request===sequence)msg.textContent=e.message;}finally{if(request===sequence)more.disabled=false;}}
+ let timer;search.addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(()=>load(),300);});type.addEventListener('change',()=>load());assigned.addEventListener('change',()=>load());
+ box.append(counts,tabs,h('div',{class:'bar'},search,type,me.can.all?assigned:''),msg,rows,more);show(h('h2',{},'Mon agenda'),h('p',{class:'muted'},'Vos rappels et rendez-vous, au même endroit. Créez un rendez-vous depuis la fiche du client.'),box);load();
+}
+
+const show = (...n) => { dirtyChecks.clear(); root.classList.add('crm-workspace'); root.replaceChildren(nav(), h('div', {class:'crm-main'}, workspaceHeader(), h('div', {class:'crm-page'}, ...n.flat()))); paintCounters(); paintWa(); };
 let CNT = {overdue:0, today:null, goal:0};
 /** Badge des rappels en retard + progression de l'objectif quotidien (commerciaux). */
 async function paintCounters() {
@@ -138,6 +205,7 @@ function workspaceHeader() {
 function nav() {
   const inDossiers = !!KINDS[tab], t = [];
   if (me.role === 'commercial') t.push(['journee',T('Ma journée')]);
+  t.push(['agenda','Agenda']);
   t.push(['dossiers',T('Dossiers Clients')]);
   if (TEL.wa === 'api') t.push(['wa',T('WhatsApp')]);
   t.push(['stats',me.can.all ? T('Statistiques') : T('Mes statistiques')]);
@@ -153,7 +221,7 @@ function nav() {
       states.map(([key,label]) => h('button', {class:tab === key ? 'on' : '', 'data-k':key, 'aria-pressed':String(tab === key), onclick:() => go(key)}, label))) : '',
     h('div', {class:'crm-sidebar-note muted'}, me.role === 'commercial' ? T('Votre espace de travail') : T('Pilotage de l’activité')));
 }
-function go(k) { if (k === 'dossiers') k = 'nouveaux'; tab = k; if (k === 'journee' && me.role === 'commercial') myDay(); else if (k === 'wa') waList(); else if (k === 'stats') stats(); else if (k === 'admin') admin(); else if (k === 'annonce') show(h('h2', {}, T('Annonce')), announcementCard()); else if (k === 'commerciaux') presenceBoard(); else list(k); }
+function go(k) { if(typeof canLeave==='function'&&!canLeave(()=>go(k)))return; if (k === 'dossiers') k = 'nouveaux'; tab = k; if(k==='agenda'){agenda();return;} if (k === 'journee' && me.role === 'commercial') myDay(); else if (k === 'wa') waList(); else if (k === 'stats') stats(); else if (k === 'admin') admin(); else if (k === 'annonce') show(h('h2', {}, T('Annonce')), announcementCard()); else if (k === 'commerciaux') presenceBoard(); else list(k); }
 const modeOpts = none => [
   h('option', {value:'categorie'}, T('Par catégorie (groupe de chaque catégorie)')),
   h('option', {value:'auto'}, T('Équitablement (tous les commerciaux)')),
@@ -292,6 +360,7 @@ function callHistoryEntry(c) {
 }
 
 async function detail(id) {
+  if(!canLeave(()=>detail(id)))return;
   let d;
   try { d = await api('/prospects/' + id); } catch (e) { return show(h('p', {class:'err'}, e.message)); }
   const p = d.prospect;
@@ -330,9 +399,11 @@ async function detail(id) {
     document.querySelectorAll('#easycrm .res button').forEach(b => b.classList.toggle('on', b.dataset.r === r));
     const needCb = !!(STD[r] && STD[r].callback);
     note.placeholder = STD[r] && STD[r].note ? T('Note (obligatoire)') : T('Note (facultatif)');
-    const needRs = !!(STD[r] && STD[r].reason);
+    const needRs = !!(STD[r] && STD[r].reason) || !!STD[r]?.reason_options?.length;
+    reason.replaceChildren(h('option',{value:''},STD[r]?.reason?'— Motif obligatoire —':'— Motif facultatif —'),...(STD[r]?.reason_options||[]).map(x=>h('option',{value:x},x)));
+    reason.hidden=true; const reasonButtons=h('div',{class:'crm-reason-options'},(STD[r]?.reason_options||[]).map(value=>h('button',{type:'button',onclick:e=>{reason.value=value;reasonButtons.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b===e.currentTarget));}},value)));
     if (needCb && !cb.value) inMin(60);
-    form.replaceChildren(needRs ? h('p', {style:'margin:0 0 6px'}, reason) : '', note,
+    form.replaceChildren(needRs ? h('div', {style:'margin:0 0 6px'}, reason, reasonButtons) : '', note,
       needCb ? h('p', {}, T('Date et heure de rappel :')) : '',
       needCb ? h('div', {class:'shortcuts'}, h('button', {onclick: () => inMin(60)}, T('Dans 1 h')), h('button', {onclick: () => inMin(120)}, T('Dans 2 h')), h('button', {onclick: () => inMin(240)}, T('Dans 4 h')), h('button', {onclick: tomorrow}, T('Demain'))) : '',
       needCb ? cb : '', needCb && cbHint ? h('div', {class:'muted'}, cbHint) : '',
@@ -354,15 +425,16 @@ async function detail(id) {
       const needCb = !!(STD[sel] && STD[sel].callback);
       if (needCb) { const e1 = checkCb(); if (e1) { msg.textContent = e1; return; } }
       if (STD[sel] && STD[sel].reason && !reason.value) { msg.textContent = T('Un motif est obligatoire pour « ') + ST[sel] + ' ».'; return; }
-      const body = {result:sel, note:note.value, reason: STD[sel] && STD[sel].reason ? reason.value : '', at: Math.floor(Date.now() / 1000), callback_at: needCb && cb.value ? Math.floor(new Date(cb.value).getTime() / 1000) : null};
+      const body = {result:sel, note:note.value, reason: reason.value, at: Math.floor(Date.now() / 1000), callback_at: needCb && cb.value ? Math.floor(new Date(cb.value).getTime() / 1000) : null};
       try { const r = await api('/prospects/' + id + '/call', {method:'POST', body}); if (r && r.auto_closed) alert(T('Limite de ') + r.max + T(' tentative(s) atteinte : ce prospect est passé automatiquement en « ') + (ST.faux_numero || T('Injoignable / faux numéro')) + ' ».'); }
       catch (e) {
         if (!e.offline) throw e;
-        queueCall(id, body);
+        queueCall(id, body);sel=null;dirtyChecks.delete('call');
         form.replaceChildren(h('p', {}, T('✔ Appel enregistré sur cet appareil (hors ligne). Il sera envoyé automatiquement au retour de la connexion.')),
           h('button', {class:'primary', onclick: () => go('nouveaux')}, T('Revenir à la liste')));
         return;
       }
+      sel=null;dirtyChecks.delete('call');
       await next();
     } catch (e) { msg.textContent = e.offline ? T('Connexion indisponible.') : e.message; }
   };
@@ -373,7 +445,7 @@ async function detail(id) {
     h('div', {class:'muted'}, T('Heure d’enregistrement : ') + fmt(Number(p.created_at))),
     ro ? '' : h('button', {class:'primary', style:'margin-top:8px', onclick: async () => {
       imsg.className = 'err'; imsg.textContent = '';
-      try { await api('/prospects/' + id + '/update', {method:'POST', body: collect(info)}); imsg.className = 'muted'; imsg.textContent = T('Informations enregistrées.'); }
+      try { const snapshot=collect(info); await api('/prospects/' + id + '/update', {method:'POST', body: {...snapshot,_base_note:String(p.remarque||'')}}); if('remarque' in snapshot)p.remarque=snapshot.remarque; info.dispatchEvent(new CustomEvent('crm-saved',{detail:snapshot})); imsg.className = 'muted'; imsg.textContent = T('Informations enregistrées.'); }
       catch (e) { imsg.textContent = e.message; }
     }}, T('Enregistrer les informations')), imsg);
   const asg = me.can.assign ? h('select', {onchange: async e => { try { await api('/prospects/' + id + '/assign', {method:'POST', body:{uid:e.target.value}}); } catch (x) { alert(x.message); } }},
@@ -396,10 +468,10 @@ async function detail(id) {
         me.can.call ? h('div', {class:'res'}, RES.map(r => h('button', {'data-r': r, onclick: () => pick(r)}, ST[r]))) : h('p', {class:'muted'}, T('Consultation seule.')),
         form, asg,
         d.recordings && d.recordings.length ? [h('h3', {}, T('Enregistrements')), d.recordings.map(recRow)] : '',
-        h('h3', {}, T('Historique')),
-        d.calls.length ? d.calls.map(callHistoryEntry) : h('p', {class:'muted'}, T('Aucun appel.'))),
+        chronology(id)),
       h('div', {}, info,
         me.can.delete ? h('button', {onclick: async () => { if (confirm(T('Supprimer ce prospect ?'))) { await api('/prospects/' + id + '/delete', {method:'POST'}); go('tous'); } }}, T('Supprimer')) : '')));
+  clientWorkspace(p,info,form,note,reason,cb,()=>sel,save);
 }
 
 const TEL = new Proxy({}, {get: (_, k) => ((me && me.tel) || {pbx:'none', wa:'link'})[k]});
@@ -648,7 +720,7 @@ function statusesEditor() {
       const mv = d => () => { const j = i + d; if (j < 0 || j >= list.length) return; [list[i], list[j]] = [list[j], list[i]]; draw(); };
       const del = f.builtin ? '' : h('button', {title:T('Supprimer'), onclick: () => { if (confirm(T('Supprimer la réponse « ') + f.label + T(' » ?'))) { list.splice(i, 1); draw(); } }}, '🗑');
       return h('div', {style:'border-top:1px solid var(--color-border);padding:8px 0;display:flex;flex-wrap:wrap;gap:8px;align-items:center'}, col, lab, cb, nt, rs, ac,
-        h('button', {onclick: mv(-1)}, '↑'), h('button', {onclick: mv(1)}, '↓'), del, nw ? h('span', {class:'muted'}, T('Statut initial (pas une réponse d’appel).')) : '');
+        h('button', {onclick: mv(-1)}, '↑'), h('button', {onclick: mv(1)}, '↓'), del, !nw ? h('label',{style:'width:100%'},'Motifs de cette réponse (un par ligne)',h('textarea',{rows:3,style:'width:100%',oninput:e=>{f.reason_options=e.target.value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);}},(f.reason_options||[]).join('\n'))) : '', nw ? h('span', {class:'muted'}, T('Statut initial (pas une réponse d’appel).')) : '');
     }));
   };
   draw();

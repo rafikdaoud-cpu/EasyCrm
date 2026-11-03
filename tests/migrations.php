@@ -28,7 +28,7 @@ namespace {
  $allIndexes = [];
  foreach ([['callcrm','CallCrm','Version1009Date20261102090000','Version1010Date20261102120000','Version1011Date20261102150000','Version1012Date20261102160000'],['nextcloud','EasyCrm','Version1005Date20261102090000','Version1006Date20261102120000','Version1007Date20261102150000','Version1008Date20261102160000']] as [$folder,$ns,$ann,$presence,$lunch,$policy]) {
   $schema = new Schema(); $output = new class implements \OCP\Migration\IOutput {};
-  foreach ([$ann,$presence,$lunch,$policy] as $version) {
+  foreach ([$ann,$presence,$lunch,$policy,$folder==='callcrm'?'Version1013Date20261103120000':'Version1009Date20261103120000'] as $version) {
    require __DIR__.'/../'.$folder.'/lib/Migration/'.$version.'.php';
    $class = 'OCA\\'.$ns.'\\Migration\\'.$version; $migration = new $class();
    $migration->changeSchema($output,fn()=>$schema,[]); $first = serialize($schema);
@@ -36,7 +36,7 @@ namespace {
    if (serialize($schema) !== $first) throw new \RuntimeException('Migration not repeatable: '.$class);
   }
   $id = $folder === 'callcrm' ? 'callcrm' : 'easycrm';
-  foreach (['announcements'=>['id','sender_id','sender_name','recipient_id','body','created_at','dismissed_at'], 'presence'=>['user_id','paused','segment_start','last_seen','revision','pause_kind','pause_started_at','lunch_day'], 'presence_log'=>['id','user_id','paused','started_at','ended_at','pause_kind']] as $table=>$columns) {
+  foreach (['client_events'=>['id','prospect_id','user_id','kind','body','created_at'],'appointments'=>['id','prospect_id','starts_at','title','notes','state','revision','created_by','updated_at'],'announcements'=>['id','sender_id','sender_name','recipient_id','body','created_at','dismissed_at'], 'presence'=>['user_id','paused','segment_start','last_seen','revision','pause_kind','pause_started_at','lunch_day'], 'presence_log'=>['id','user_id','paused','started_at','ended_at','pause_kind']] as $table=>$columns) {
    $t = $schema->tables[$id.'_'.$table] ?? null;
    if (!$t || array_diff($columns,array_keys($t->columns))) throw new \RuntimeException('Missing migration fields: '.$table);
    foreach ($t->indexes as $name=>$index) {

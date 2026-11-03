@@ -14,5 +14,7 @@ node tests/transfers-ui.cjs
 node tests/admin-panels-ui.cjs
 node tests/simulator-history-ui.cjs
 "$PHP_BIN" callcrm/tests/simulator.php
+"$PHP_BIN" tests/client-activity.php callcrm
+"$PHP_BIN" tests/client-activity.php nextcloud
 "$PHP_BIN" tests/migrations.php
 git diff --check

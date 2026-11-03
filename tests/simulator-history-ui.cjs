@@ -13,10 +13,10 @@ for(const edition of ['callcrm','nextcloud'])test(edition+': all call outcomes s
 function simulator(){
  const source=fs.readFileSync('callcrm/js/app.js','utf8'),dom=new JSDOM('<body><main><textarea data-k="remarque">Note existante</textarea></main></body>');let saves=0,fail=false,resolveSave;
  const cfg={models:[{name:'Classique',price:37000}],extras:[{name:'Tiroir',price:5000}],equip:[{name:'Colonne',price:0,deduct:0.6,when:'no'}],hl_mult:2,wt_deduct:0.6,depth:0.65,m2:17500,labour:15000,plinth:5000,coef:1.3,range:10,round:1000};
- const ctx=vm.createContext({document:dom.window.document,Node:dom.window.Node,root:dom.window.document.querySelector('main'),URLSearchParams,me:{can:{call:true}},nm:p=>p.lastname||'Client',navigator:{clipboard:{writeText:async()=>{}}},alert:()=>{},api:async(path,options)=>{
+ const ctx=vm.createContext({document:dom.window.document,window:dom.window,Node:dom.window.Node,root:dom.window.document.querySelector('main'),URLSearchParams,me:{can:{call:true}},nm:p=>p.lastname||'Client',navigator:{clipboard:{writeText:async()=>{}}},alert:()=>{},api:async(path,options)=>{
   if(path==='/sim')return{cfg};if(path.startsWith('/prospects?'))return[{id:1,lastname:'Client'}];saves++;await new Promise(r=>resolveSave=r);if(fail)throw Error('Échec réseau');return{remarque:'Note existante\n\n*Estimation*',note:'*Estimation*'};
  }});
- vm.runInContext(source.slice(source.indexOf('const h ='),source.indexOf('async function api('))+source.slice(source.indexOf('let SIM ='),source.indexOf('/** Simulations déjà')),ctx);
+ vm.runInContext(source.slice(source.indexOf('const h ='),source.indexOf('async function api('))+source.slice(source.indexOf('const dirtyChecks'),source.indexOf('function chronology('))+source.slice(source.indexOf('let SIM ='),source.indexOf('/** Simulations déjà')),ctx);
  return{dom,ctx,get saves(){return saves;},finish(){resolveSave();},fail(){fail=true;}};
 }
 test('simulator stays open, validates dimensions and saves once without dropping local client edits',async()=>{

@@ -17,6 +17,33 @@ class Statuses {
 		'faux_numero' => ['Injoignable / faux numéro', '#c0392b', false, false, false],
 	];
 
+	private const REASONS = [
+		'interesse'=>['Demande de devis','Rendez-vous demandé','Projet confirmé','Autre'],
+		'injoignable'=>['Sonnerie sans réponse','Téléphone éteint','Messagerie','Autre'],
+		'rappel'=>['Client occupé','Rappel demandé','Décision en attente','Autre'],
+		'pas_interesse'=>['Prix trop élevé','Projet reporté','Déjà équipé','Pas de besoin','Autre'],
+		'non_eligible'=>['Revenu insuffisant','Zone non couverte','Pièce manquante','Dossier refusé par la banque','Autre'],
+		'faux_numero'=>['Mauvais contact','Numéro inexistant','Numéro incomplet','Autre']
+	];
+	private static function reasonOptions(string $key, array $f): array {
+		if (array_key_exists('reason_options',$f)) return self::cleanReasons($f['reason_options']);
+		if ($key==='nouveau') return [];
+		// Preserve the existing administrator-defined refusal list on upgrade.
+		if (in_array($key,['pas_interesse','non_eligible'],true)) {
+			$old=json_decode((string)\OCP\Server::get(IConfig::class)->getAppValue('callcrm','reasons',''),true);
+			if (is_array($old) && $old) return self::cleanReasons($old);
+		}
+		return self::REASONS[$key] ?? ['Dossier transmis','Demande d’information','Autre'];
+	}
+	private static function cleanReasons($input): array {
+		if (!is_array($input) || count($input)>30) throw new \InvalidArgumentException('Une réponse accepte au maximum 30 motifs.');
+		$out=[];foreach ($input as $value) {
+			if (!is_string($value) || mb_strlen($value)>100) throw new \InvalidArgumentException('Motif invalide (100 caractères maximum).');
+			$value=trim($value);if ($value!=='' && !in_array($value,$out,true)) $out[]=$value;
+		}
+		return $out;
+	}
+
 	private static function stored(): array {
 		$raw = (string)\OCP\Server::get(IConfig::class)->getAppValue('callcrm', 'statuses_cfg', '');
 		$a = $raw !== '' ? json_decode($raw, true) : null;
@@ -34,7 +61,7 @@ class Statuses {
 			elseif (preg_match('/^s[0-9a-f]{6}$/', $k)) {
 				$l = mb_substr(trim((string)($f['label'] ?? '')), 0, 40);
 				$out[] = ['key' => $k, 'label' => $l !== '' ? $l : $k, 'color' => self::color($f['color'] ?? '', '#607d8b'), 'callback' => !empty($f['callback']),
-					'note' => !empty($f['note']), 'reason' => !empty($f['reason']), 'active' => !array_key_exists('active', $f) || !empty($f['active']), 'builtin' => false, 'result' => true];
+					'note' => !empty($f['note']), 'reason' => !empty($f['reason']), 'active' => !array_key_exists('active', $f) || !empty($f['active']), 'builtin' => false, 'result' => true, 'reason_options'=>self::reasonOptions($k,$f)];
 			} else { continue; }
 			$seen[$k] = true;
 		}
@@ -49,7 +76,7 @@ class Statuses {
 			'callback' => $isNew ? false : (array_key_exists('callback', $f) ? !empty($f['callback']) : $cb),
 			'note' => $isNew ? false : (array_key_exists('note', $f) ? !empty($f['note']) : $note),
 			'reason' => $isNew ? false : (array_key_exists('reason', $f) ? !empty($f['reason']) : $rs),
-			'active' => $isNew ? true : (!array_key_exists('active', $f) || !empty($f['active'])), 'builtin' => true, 'result' => !$isNew];
+			'active' => $isNew ? true : (!array_key_exists('active', $f) || !empty($f['active'])), 'builtin' => true, 'result' => !$isNew, 'reason_options'=>self::reasonOptions($k,$f)];
 	}
 
 	public static function keys(): array { return array_column(self::all(), 'key'); }
@@ -76,6 +103,8 @@ class Statuses {
 				if (!preg_match('/^s[0-9a-f]{6}$/', $k) || isset($seen[$k])) { $k = 's' . bin2hex(random_bytes(3)); }
 				$clean[] = ['key' => $k, 'label' => $label, 'color' => $color, 'callback' => !empty($f['callback']), 'note' => !empty($f['note']), 'reason' => !empty($f['reason']), 'active' => !empty($f['active'])];
 			}
+			$clean[array_key_last($clean)]['reason_options']=self::reasonOptions($k,$f);
+			if (!empty($f['reason']) && !$clean[array_key_last($clean)]['reason_options']) throw new \InvalidArgumentException('Ajoutez au moins un motif pour « '.$label.' ».');
 			$seen[$k] = true;
 		}
 		// un statut personnalisé encore utilisé ne peut pas disparaître

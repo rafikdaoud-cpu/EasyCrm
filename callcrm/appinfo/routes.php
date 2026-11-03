@@ -1,5 +1,9 @@
 <?php
 return ['routes' => [
+	['name'=>'activity#agenda','url'=>'/api/agenda','verb'=>'GET'],
+	['name'=>'activity#timeline','url'=>'/api/prospects/{id}/timeline','verb'=>'GET'],
+	['name'=>'activity#appointments','url'=>'/api/prospects/{id}/appointments','verb'=>'GET'],
+	['name'=>'activity#saveAppointment','url'=>'/api/prospects/{id}/appointments','verb'=>'POST'],
 	['name' => 'presence#mine', 'url' => '/api/presence/mine', 'verb' => 'GET'],
 	['name' => 'presence#heartbeat', 'url' => '/api/presence/heartbeat', 'verb' => 'POST'],
 	['name' => 'presence#pause', 'url' => '/api/presence/pause', 'verb' => 'POST'],
