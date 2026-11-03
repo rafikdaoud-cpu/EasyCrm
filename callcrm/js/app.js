@@ -280,9 +280,15 @@ function attemptsBox(calls) {
   const max = me.max_callbacks || 0;
   return h('div', {class:'card', style:'background:var(--color-background-dark,#f3f3f3);margin:8px 0', title:'Note automatique, non modifiable'},
     h('strong', {}, '🔒 Tentatives de rappel : ' + a.length + (max ? ' / ' + max : '')),
-    ...a.map((c, i) => h('div', {}, 'Appel ' + (i + 1) + ' : ' + fmtS(Number(c.created_at)) + ' — ' + ST[c.result] + (c.user_id ? ' (' + c.user_id + ')' : ''))),
+    ...a.map((c, i) => h('div', {}, 'Appel ' + (i + 1) + ' : ' + fmtS(Number(c.created_at)) + ' — ' + ST[c.result] + (c.reason ? ' — ' + c.reason : ''))),
     max && a.length >= max ? h('div', {class:'err'}, 'Limite atteinte.') : '');
 }
+function callHistoryEntry(c) {
+  return h('div', {class:'card call-history-entry'}, h('strong', {}, ST[c.result] || c.result), ' — ', fmt(Number(c.created_at)),
+    c.reason ? h('div', {}, 'Motif : ' + c.reason) : '', c.note ? h('div', {class:'call-history-note'}, c.note) : '',
+    c.callback_at ? h('div', {class:'muted'}, 'Rappel prévu : ' + fmt(Number(c.callback_at))) : '');
+}
+
 async function detail(id) {
   let d;
   try { d = await api('/prospects/' + id); } catch (e) { return show(h('p', {class:'err'}, e.message)); }
@@ -389,8 +395,7 @@ async function detail(id) {
         d.recordings && d.recordings.length ? [h('h3', {}, 'Enregistrements'), d.recordings.map(recRow)] : '',
         simHistory(d.sims),
         h('h3', {}, 'Historique'),
-        d.calls.length ? d.calls.map(c => h('div', {class:'card'}, h('strong', {}, ST[c.result]), ' — ', fmt(Number(c.created_at)), ' — ', c.user_id,
-          c.reason ? h('div', {}, 'Motif : ' + c.reason) : '', c.note ? h('div', {}, c.note) : '',  c.callback_at ? h('div', {class:'muted'}, 'Rappel prévu : ' + fmt(Number(c.callback_at))) : '')) : h('p', {class:'muted'}, 'Aucun appel.')),
+        d.calls.length ? d.calls.map(callHistoryEntry) : h('p', {class:'muted'}, 'Aucun appel.')),
       h('div', {}, info,
         me.can.delete ? h('button', {onclick: async () => { if (confirm('Supprimer ce prospect ?')) { await api('/prospects/' + id + '/delete', {method:'POST'}); go('tous'); } }}, 'Supprimer') : '')));
 }
@@ -448,19 +453,55 @@ async function openSim(p) {
     c.equip.filter(e => i.eq[e.name]).length ? 'Équipements : ' + c.equip.filter(e => i.eq[e.name]).map(e => e.name).join(', ') : '',
     Object.entries(i.extras).filter(([, n]) => n).map(([k, n]) => n + ' × ' + k).join(', '),
     'Estimation : environ ' + DA(r.approx) + ' (entre ' + DA(r.lo) + ' et ' + DA(r.hi) + ')'].filter(Boolean).join('\n');
+  const clientNoteField = p ? root.querySelector('[data-k="remarque"]') : null;
+  let saving = false, savedInput = '', target = p || null, searchId = 0;
+  const targetPick = h('select', {'aria-label':'Client destinataire'}, h('option', {value:''}, '— Choisir le client —'));
+  const clientSearch = h('input', {type:'search', placeholder:'Rechercher un client (nom ou téléphone)', 'aria-label':'Rechercher un client'});
+  const pickerMsg = h('div', {class:'muted', role:'status'});
+  let choices = [];
+  clientSearch.addEventListener('input', async () => {
+    const request = ++searchId, q = clientSearch.value.trim();
+    target = null; targetPick.replaceChildren(h('option', {value:''}, '— Choisir le client —')); upd();
+    if (q.length < 2) { pickerMsg.textContent = 'Saisissez au moins 2 caractères.'; return; }
+    pickerMsg.textContent = 'Recherche…';
+    try {
+      const rows = await api('/prospects?' + new URLSearchParams({q, limit:20}));
+      if (request !== searchId) return;
+      choices = rows;
+      targetPick.append(...rows.map(x => h('option', {value:x.id}, nm(x) + (x.phone ? ' — ' + x.phone : ''))));
+      pickerMsg.textContent = rows.length ? 'Choisissez le client auquel ajouter cette estimation.' : 'Aucun client trouvé.';
+    } catch (e) { if (request === searchId) pickerMsg.textContent = e.message; }
+  });
+  targetPick.addEventListener('change', () => { target = choices.find(x => String(x.id) === targetPick.value) || null; upd(); });
+  const saveButton = h('button', {type:'button', class:'primary', onclick: async () => {
+    if (!target || !last || saving || savedInput === JSON.stringify([target.id, i])) return;
+    const client = target, snapshot = JSON.parse(JSON.stringify(i));
+    saving = true; saveButton.disabled = true; msg.textContent = 'Enregistrement…';
+    try {
+      const r = await api('/prospects/' + client.id + '/sim', {method:'POST', body:{in:snapshot}});
+      savedInput = JSON.stringify([client.id, snapshot]);
+      if (p && p.id === client.id) {
+        const field = clientNoteField;
+        if (field) field.value = field.value === String(p.remarque || '') ? r.remarque : field.value + (field.value ? '\n\n' : '') + r.note;
+        p.remarque = r.remarque;
+      }
+      msg.textContent = '✔ Estimation ajoutée à la note du client « ' + nm(client) + ' ».';
+    } catch (e) { msg.textContent = e.message; }
+    finally { saving = false; upd(); }
+  }}, 'Enregistrer dans la note du client');
   let last;
   function upd() {
     const ok = i.w >= 0.5 && i.l >= 0.5 && i.w <= 20 && i.l <= 20;
-    if (!ok) { bar.replaceChildren(h('span', {class: 'err'}, 'Largeur et longueur : entre 0,5 et 20 m.')); return; }
+    saveButton.disabled = !ok || !target || saving || savedInput === JSON.stringify([target?.id, i]);
+    if (!ok) { last = null; bar.replaceChildren(h('span', {class: 'err'}, 'Largeur et longueur : entre 0,5 et 20 m.')); return; }
     last = simCalc(c, i);
     plan.replaceChildren(simPlan(i));
     bar.replaceChildren(h('span', {}, 'Estimation'), h('strong', {}, '≈ ' + DA(last.approx)), h('small', {}, 'entre ' + DA(last.lo) + ' et ' + DA(last.hi)));
     res.replaceChildren(h('table', {class: 't'}, h('tbody', {},
         [['Meubles (' + last.net.toFixed(2).replace('.', ',') + ' ml utiles)', last.furn], ['Suppléments et équipements', last.ex + last.eqp], ['Plan de travail, pose et plinthe', last.wt]].map(([a, b]) => h('tr', {}, h('td', {}, a), h('td', {style: 'text-align:right;white-space:nowrap'}, DA(b)))))));
   }
-  const close = () => { bg.remove(); document.removeEventListener('keydown', esc); };
-  const esc = e => { if (e.key === 'Escape') close(); };
-  const bg = h('div', {class: 'sim-bg', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Simulateur de cuisine', onclick: e => { if (e.target === bg) close(); }},
+  const close = () => { bg.remove(); };
+  const bg = h('div', {class: 'sim-bg', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Simulateur de cuisine'},
     h('div', {class: 'sim'},
       h('div', {class: 'sim-head'}, h('h2', {}, 'Simulateur de cuisine' + (p ? ' — ' + nm(p) : '')), h('button', {type: 'button', 'aria-label': 'Fermer', onclick: close}, '✕')),
       h('div', {class: 'sim-body'},
@@ -471,17 +512,14 @@ async function openSim(p) {
           h('h3', {}, '3. Modèle'), models,
           h('h3', {}, '4. Suppléments'), ...extras),
         h('div', {class: 'sim-side'}, plan, res,
+          !p && me.can.call ? h('div', {class:'sim-client-picker'}, clientSearch, targetPick, pickerMsg) : '',
           h('div', {class: 'sim-actions'},
-            p && me.can.call ? h('button', {type: 'button', class: 'primary', onclick: async () => {
-              msg.textContent = '…';
-              try { await api('/prospects/' + p.id + '/sim', {method: 'POST', body: {in: i}}); msg.textContent = '✔ Simulation enregistrée dans la fiche.'; }
-              catch (e) { msg.textContent = e.message; }
-            }}, 'Enregistrer dans la fiche') : '',
-            h('button', {type: 'button', onclick: async () => { try { await navigator.clipboard.writeText(summary(last)); msg.textContent = '✔ Résumé copié : collez-le dans une note ou un message.'; } catch (e) { msg.textContent = summary(last); } }}, 'Copier le résumé')),
+            me.can.call ? saveButton : '',
+            h('button', {type: 'button', onclick: async () => { if (!last) { msg.textContent = 'Corrigez les dimensions avant de copier.'; return; } try { await navigator.clipboard.writeText(summary(last)); msg.textContent = '✔ Résumé copié : collez-le dans une note ou un message.'; } catch (e) { msg.textContent = summary(last); } }}, 'Copier le résumé')),
           msg,
           h('p', {class: 'muted'}, 'Estimation indicative, à confirmer après prise de mesures.'))),
       bar));
-  root.append(bg); document.addEventListener('keydown', esc); upd();
+  root.append(bg); upd();
   bg.querySelector('input').focus();
 }
 /** Simulations déjà enregistrées sur la fiche. */

@@ -667,9 +667,16 @@ class ApiController extends Controller {
 		if ($this->a->role() === 'commercial' && $p['assigned_to'] !== $this->a->uid()) { return $this->deny(); }
 		$in = $this->request->getParam('in', []);
 		if (!is_array($in)) { return $this->err('Données invalides'); }
-		try { $r = Sim::compute(Sim::all(), $in); } catch (\InvalidArgumentException $e) { return $this->err($e->getMessage()); }
-		$this->s->audit($this->a->uid(), 'sim', $id, json_encode(['in' => $in, 'total' => $r['total']], JSON_UNESCAPED_UNICODE));
-		return new JSONResponse(['ok' => true, 'sims' => $this->s->simsFor($id)]);
+		try {
+			$cfg = Sim::all();
+			$r = Sim::compute($cfg, $in);
+			$clean = ['w'=>(float)$in['w'], 'l'=>(float)$in['l'], 'hl'=>!empty($in['hl']), 'model'=>$in['model'], 'eq'=>[], 'extras'=>$r['extras_n']];
+			foreach ($cfg['equip'] as $e) { $clean['eq'][$e['name']] = !empty($in['eq'][$e['name']]); }
+			$note = Sim::summary($cfg, $clean, $r);
+			$text = $this->s->saveSimulation($id, $this->a->uid(), $clean, $r, $note, $p['assigned_to']);
+		} catch (\InvalidArgumentException $e) { return $this->err($e->getMessage()); }
+		catch (\DomainException $e) { return $this->err($e->getMessage(), Http::STATUS_CONFLICT); }
+		return new JSONResponse(['ok'=>true, 'remarque'=>$text, 'note'=>$note, 'sims'=>$this->s->simsFor($id)]);
 	}
 
 	#[NoAdminRequired]

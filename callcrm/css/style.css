@@ -291,3 +291,8 @@ body[data-themes*="dark"] #callcrm,body[data-theme-dark] #callcrm{--brand:var(--
 #callcrm .crm-admin-panel-tools{justify-content:flex-end;flex-wrap:wrap}
 @media(max-width:480px){#callcrm .crm-admin-panel-action{display:none} #callcrm .crm-admin-panel > summary h3{font-size:15px}}
 #callcrm .crm-page .card.crm-admin-panel{background:#f3f4f6;border-color:#dce0e5;color:#1f2937;--color-main-background:#fff;--color-text-maxcontrast:#64748b}
+
+#callcrm .call-history-note{white-space:pre-wrap;overflow-wrap:anywhere}
+
+#callcrm .sim-client-picker{display:grid;gap:8px;margin:16px 0}
+#callcrm .sim-client-picker input,#callcrm .sim-client-picker select{width:100%;min-width:0}

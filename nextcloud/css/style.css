@@ -195,3 +195,5 @@
 #easycrm .crm-admin-panel-tools{justify-content:flex-end;flex-wrap:wrap}
 @media(max-width:480px){#easycrm .crm-admin-panel-action{display:none} #easycrm .crm-admin-panel > summary h3{font-size:15px}}
 #easycrm .crm-page .card.crm-admin-panel{background:#f3f4f6;border-color:#dce0e5;color:#1f2937;--color-main-background:#fff;--color-text-maxcontrast:#64748b}
+
+#easycrm .call-history-note{white-space:pre-wrap;overflow-wrap:anywhere}

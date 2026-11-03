@@ -282,9 +282,15 @@ function attemptsBox(calls) {
   const max = me.max_callbacks || 0;
   return h('div', {class:'card', style:'background:var(--color-background-dark,#f3f3f3);margin:8px 0', title:T('Note automatique, non modifiable')},
     h('strong', {}, T('🔒 Tentatives de rappel : ') + a.length + (max ? ' / ' + max : '')),
-    ...a.map((c, i) => h('div', {}, T('Appel ') + (i + 1) + ' : ' + fmtS(Number(c.created_at)) + ' — ' + ST[c.result] + (c.user_id ? ' (' + c.user_id + ')' : ''))),
+    ...a.map((c, i) => h('div', {}, T('Appel ') + (i + 1) + ' : ' + fmtS(Number(c.created_at)) + ' — ' + ST[c.result] + (c.reason ? ' — ' + c.reason : ''))),
     max && a.length >= max ? h('div', {class:'err'}, T('Limite atteinte.')) : '');
 }
+function callHistoryEntry(c) {
+  return h('div', {class:'card call-history-entry'}, h('strong', {}, ST[c.result] || c.result), ' — ', fmt(Number(c.created_at)),
+    c.reason ? h('div', {}, T('Motif : ') + c.reason) : '', c.note ? h('div', {class:'call-history-note'}, c.note) : '',
+    c.callback_at ? h('div', {class:'muted'}, T('Rappel prévu : ') + fmt(Number(c.callback_at))) : '');
+}
+
 async function detail(id) {
   let d;
   try { d = await api('/prospects/' + id); } catch (e) { return show(h('p', {class:'err'}, e.message)); }
@@ -391,8 +397,7 @@ async function detail(id) {
         form, asg,
         d.recordings && d.recordings.length ? [h('h3', {}, T('Enregistrements')), d.recordings.map(recRow)] : '',
         h('h3', {}, T('Historique')),
-        d.calls.length ? d.calls.map(c => h('div', {class:'card'}, h('strong', {}, ST[c.result]), ' — ', fmt(Number(c.created_at)), ' — ', c.user_id,
-          c.reason ? h('div', {}, T('Motif : ') + c.reason) : '', c.note ? h('div', {}, c.note) : '',  c.callback_at ? h('div', {class:'muted'}, T('Rappel prévu : ') + fmt(Number(c.callback_at))) : '')) : h('p', {class:'muted'}, T('Aucun appel.'))),
+        d.calls.length ? d.calls.map(callHistoryEntry) : h('p', {class:'muted'}, T('Aucun appel.'))),
       h('div', {}, info,
         me.can.delete ? h('button', {onclick: async () => { if (confirm(T('Supprimer ce prospect ?'))) { await api('/prospects/' + id + '/delete', {method:'POST'}); go('tous'); } }}, T('Supprimer')) : '')));
 }

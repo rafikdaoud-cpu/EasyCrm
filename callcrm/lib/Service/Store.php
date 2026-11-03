@@ -233,6 +233,27 @@ class Store {
 		try { $this->insert('callcrm_audit', ['created_at' => time(), 'user_id' => $uid, 'action' => $action, 'prospect_id' => $pid, 'detail' => mb_substr($detail, 0, 4000)]); }
 		catch (\Throwable $e) { /* le journal ne doit jamais bloquer l'action */ }
 	}
+	/** Save the estimate and append its text without overwriting a concurrent note edit. */
+	public function saveSimulation(int $id, string $uid, array $in, array $result, string $note, ?string $assigned): string {
+		$this->db->beginTransaction();
+		try {
+			$p = $this->get($id);
+			if (!$p || $p['assigned_to'] !== $assigned) { throw new \DomainException('Le dossier a changé d’attribution. Rouvrez-le avant d’enregistrer.'); }
+			$old = $p['remarque'] ?? null;
+			$text = (string)$old . ((string)$old === '' ? '' : "\n\n") . $note;
+			$q = $this->db->getQueryBuilder();
+			$q->update('callcrm_prospects')->set('remarque', $q->createNamedParameter($text))
+				->where($q->expr()->eq('id', $q->createNamedParameter($id)))
+				->andWhere($old === null ? $q->expr()->isNull('remarque') : $q->expr()->eq('remarque', $q->createNamedParameter($old)))
+				->andWhere($assigned === null ? $q->expr()->isNull('assigned_to') : $q->expr()->eq('assigned_to', $q->createNamedParameter($assigned)));
+			if ($q->executeStatement() !== 1) { throw new \DomainException('La note a été modifiée entre-temps. Rouvrez le dossier avant d’enregistrer.'); }
+			$this->insert('callcrm_audit', ['created_at'=>time(), 'user_id'=>$uid, 'action'=>'sim', 'prospect_id'=>$id,
+				'detail'=>json_encode(['in'=>$in, 'total'=>$result['total']], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)]);
+			$this->db->commit();
+			return $text;
+		} catch (\Throwable $e) { $this->db->rollBack(); throw $e; }
+	}
+
 	/** Simulations de cuisine enregistrées sur une fiche. */
 	public function simsFor(int $pid): array {
 		$qb = $this->db->getQueryBuilder();

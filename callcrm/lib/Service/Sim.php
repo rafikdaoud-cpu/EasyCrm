@@ -60,6 +60,25 @@ class Sim {
 		self::cfg()->setAppValue('callcrm', 'sim_cfg', json_encode($c, JSON_UNESCAPED_UNICODE));
 		return $c;
 	}
+	/** Human-readable estimate generated from server-validated input and current prices. */
+	public static function summary(array $c, array $in, array $r): string {
+		$money = fn($n) => number_format(round($n), 0, ',', ' ') . ' DA';
+		$metres = fn($n) => str_replace('.', ',', (string)(float)$n) . ' m';
+		$step = (float)($c['round'] ?: 1000);
+		$rounded = fn($n) => round($n / $step) * $step;
+		$equip = array_column(array_values(array_filter($c['equip'], fn($e) => !empty($in['eq'][$e['name']]))), 'name');
+		$extras = [];
+		foreach ($r['extras_n'] as $name=>$count) { $extras[] = $count . ' × ' . $name; }
+		return '*' . implode("\n", [
+			'Cuisine équipée — modèle ' . $in['model'],
+			'Dimensions : ' . $metres($in['w']) . ' × ' . $metres($in['l']),
+			!empty($in['hl']) ? 'Meubles hauts et bas' : 'Meubles bas',
+			'Équipements : ' . ($equip ? implode(', ', $equip) : 'Aucun'),
+			'Suppléments : ' . ($extras ? implode(', ', $extras) : 'Aucun'),
+			'Estimation : environ ' . $money($rounded($r['total'])) . ' (entre ' . $money($rounded($r['total'] * (1 - $c['range']/100))) . ' et ' . $money($rounded($r['total'] * (1 + $c['range']/100))) . ')',
+			'Estimation indicative, à confirmer après prise de mesures.'
+		]) . '*';
+	}
 	/** $in : w, l (m), hl (haut et bas), eq {nom équipement: présent}, model (nom), extras {nom: nombre}. */
 	public static function compute(array $c, array $in): array {
 		$w = (float)($in['w'] ?? 0); $l = (float)($in['l'] ?? 0);
