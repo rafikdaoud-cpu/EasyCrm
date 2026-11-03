@@ -10,5 +10,6 @@ for edition in callcrm nextcloud; do
   "$PHP_BIN" "$edition/tests/presence.php"
   node "$edition/tests/announcements-ui.cjs"
 done
+node tests/transfers-ui.cjs
 "$PHP_BIN" tests/migrations.php
 git diff --check

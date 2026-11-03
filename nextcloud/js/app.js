@@ -190,10 +190,10 @@ async function list(k) {
   const dts = (v, add) => v ? Math.floor(new Date(v + 'T00:00:00').getTime() / 1000) + add : '';
   const selAll = h('input', {type:'checkbox', title:T('Tout cocher (page)'), onchange: e => { rowsNow.forEach(x => e.target.checked ? sel.add(x.id) : sel.delete(x.id)); box.querySelectorAll('.rsel').forEach(c => { c.checked = e.target.checked; }); refreshSel(); }});
   const selCnt = h('span', {class:'muted'}), selMsg = h('span', {class:'muted'});
-  const selTo = h('select', {}, h('option', {value:''}, T('Transférer vers…')), me.commerciaux.map(u => h('option', {value:u.uid}, u.name)));
+  const selTo = h('select', {}, h('option', {value:''}, T('Transférer vers…')), h('option', {value:'__none'}, T('Non assigné')), me.commerciaux.map(u => h('option', {value:u.uid}, u.name)));
   const selBtn = h('button', {class:'primary', onclick: async () => {
     if (!selTo.value) { selMsg.textContent = T('Choisissez le commercial destinataire.'); return; }
-    const who = (me.commerciaux.find(u => u.uid === selTo.value) || {}).name || selTo.value;
+    const who = (me.commerciaux.find(u => u.uid === selTo.value) || {}).name || (selTo.value === '__none' ? T('Non assigné') : selTo.value);
     if (!confirm(T('Transférer ') + sel.size + T(' prospect(s) vers « ') + who + T(' » ?'))) return;
     selMsg.textContent = '…';
     try { const r = await api('/transfer', {method:'POST', body:{ids:[...sel], to:selTo.value}}); sel.clear(); selMsg.textContent = '✔ ' + r.transferred + T(' prospect(s) transféré(s).'); load(true); }
@@ -798,7 +798,7 @@ function teamsCard() {
 function transferCard() {
   const com = me.commerciaux || [];
   const from = h('select', {}, h('option', {value:'__none'}, T('Non assignés')), com.map(u => h('option', {value:u.uid}, u.name)));
-  const to = h('select', {}, h('option', {value:''}, T('— Choisir —')), com.map(u => h('option', {value:u.uid}, u.name)));
+  const to = h('select', {}, h('option', {value:''}, T('— Choisir —')), h('option', {value:'__none'}, T('Non assigné')), com.map(u => h('option', {value:u.uid}, u.name)));
   const st = h('select', {}, h('option', {value:'nouveau'}, T('Nouveau (À traiter)')), h('option', {value:''}, T('Tous les statuts')),
     Object.entries(ST).filter(([v]) => v !== 'nouveau').map(([v, l]) => h('option', {value:v}, l)));
   const lim = h('input', {type:'number', min:0, placeholder:T('Tous'), style:'width:90px'});
@@ -811,7 +811,7 @@ function transferCard() {
     catch (e) { out.textContent = e.message; }
   };
   return h('div', {class:'card'}, h('h3', {}, T('Transférer des prospects entre commerciaux')),
-    h('p', {class:'muted'}, T('Déplace en masse les prospects d’un commercial vers un autre (par défaut : seulement les « Nouveau », les plus anciens d’abord). Laissez « Quantité » vide pour tout transférer, ou saisissez un nombre pour n’en transférer qu’une partie.')),
+    h('p', {class:'muted'}, T('Déplace en masse les prospects d’un commercial vers un autre ou vers Non assigné (par défaut : seulement les « Nouveau », les plus anciens d’abord). Laissez « Quantité » vide pour tout transférer, ou saisissez un nombre pour n’en transférer qu’une partie.')),
     h('div', {class:'bar'}, h('label', {}, 'De ', from), h('label', {}, T('Vers '), to)),
     h('div', {class:'bar'}, h('label', {}, T('Statut '), st), h('label', {}, T('Quantité max '), lim)),
     h('div', {class:'bar'}, h('button', {onclick: prev}, T('Compter')), h('button', {class:'primary', onclick: async () => {

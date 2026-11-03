@@ -67,3 +67,7 @@ Pour 0.25.1 / 1.6.1, appliquer aussi Call CRM 1012 / EasyCrm 1008 avant le nouve
 ## Reprise après l’échec de migration lunch_day
 
 Sur Nextcloud 35, la définition initiale NOT NULL avec valeur par défaut vide était refusée. Le correctif 0.25.1 / 1.6.1 utilise NULL et autorise la colonne nullable. Remplacer le paquet ou la migration échouée (Call CRM 1012 / EasyCrm 1008), puis relancer `occ upgrade`. Ne pas sauter la migration ni supprimer les tables. Garder la maintenance jusqu’à la réussite et `needsDbUpgrade: false`.
+
+
+## Transfert vers Non assigné (2026-11-03)
+Call CRM 0.25.2 / EasyCrm 1.6.2 : destination explicite Non assigné dans le transfert administratif et la sélection de prospects. Le marqueur API `__none` est converti en SQL NULL ; une destination vide reste refusée. Droits assign inchangés, statut et quantité conservés, refus source/destination identiques, audit lisible. Aucun déploiement VPS effectué.

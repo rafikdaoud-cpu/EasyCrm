@@ -181,11 +181,11 @@ class Store {
 		return array_map('intval', array_column($qb->executeQuery()->fetchAll(), 'id'));
 	}
 	/** Réassigne une liste de prospects ; retourne le nombre de lignes modifiées. */
-	public function reassign(array $ids, string $to): int {
+	public function reassign(array $ids, ?string $to): int {
 		$n = 0;
 		foreach (array_chunk($ids, 500) as $chunk) {
 			$qb = $this->db->getQueryBuilder();
-			$qb->update('callcrm_prospects')->set('assigned_to', $qb->createNamedParameter($to))
+			$qb->update('callcrm_prospects')->set('assigned_to', $qb->createNamedParameter($to, $to === null ? IQueryBuilder::PARAM_NULL : IQueryBuilder::PARAM_STR))
 				->where($qb->expr()->in('id', $qb->createNamedParameter($chunk, IQueryBuilder::PARAM_INT_ARRAY)));
 			$n += $qb->executeStatement();
 		}

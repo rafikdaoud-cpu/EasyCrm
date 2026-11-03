@@ -326,8 +326,8 @@ class ApiController extends Controller {
 		$dry = (bool)$this->request->getParam('dry', false);
 		if ($from === '__none') { $from = ''; }
 		if ($st !== '' && !in_array($st, Statuses::keys(), true)) { return $this->err('Statut invalide'); }
-		if (!in_array($to, array_column($this->commerciaux(), 'uid'), true)) { return $this->err('Choisissez le commercial destinataire'); }
-		if (!is_array($this->request->getParam('ids')) && $from === $to) { return $this->err('Le commercial source et le destinataire sont identiques'); }
+		if ($to !== '__none' && !in_array($to, array_column($this->commerciaux(), 'uid'), true)) { return $this->err('Choisissez le commercial destinataire'); }
+		if (!is_array($this->request->getParam('ids')) && $from === ($to === '__none' ? '' : $to)) { return $this->err('Le commercial source et le destinataire sont identiques'); }
 		$sel = $this->request->getParam('ids');
 		if (is_array($sel)) {
 			$ids = array_values(array_unique(array_filter(array_map('intval', $sel), fn($x) => $x > 0)));
@@ -335,8 +335,8 @@ class ApiController extends Controller {
 			if (!$ids) { return $this->err('Aucun prospect sélectionné'); }
 		} else { $ids = $this->s->idsFor($from, $st, $limit); }
 		if ($dry) { return new JSONResponse(['count' => count($ids)]); }
-		$n = $ids ? $this->s->reassign($ids, $to) : 0;
-		$this->s->audit($this->a->uid(), 'transfer', null, $n . ' prospect(s) → ' . $to . (is_array($sel) ? ' (sélection dans la liste)' : ' depuis ' . ($from === '' ? 'non assignés' : $from) . ($st !== '' ? ', statut ' . $st : '')) . ' · ids : ' . implode(',', array_slice($ids, 0, 30)) . (count($ids) > 30 ? '…' : ''));
+		$n = $ids ? $this->s->reassign($ids, $to === '__none' ? null : $to) : 0;
+		$this->s->audit($this->a->uid(), 'transfer', null, $n . ' prospect(s) → ' . ($to === '__none' ? 'Non assigné' : $to) . (is_array($sel) ? ' (sélection dans la liste)' : ' depuis ' . ($from === '' ? 'non assignés' : $from) . ($st !== '' ? ', statut ' . $st : '')) . ' · ids : ' . implode(',', array_slice($ids, 0, 30)) . (count($ids) > 30 ? '…' : ''));
 		return new JSONResponse(['transferred' => $n]);
 	}
 
