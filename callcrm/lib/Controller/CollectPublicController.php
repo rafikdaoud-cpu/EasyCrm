@@ -27,9 +27,10 @@ class CollectPublicController extends Controller {
  #[BruteForceProtection(action: 'callcrm_collect')]
  public function page(string $token):TemplateResponse{
   $r=new TemplateResponse(Application::APP_ID,'collect',['api'=>rtrim($this->url->linkToRoute('callcrm.page.index'),'/').'/api/public/collecte/'.rawurlencode($token)],TemplateResponse::RENDER_AS_BASE);
-  // Scanner : caméra du téléphone, et OpenCV.js (eval + WASM) pour la détection des bords.
+  // Scanner : caméra du téléphone ; OpenCV.js tourne dans un Web Worker (js/docscan-worker.js),
+  // la page n'a donc besoin ni d'eval ni de WASM, seulement d'autoriser ce worker.
   $policy=new FeaturePolicy();$policy->addAllowedCameraDomain("'self'");$r->setFeaturePolicy($policy);
-  $csp=new ContentSecurityPolicy();if(method_exists($csp,'allowEvalScript'))$csp->allowEvalScript(true);if(method_exists($csp,'allowEvalWasm'))$csp->allowEvalWasm(true);$r->setContentSecurityPolicy($csp);
+  $csp=new ContentSecurityPolicy();if(method_exists($csp,'addAllowedWorkerSrcDomain'))$csp->addAllowedWorkerSrcDomain("'self'");$r->setContentSecurityPolicy($csp);
   $r->addHeader('Referrer-Policy','no-referrer');$r->addHeader('X-Robots-Tag','noindex, nofollow');
   if(!$this->collect->byToken($token))$r->throttle(['action'=>'callcrm_collect']);
   return $r;

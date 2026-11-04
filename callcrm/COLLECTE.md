@@ -1,4 +1,4 @@
-# Lien de dépôt de documents pour le client (Call CRM 0.28.1)
+# Lien de dépôt de documents pour le client (Call CRM 0.28.2)
 
 ## Parcours
 
@@ -38,8 +38,10 @@ réglages. Depuis 0.28.1, la carte « Rendez-vous » n'est plus affichée sur la
   le client n'a pas terminé ; la tâche de fond supprime ceux des liens expirés.
 - Côté CRM : création, liste et annulation suivent les droits de la fiche (commercial
   affecté, superviseur, administrateur) avec protection CSRF ; lecture seule = consultation.
-- La page publique autorise la caméra (`camera 'self'`) et, pour OpenCV.js uniquement sur
-  cette page, `unsafe-eval` et la compilation WASM.
+- La page publique autorise la caméra (`camera 'self'`) et un Web Worker du même serveur
+  (`worker-src 'self'`). Depuis 0.28.2, OpenCV.js tourne dans ce worker
+  (`js/docscan-worker.js`, fichier statique) : la page n'autorise ni eval ni WASM. Si le
+  serveur web ajoute une CSP aux fichiers .js, l'écran caméra affiche « CSP des fichiers .js ».
 
 ## Déploiement
 
