@@ -12,6 +12,7 @@ class Fields {
 	private const BUILTIN = [
 		'lastname' => ['Nom et prénom', 'text', true],
 		'phone' => ['Téléphone', 'tel', true],
+		'email' => ['E-mail du client', 'email', true],
 		'c5' => ['Wilaya', 'select', false],
 		'c2' => ['Catégorie produit', 'select', true],
 		'c3' => ['Type d’emploi', 'select', false],

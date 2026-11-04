@@ -136,4 +136,30 @@ class ClientActivity {
   foreach ($events as &$event) unset($event['sort']);unset($event);
   return ['rows'=>$events,'has_more'=>$more,'cursor'=>$more&&$last?base64_encode(json_encode($last)):''];
  }
+ /** Search all visible client fields, with an optional commercial-name match. */
+ public function globalSearch(?string $scope, string $search, int $offset=0): array {
+  $search=trim($search);if(mb_strlen($search)<2) return ['rows'=>[],'has_more'=>false,'next_offset'=>0];
+  $search=mb_substr($search,0,120);$q=$this->db->getQueryBuilder();$q->select('p.id','p.lastname','p.firstname','p.phone','p.assigned_to','p.status','p.remarque')->from('callcrm_prospects','p');
+  $term='%'.$this->db->escapeLikeParameter($search).'%';$or=$q->expr()->orX();
+  foreach(['lastname','firstname','phone','remarque','last_note','email'] as $col)$or->add($q->expr()->like('p.'.$col,$q->createNamedParameter($term)));
+  if($scope===null){$uids=[];foreach($this->users->search($search,30,0) as $u)$uids[]=$u->getUID();if($uids)$or->add($q->expr()->in('p.assigned_to',$q->createNamedParameter($uids,IQueryBuilder::PARAM_STR_ARRAY)));}
+  $q->where($or);$this->scoped($q,$scope);$offset=max(0,min(10000,$offset));$q->orderBy('p.id','DESC')->setMaxResults(21)->setFirstResult($offset);$rows=$q->executeQuery()->fetchAll();
+  foreach($rows as &$r){$r['owner']=$this->userName($r['assigned_to']);unset($r['remarque']);}unset($r);
+  return ['rows'=>array_slice($rows,0,20),'has_more'=>count($rows)>20,'next_offset'=>$offset+20];
+ }
+ public function neglected(?string $scope, string $type='idle', int $days=7, int $offset=0): array {
+  if(!in_array($type,['idle','callback','estimate'],true))throw new \InvalidArgumentException('Type de suivi invalide.');
+  $days=max(1,min(365,$days));$now=time();$cutoff=$now-$days*86400;$q=$this->db->getQueryBuilder();
+  $q->select('p.id','p.lastname','p.firstname','p.phone','p.assigned_to','p.status','p.last_call_at','p.created_at','p.callback_at')->from('callcrm_prospects','p');
+  if($type==='callback')$q->where($q->expr()->lt('p.callback_at',$q->createNamedParameter($now)))->andWhere($q->expr()->in('p.status',$q->createNamedParameter(Statuses::callbackKeys()?:['-'],IQueryBuilder::PARAM_STR_ARRAY)));
+  elseif($type==='estimate'){
+   $q->innerJoin('p','callcrm_audit','a',$q->expr()->eq('a.prospect_id','p.id'))->where($q->expr()->eq('a.action',$q->createNamedParameter('sim')))
+
+    ->andWhere($q->expr()->orX($q->expr()->isNull('p.last_call_at'),$q->expr()->lt('p.last_call_at','a.created_at')));
+   $q->groupBy('p.id','p.lastname','p.firstname','p.phone','p.assigned_to','p.status','p.last_call_at','p.created_at','p.callback_at')->having('MAX(a.created_at) < '.$q->createNamedParameter($cutoff,IQueryBuilder::PARAM_INT));
+  }else $q->where($q->expr()->lt('p.created_at',$q->createNamedParameter($cutoff)))->andWhere($q->expr()->orX($q->expr()->isNull('p.last_call_at'),$q->expr()->lt('p.last_call_at',$q->createNamedParameter($cutoff))));
+  if($type!=='callback')$q->andWhere($q->expr()->in('p.status',$q->createNamedParameter(array_unique(array_merge(['nouveau','interesse'],Statuses::callbackKeys())),IQueryBuilder::PARAM_STR_ARRAY)));
+  $this->scoped($q,$scope);$offset=max(0,min(10000,$offset));$q->orderBy('p.created_at','ASC')->addOrderBy('p.id','ASC')->setMaxResults(21)->setFirstResult($offset);$rows=$q->executeQuery()->fetchAll();foreach($rows as &$r)$r['owner']=$this->userName($r['assigned_to']);unset($r);
+  return ['rows'=>array_slice($rows,0,20),'has_more'=>count($rows)>20,'next_offset'=>$offset+20,'days'=>$days];
+ }
 }

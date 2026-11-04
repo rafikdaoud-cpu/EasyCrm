@@ -320,3 +320,5 @@ body[data-themes*="dark"] #callcrm,body[data-theme-dark] #callcrm{--brand:var(--
 #callcrm .crm-nav-icon{flex:0 0 19px;width:19px;height:19px;pointer-events:none;color:inherit}
 #callcrm .crm-nav-label{min-width:0}
 @media(max-width:760px){#callcrm .crm-sidebar .nav button{gap:7px} #callcrm .crm-nav-icon{flex-basis:17px;width:17px;height:17px}}
+
+#callcrm .crm-documents .crm-event-body{margin:12px 0}#callcrm .crm-documents .bar{flex-wrap:wrap}#callcrm .crm-documents input,#callcrm .crm-documents select{max-width:100%}#callcrm .crm-client-columns .crm-documents{order:8}

@@ -4,12 +4,13 @@
 	<name>Call CRM</name>
 	<summary>Prospection téléphonique : mini CRM / centre de contact</summary>
 	<description>Liste de prospects, simulateur de devis cuisine, appels depuis smartphone, résultats d'appel, rappels, rôles admin / superviseur / commercial / lecture seule, boîte WhatsApp partagée (API officielle).</description>
-	<version>0.26.1</version>
+	<version>0.27.0</version>
 	<licence>agpl</licence>
 	<author>Rafik</author>
 	<namespace>CallCrm</namespace>
 	<category>office</category>
 	<dependencies><nextcloud min-version="28" max-version="40"/></dependencies>
+	<background-jobs><job>OCA\CallCrm\BackgroundJob\CollectDocuments</job></background-jobs>
 	<repair-steps><post-migration><step>OCA\CallCrm\Migration\CreateGroups</step></post-migration><install><step>OCA\CallCrm\Migration\CreateGroups</step></install></repair-steps>
 	<navigations><navigation><name>Call CRM</name><route>callcrm.page.index</route></navigation></navigations>
 </info>

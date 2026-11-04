@@ -164,7 +164,7 @@ function clientWorkspace(p,info,form,note,reason,cb,getResult,saveCall){
  watchEdits('call','Résultat d’appel non enregistré',()=>form.isConnected&&!!getResult());
  info.addEventListener('crm-saved',saved);
  const wrap=h('details',{class:'card crm-client-info'},h('summary',{},'Informations du client'));info.classList.remove('card');info.replaceWith(wrap);wrap.append(info);if(window.innerWidth>760)wrap.open=true;
- const columns=root.querySelector('.cols');if(columns){columns.classList.add('crm-client-columns');columns.children[1].append(clientAppointments(p));}
+ const columns=root.querySelector('.cols');if(columns){columns.classList.add('crm-client-columns');columns.children[1].append(clientAppointments(p),documentsCard(p.id));}
  const footer=h('div',{class:'crm-client-footer'},p.phone&&me.can.call?h('a',{class:'footer-call',href:'tel:'+p.phone},'☎ Appeler'):'',p.phone&&me.can.call?h('a',{class:'footer-wa',href:'https://wa.me/'+waNum(p.phone),target:'_blank',rel:'noopener noreferrer'},'WhatsApp'):'',me.can.call?h('button',{class:'primary',onclick:()=>{if(getResult())saveCall();else{wrap.open=true;info.querySelector('button')?.click();}}},'Enregistrer'):'');root.querySelector('.crm-page')?.append(footer);
 }
 function agenda(){
@@ -179,6 +179,41 @@ function agenda(){
   }catch(e){if(request===sequence)msg.textContent=e.message;}finally{if(request===sequence)more.disabled=false;}}
  let timer;search.addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(()=>load(),300);});type.addEventListener('change',()=>load());assigned.addEventListener('change',()=>load());
  box.append(counts,tabs,h('div',{class:'bar'},search,type,me.can.all?assigned:''),msg,rows,more);show(h('h2',{},'Mon agenda'),h('p',{class:'muted'},'Vos rappels et rendez-vous, au même endroit. Créez un rendez-vous depuis la fiche du client.'),box);load();
+}
+
+function discovery(mode='search',initial=''){
+ const q=h('input',{type:'search',placeholder:'Nom, téléphone, commentaire ou commercial…',value:initial,'aria-label':'Recherche globale'}),days=h('input',{type:'number',min:1,max:365,value:7,'aria-label':'Jours sans suivi'}),type=h('select',{'aria-label':'Type de relance'},h('option',{value:'idle'},'Sans appel récent'),h('option',{value:'callback'},'Rappels dépassés'),h('option',{value:'estimate'},'Estimation sans suivi'));
+ const dayControl=h('label',{},'Depuis plus de ',days,' jours');
+ const rows=h('div'),out=h('p',{class:'muted'}),box=h('div'),more=h('button',{onclick:()=>load(true)},'Afficher les suivants');let offset=0,seq=0;
+ async function load(append=false){const n=++seq;if(!append)offset=0;more.disabled=true;out.textContent='Recherche…';try{const r=await api((mode==='search'?'/search?':'/neglected?')+new URLSearchParams({q:q.value,type:type.value,days:days.value,offset}));if(n!==seq||!box.isConnected)return;if(!append)rows.replaceChildren();rows.append(...r.rows.map(p=>h('div',{class:'card'},h('h3',{},nm(p)),badge(p.status),h('p',{class:'muted'},p.owner),p.last_call_at?h('p',{},'Dernier appel : '+fmt(p.last_call_at)):'',h('div',{class:'bar'},h('button',{onclick:()=>detail(p.id)},'Ouvrir la fiche'),p.phone&&me.can.call?h('a',{href:'tel:'+p.phone,class:'crm-agenda-call'},'☎ Appeler '+p.phone):''))));offset=r.next_offset;more.hidden=!r.has_more;out.textContent=r.rows.length?'':mode==='search'&&q.value.trim().length<2?'Saisissez au moins 2 caractères.':'Aucun prospect correspondant.';}catch(e){out.textContent=e.message;}finally{more.disabled=false;}}
+ let timer;q.addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(()=>load(),300);});type.addEventListener('change',()=>{dayControl.hidden=type.value==='callback';load();});days.addEventListener('change',()=>load());box.append(h('div',{class:'bar'},mode==='search'?q:type,mode==='search'?'':dayControl),out,rows,more);
+ show(h('h2',{},mode==='search'?'Recherche globale':'Prospects à relancer'),h('p',{class:'muted'},mode==='search'?'Recherche dans les dossiers auxquels vous avez accès.':'Repérez les dossiers sans suivi, puis appelez ou ouvrez la fiche pour les réattribuer.'),box);load();
+}
+
+function documentsCard(pid=null){
+ const box=h('div',{class:'card crm-documents'}),rows=h('div'),msg=h('p',{class:'muted',role:'status'});let offset=0,sequence=0;
+ const more=h('button',{onclick:()=>load(true)},'Afficher les suivantes');
+ const render=d=>{const actions=h('div',{class:'bar'});if(d.has_original)actions.append(h('a',{class:'crm-agenda-call',href:API+'/documents/'+d.id+'/download',target:'_blank',rel:'noopener noreferrer'},'Télécharger l’original'));if(d.has_pdf)actions.append(h('a',{class:'crm-agenda-call',href:API+'/documents/'+d.id+'/download?format=pdf',target:'_blank',rel:'noopener noreferrer'},'PDF'));
+  if(d.state==='failed'&&(me.can.call||me.can.assign))actions.append(h('button',{onclick:async()=>{try{await api('/documents/'+d.id+'/retry',{method:'POST'});load();}catch(e){msg.textContent=e.message;}}},'Réessayer la conversion'));
+  const article=h('article',{class:'crm-event-body'},h('strong',{},d.name),h('p',{class:'muted'},({email:'E-mail',whatsapp:'WhatsApp',manual:'Ajout manuel'}[d.source]||d.source)+' · '+fmt(d.created_at)+' · '+Math.ceil(Number(d.size)/1024)+' Ko'),h('p',{},({queued:'Conversion PDF en attente',waiting_original:'Récupération du fichier en attente',processing:'Conversion en cours',ready:'PDF disponible',original:'Original conservé · format sans conversion PDF',failed:'Traitement à vérifier'}[d.state]||d.state)),d.error?h('p',{class:'err'},d.error):'',d.sender?h('small',{},'Expéditeur : '+(d.source==='manual'?((me.commerciaux||[]).find(u=>u.uid===d.sender)?.name||'Utilisateur CRM'):d.sender)):'',d.subject?h('p',{class:'muted'},d.subject):'',actions);
+  if(pid===null){const search=h('input',{type:'search',placeholder:'Rechercher le client…','aria-label':'Rechercher le client destinataire'}),select=h('select',{'aria-label':'Client destinataire'},h('option',{value:''},'— Choisir un client —'));let seq=0,timer;
+   search.addEventListener('input',()=>{clearTimeout(timer);const request=++seq;select.replaceChildren(h('option',{value:''},'— Choisir un client —'));timer=setTimeout(async()=>{try{const r=await api('/search?'+new URLSearchParams({q:search.value}));if(request!==seq)return;select.append(...r.rows.map(p=>h('option',{value:p.id},nm(p)+(p.phone?' · '+p.phone:''))));}catch(e){msg.textContent=e.message;}},300);});
+   article.append(h('div',{class:'bar'},search,select,h('button',{onclick:async()=>{if(!select.value){msg.textContent='Choisissez le client destinataire.';return;}try{await api('/documents/'+d.id+'/attach',{method:'POST',body:{prospect_id:Number(select.value)}});load();}catch(e){msg.textContent=e.message;}}},'Rattacher à ce client')));
+  }return article;
+ };
+ async function load(append=false){const request=++sequence;if(!append)offset=0;more.disabled=true;try{const r=await api(pid===null?'/documents/inbox?offset='+offset:'/prospects/'+pid+'/documents?offset='+offset);if(request!==sequence||!box.isConnected)return;if(!append)rows.replaceChildren();rows.append(...r.rows.map(render));offset=r.next_offset;more.hidden=!r.has_more;msg.textContent=rows.children.length?'Les originaux sont conservés. Conversion traitée par les tâches de fond Nextcloud.':'Aucune pièce pour le moment.';}catch(e){if(request===sequence)msg.textContent=e.message;}finally{more.disabled=false;}}
+ box.append(h('h3',{},pid===null?'Pièces reçues · À rattacher':'Pièces jointes du client'),h('button',{onclick:()=>load()},'Actualiser'),msg,rows,more);
+ if(pid!==null&&(me.can.call||me.can.assign)){const file=h('input',{type:'file','aria-label':'Ajouter une pièce au dossier'}),upload=h('button',{onclick:async()=>{if(!file.files.length){msg.textContent='Choisissez un fichier.';return;}if(file.files[0].size>25*1024*1024){msg.textContent='Fichier limité à 25 Mo.';return;}const fd=new FormData();fd.append('file',file.files[0]);upload.disabled=true;try{await api('/prospects/'+pid+'/documents',{method:'POST',body:fd});file.value='';load();}catch(e){msg.textContent=e.message;}finally{upload.disabled=false;}}},'Ajouter au dossier');box.append(h('div',{class:'bar'},file,upload));watchEdits('document-upload','Pièce jointe sélectionnée mais non envoyée',()=>box.isConnected&&file.files.length>0);}
+ setTimeout(()=>load(),0);return box;
+}
+function documentSettingsCard(){
+ const box=h('div',{class:'card'}),body=h('div'),message=h('p',{class:'muted',role:'status'});box.append(h('h3',{},'Réception des pièces · WhatsApp et e-mail'),body,message);
+ async function load(){try{const s=await api('/documents/settings');if(!box.isConnected)return;
+  const enabled=h('input',{type:'checkbox',checked:s.mail_enabled}),host=h('input',{value:s.mail_host,placeholder:'mail.exemple.dz',autocomplete:'off'}),user=h('input',{value:s.mail_user,placeholder:'documents@exemple.dz',autocomplete:'off'}),password=h('input',{type:'password',autocomplete:'new-password',placeholder:s.has_password?'Mot de passe enregistré · laisser vide pour conserver':'Mot de passe de la boîte'}),folder=h('input',{value:s.mail_folder||'INBOX'}),port=h('select',{},['993','143'].map(v=>h('option',{value:v,selected:String(s.mail_port)===v},v))),security=h('select',{},['ssl','tls'].map(v=>h('option',{value:v,selected:s.mail_security===v},v==='ssl'?'SSL / TLS':'STARTTLS')));
+  const payload=()=>({mail_enabled:enabled.checked,mail_host:host.value,mail_user:user.value,password:password.value,mail_folder:folder.value,mail_port:port.value,mail_security:security.value});let baseline=JSON.stringify(payload());watchEdits('document-settings','Réglages de la boîte mail modifiés',()=>box.isConnected&&JSON.stringify(payload())!==baseline);
+  const save=h('button',{class:'primary',onclick:async()=>{save.disabled=true;message.textContent='Enregistrement…';try{await api('/documents/settings',{method:'POST',body:payload()});password.value='';baseline=JSON.stringify(payload());message.textContent='Réglages enregistrés. La collecte s’effectue via le cron Nextcloud.';}catch(e){message.textContent=e.message;}finally{save.disabled=false;}}},'Enregistrer les réglages');
+  body.replaceChildren(h('p',{class:'muted'},'Vous pouvez créer la boîte plus tard. Activation facultative ; le mot de passe est conservé chiffré et n’est jamais affiché.'),h('label',{},enabled,' Activer la collecte e-mail'),h('div',{class:'g2'},...[[host,'Serveur IMAP'],[user,'Adresse / utilisateur'],[password,'Mot de passe'],[folder,'Dossier à surveiller'],[port,'Port'],[security,'Chiffrement']].map(([field,label])=>h('label',{},label,field))),h('p',{class:'muted'},'Le début de collecte parcourt les messages déjà présents dans ce dossier. Les messages restent sur le serveur, sans suppression ni marquage comme lus.'),h('p',{},'Capacités serveur : IMAP '+(s.imap_available?'✓':'absent')+' · Images (GD) '+(s.gd_available?'✓':'absent')+' · Documents Office (LibreOffice) '+(s.office_available?'✓':'absent')),h('p',{class:'muted'},'Dernière relève : '+(s.last_poll?fmt(Number(s.last_poll)):'Jamais')),s.mail_error?h('p',{class:'err'},s.mail_error):'',s.wa_error?h('p',{class:'err'},s.wa_error):'',h('div',{class:'bar'},save,h('button',{onclick:async e=>{const button=e.currentTarget;button.disabled=true;try{await api('/documents/test',{method:'POST'});message.textContent='Connexion IMAP réussie avec les réglages enregistrés.';}catch(error){message.textContent=error.message;}finally{button.disabled=false;}}},'Tester la connexion enregistrée')));
+ }catch(e){message.textContent=e.message;}}setTimeout(load,0);return box;
 }
 
 const show = (...n) => { dirtyChecks.clear(); root.classList.add('crm-workspace'); root.replaceChildren(nav(), h('div', {class:'crm-main'}, workspaceHeader(), h('div', {class:'crm-page'}, ...n.flat()))); paintCounters(); paintWa(); };
@@ -196,7 +231,7 @@ async function paintCounters() {
 }
 function workspaceHeader() {
   const name = (me.commerciaux || []).find(u => u.uid === me.uid)?.name || me.uid || '';
-  return h('header', {class:'crm-session-header'}, h('div', {}, h('span', {class:'crm-app-title'}, 'EasyCrm'),
+  return h('header', {class:'crm-session-header'}, h('button',{class:'crm-global-search',onclick:()=>go('search'),'aria-label':'Recherche globale'},'⌕ Rechercher un client'), h('div', {}, h('span', {class:'crm-app-title'}, 'EasyCrm'),
     h('div', {class:'muted'}, name)),
     me.role === 'commercial' ? h('div', {class:'crm-session-actions'},
       me.prefs?.goal ? h('span', {class:'goal muted'}) : '', presenceControl()) :
@@ -205,6 +240,9 @@ function workspaceHeader() {
 function nav() {
   const icon = key => {
     const paths = {
+      search:['M16 10a6 6 0 1 1-12 0 6 6 0 0 1 12 0','m14.5 14.5 6 6'],
+      neglected:['M12 3a9 9 0 1 1-9 9 9 9 0 0 1 9-9','M12 7v5l3 2'],
+      documents:['m8 12 7-7a4 4 0 0 1 6 6l-9 9a6 6 0 0 1-8-8l9-9','m7 13 7-7a2 2 0 0 1 3 3l-8 8'],
       journee:['M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4','M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0'],
       agenda:['M7 3v4m10-4v4M4 10h16','M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1Z','m8 15 2 2 5-5'],
       dossiers:['M3 7V5h6l2 2h10v13H3V7Z'],
@@ -222,12 +260,12 @@ function nav() {
 
   const inDossiers = !!KINDS[tab], t = [];
   if (me.role === 'commercial') t.push(['journee',T('Ma journée')]);
-  t.push(['agenda','Agenda']);
+  t.push(['agenda','Agenda'],['neglected','À relancer'],['search','Recherche']);
   t.push(['dossiers',T('Dossiers Clients')]);
   if (TEL.wa === 'api') t.push(['wa',T('WhatsApp')]);
   t.push(['stats',me.can.all ? T('Statistiques') : T('Mes statistiques')]);
   if (me.can.import) t.push(['admin',T('Administration')]);
-  if (['admin','superviseur'].includes(me.role)) t.push(['annonce',T('Annonce')],['commerciaux',T('Commerciaux')]);
+  if (['admin','superviseur'].includes(me.role)) t.push(['documents','Pièces reçues'],['annonce',T('Annonce')],['commerciaux',T('Commerciaux')]);
   const states = TABS.slice(); if (me.can.all) states.push(['tous',T('Tous')]);
   return h('aside', {class:'client-navigation crm-sidebar', 'aria-label':T('Navigation CRM')},
     h('div', {class:'crm-brand'}, h('span', {class:'crm-brand-mark', 'aria-hidden':'true'}, 'C'), h('strong', {}, 'EasyCrm')),
@@ -238,7 +276,7 @@ function nav() {
       states.map(([key,label]) => h('button', {class:tab === key ? 'on' : '', 'data-k':key, 'aria-pressed':String(tab === key), onclick:() => go(key)}, label))) : '',
     h('div', {class:'crm-sidebar-note muted'}, me.role === 'commercial' ? T('Votre espace de travail') : T('Pilotage de l’activité')));
 }
-function go(k) { if(typeof canLeave==='function'&&!canLeave(()=>go(k)))return; if (k === 'dossiers') k = 'nouveaux'; tab = k; if(k==='agenda'){agenda();return;} if (k === 'journee' && me.role === 'commercial') myDay(); else if (k === 'wa') waList(); else if (k === 'stats') stats(); else if (k === 'admin') admin(); else if (k === 'annonce') show(h('h2', {}, T('Annonce')), announcementCard()); else if (k === 'commerciaux') presenceBoard(); else list(k); }
+function go(k) { if(typeof canLeave==='function'&&!canLeave(()=>go(k)))return; if (k === 'dossiers') k = 'nouveaux'; tab = k; if(k==='documents'){show(h('h2',{},'Pièces reçues'),documentsCard());return;} if(k==='search'||k==='neglected'){discovery(k);return;} if(k==='agenda'){agenda();return;} if (k === 'journee' && me.role === 'commercial') myDay(); else if (k === 'wa') waList(); else if (k === 'stats') stats(); else if (k === 'admin') admin(); else if (k === 'annonce') show(h('h2', {}, T('Annonce')), announcementCard()); else if (k === 'commerciaux') presenceBoard(); else list(k); }
 const modeOpts = none => [
   h('option', {value:'categorie'}, T('Par catégorie (groupe de chaque catégorie)')),
   h('option', {value:'auto'}, T('Équitablement (tous les commerciaux)')),
@@ -487,7 +525,7 @@ async function detail(id) {
         d.recordings && d.recordings.length ? [h('h3', {}, T('Enregistrements')), d.recordings.map(recRow)] : '',
         chronology(id)),
       h('div', {}, info,
-        me.can.delete ? h('button', {onclick: async () => { if (confirm(T('Supprimer ce prospect ?'))) { await api('/prospects/' + id + '/delete', {method:'POST'}); go('tous'); } }}, T('Supprimer')) : '')));
+        me.can.delete ? h('button', {onclick: async () => { if (confirm(T('Supprimer ce prospect ? Ses pièces jointes seront conservées dans Pièces reçues.'))) { await api('/prospects/' + id + '/delete', {method:'POST'}); go('tous'); } }}, T('Supprimer')) : '')));
   clientWorkspace(p,info,form,note,reason,cb,()=>sel,save);
 }
 
@@ -1480,6 +1518,8 @@ function admin() {
       }}, T('Réattribuer aux commerciaux actuels'))),
     orph,
     h('p', {class:'muted'}, T('Profils : définis par les groupes (AD ou Nextcloud) associés aux rôles administrateur, superviseur, commercial et lecture seule.')));
+  if(me.can.fields)root.querySelector('.crm-page')?.append(documentSettingsCard());
+  if(me.can.assign)root.querySelector('.crm-page')?.append(documentsCard());
   adminPanels();
   api('/recordings').then(rows => {
     orph.replaceChildren(...(rows.length ? [h('h3', {}, T('Enregistrements non rattachés à une fiche')),

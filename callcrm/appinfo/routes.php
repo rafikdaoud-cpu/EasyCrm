@@ -1,5 +1,16 @@
 <?php
 return ['routes' => [
+	['name'=>'document#list','url'=>'/api/prospects/{id}/documents','verb'=>'GET'],
+	['name'=>'document#upload','url'=>'/api/prospects/{id}/documents','verb'=>'POST'],
+	['name'=>'document#inbox','url'=>'/api/documents/inbox','verb'=>'GET'],
+	['name'=>'document#settings','url'=>'/api/documents/settings','verb'=>'GET'],
+	['name'=>'document#configure','url'=>'/api/documents/settings','verb'=>'POST'],
+	['name'=>'document#test','url'=>'/api/documents/test','verb'=>'POST'],
+	['name'=>'document#attach','url'=>'/api/documents/{id}/attach','verb'=>'POST'],
+	['name'=>'document#retry','url'=>'/api/documents/{id}/retry','verb'=>'POST'],
+	['name'=>'document#download','url'=>'/api/documents/{id}/download','verb'=>'GET'],
+	['name'=>'activity#search','url'=>'/api/search','verb'=>'GET'],
+	['name'=>'activity#neglected','url'=>'/api/neglected','verb'=>'GET'],
 	['name'=>'activity#agenda','url'=>'/api/agenda','verb'=>'GET'],
 	['name'=>'activity#timeline','url'=>'/api/prospects/{id}/timeline','verb'=>'GET'],
 	['name'=>'activity#appointments','url'=>'/api/prospects/{id}/appointments','verb'=>'GET'],

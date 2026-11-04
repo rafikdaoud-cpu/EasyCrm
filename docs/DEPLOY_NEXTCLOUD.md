@@ -11,8 +11,8 @@ Versions de ce lot : **Call CRM 0.25.1** et **EasyCrm 1.6.1**. Les deux applicat
 
 | ZIP | Dossier racine dans le ZIP | Destination |
 |---|---|---|
-| callcrm-0.26.1.zip | callcrm/ | custom_apps/callcrm/ |
-| easycrm-1.7.1.zip | easycrm/ | custom_apps/easycrm/ |
+| callcrm-0.27.0.zip | callcrm/ | custom_apps/callcrm/ |
+| easycrm-1.8.0.zip | easycrm/ | custom_apps/easycrm/ |
 
 Ne pas créer `callcrm/callcrm` ou `easycrm/easycrm`. Ne pas renommer les identifiants des applications pour les faire correspondre à un dossier. Le dossier Git `nextcloud/` contient l'application d'identifiant `easycrm` et le script l'archive correctement.
 
@@ -96,3 +96,7 @@ Validation : suite PHP/SQLite + jsdom existante et tests client-activity dans le
 
 ## Icônes du menu (2026-11-03)
 Call CRM 0.26.1 / EasyCrm 1.7.1 : icônes SVG locales pour Ma journée, Agenda, Dossiers Clients, WhatsApp, Simulateur (Call CRM), Statistiques, Administration, Annonce et Commerciaux. Traits currentColor pour suivre la couleur active ; tailles desktop/mobile adaptées ; SVG décoratifs aria-hidden et libellés conservés. Aucune dépendance externe et aucun changement de droits ou de migration.
+
+
+## Réception des pièces — 0.27.0 / 1.8.0
+Nouvelles migrations 1014 / 1010 : sauvegarder code/base, installer le ZIP correspondant puis exécuter occ upgrade sous l’utilisateur Nextcloud. La boîte se définit ultérieurement dans Administration → Réception des pièces. Consulter [DOCUMENTS.md](DOCUMENTS.md) pour le cron, les extensions PHP IMAP/GD et LibreOffice, puis tester la connexion et un document fictif avant activation réelle. Aucune configuration ni installation VPS n’a été faite par l’agent.

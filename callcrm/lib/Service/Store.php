@@ -90,10 +90,13 @@ class Store {
 		} catch (\Throwable $e) { if ($track) $this->db->rollBack();throw $e; }
 	}
 	public function delete(int $id): void {
+		$this->db->beginTransaction();try {
+		$q=$this->db->getQueryBuilder();$q->update('callcrm_documents')->set('prospect_id',$q->createNamedParameter(null))->where($q->expr()->eq('prospect_id',$q->createNamedParameter($id)))->executeStatement();
 		foreach (['callcrm_client_events'=>'prospect_id', 'callcrm_appointments'=>'prospect_id', 'callcrm_recordings' => 'prospect_id', 'callcrm_calls' => 'prospect_id', 'callcrm_prospects' => 'id'] as $t => $c) {
 			$qb = $this->db->getQueryBuilder();
 			$qb->delete($t)->where($qb->expr()->eq($c, $qb->createNamedParameter($id)))->executeStatement();
 		}
+		$this->db->commit();}catch(\Throwable $e){$this->db->rollBack();throw $e;}
 	}
 	public function prospectByPhone(string $p): ?array {
 		$qb = $this->db->getQueryBuilder();

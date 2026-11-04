@@ -48,4 +48,18 @@ class ActivityController extends Controller {
   catch (\OutOfBoundsException $e) { return $this->error($e->getMessage(),404); }
   catch (\DomainException $e) { return $this->error($e->getMessage(),409); }
  }
+ #[NoAdminRequired]
+ public function search(): JSONResponse {
+  if(!$this->access->can('view'))return $this->error('Accès refusé',403);
+  $q=$this->request->getParam('q','');if(!is_string($q))return $this->error('Recherche invalide',400);
+  $r=$this->activity->globalSearch($this->scope(),$q,(int)$this->request->getParam('offset',0));
+  if($this->access->can('mask'))foreach($r['rows'] as &$row)$row['phone']='';unset($row);return new JSONResponse($r);
+ }
+ #[NoAdminRequired]
+ public function neglected(): JSONResponse {
+  if(!$this->access->can('view'))return $this->error('Accès refusé',403);
+  $type=$this->request->getParam('type','idle');if(!is_string($type))return $this->error('Filtre invalide',400);
+  try{$r=$this->activity->neglected($this->scope(),$type,(int)$this->request->getParam('days',7),(int)$this->request->getParam('offset',0));}catch(\InvalidArgumentException $e){return $this->error($e->getMessage(),400);}
+  if($this->access->can('mask'))foreach($r['rows'] as &$row)$row['phone']='';unset($row);return new JSONResponse($r);
+ }
 }

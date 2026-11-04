@@ -221,3 +221,5 @@
 #easycrm .crm-nav-icon{flex:0 0 19px;width:19px;height:19px;pointer-events:none;color:inherit}
 #easycrm .crm-nav-label{min-width:0}
 @media(max-width:760px){#easycrm .crm-sidebar .nav button{gap:7px} #easycrm .crm-nav-icon{flex-basis:17px;width:17px;height:17px}}
+
+#easycrm .crm-documents .crm-event-body{margin:12px 0}#easycrm .crm-documents .bar{flex-wrap:wrap}#easycrm .crm-documents input,#easycrm .crm-documents select{max-width:100%}#easycrm .crm-client-columns .crm-documents{order:8}

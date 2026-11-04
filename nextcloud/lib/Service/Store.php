@@ -90,10 +90,13 @@ class Store {
 		} catch (\Throwable $e) { if ($track) $this->db->rollBack();throw $e; }
 	}
 	public function delete(int $id): void {
+		$this->db->beginTransaction();try {
+		$q=$this->db->getQueryBuilder();$q->update('easycrm_documents')->set('prospect_id',$q->createNamedParameter(null))->where($q->expr()->eq('prospect_id',$q->createNamedParameter($id)))->executeStatement();
 		foreach (['easycrm_client_events'=>'prospect_id', 'easycrm_appointments'=>'prospect_id', 'easycrm_recordings' => 'prospect_id', 'easycrm_calls' => 'prospect_id', 'easycrm_prospects' => 'id'] as $t => $c) {
 			$qb = $this->db->getQueryBuilder();
 			$qb->delete($t)->where($qb->expr()->eq($c, $qb->createNamedParameter($id)))->executeStatement();
 		}
+		$this->db->commit();}catch(\Throwable $e){$this->db->rollBack();throw $e;}
 	}
 	/** Retrouve un prospect par les 8 derniers chiffres de son numéro */
 	public function prospectByTail(string $digits): ?array {

@@ -9,7 +9,7 @@ namespace {
  require $root.'/lib/AppInfo/Application.php';require $root.'/lib/Controller/ActivityController.php';require $root.'/lib/Controller/ApiController.php';
  class Config implements \OCP\IConfig {public array $values=[];public function getAppValue($app,$key,$default=''){return $this->values[$key]??$default;}public function setAppValue($app,$key,$value){$this->values[$key]=$value;}}
  class User {public function __construct(private string $uid){}public function getUID(){return $this->uid;}public function getDisplayName(){return 'Nom '.$this->uid;}}
- class Users implements \OCP\IUserManager {public function get($uid){return $uid==='deleted'?null:new User($uid);}}
+ class Users implements \OCP\IUserManager {public function search($q,$limit=30,$offset=0){return str_contains($q,'alice')?[new User('alice')]:[];}public function get($uid){return $uid==='deleted'?null:new User($uid);}}
  class Session implements \OCP\IUserSession {public string $uid='admin';public function getUser(){return new User($this->uid);}}
  class Groups implements \OCP\IGroupManager {public function isAdmin($uid){return $uid==='admin';}public function isInGroup($uid,$gid){return str_ends_with($gid,'_commercial')&&in_array($uid,['alice','bob'],true)||str_ends_with($gid,'_superviseur')&&$uid==='super'||str_ends_with($gid,'_lecture')&&$uid==='reader';}}
  class Request implements \OCP\IRequest {public array $params=[];public function getParam($key,$default=null){return $this->params[$key]??$default;}}
@@ -23,19 +23,19 @@ namespace {
  }
  class Result {public function __construct(private PDOStatement $s){}public function fetch(){return $this->s->fetch();}public function fetchAll(){return $this->s->fetchAll();}public function fetchOne(){return $this->s->fetchColumn();}public function closeCursor(){$this->s->closeCursor();}}
  class Query implements \OCP\DB\QueryBuilder\IQueryBuilder {
-  private string $kind='SELECT',$table='',$columns='*',$alias='';private array $params=[],$where=[],$values=[],$joins=[],$order=[];private int $limit=0,$offset=0;
-  public function __construct(private DB $db){}public function expr(){return $this;}public function func(){return $this;}public function count($column,$alias){return "COUNT($column) AS $alias";}
+  private string $kind='SELECT',$table='',$columns='*',$alias='';private array $params=[],$where=[],$values=[],$joins=[],$order=[];private int $limit=0,$offset=0;private array $group=[];private string $having='';
+  public function __construct(private DB $db){}public function expr(){return $this;}public function func(){return $this;}public function lower($column){return 'LOWER('.$column.')';}public function count($column,$alias){return "COUNT($column) AS $alias";}
   public function createNamedParameter($value,$type=null){if(is_array($value))return '('.implode(',',array_map(fn($v)=>$this->createNamedParameter($v),$value)).')';$key=':p'.count($this->params);$this->params[$key]=$value;return $key;}
-  public function eq($a,$b){return "$a = $b";}public function neq($a,$b){return "$a <> $b";}public function lt($a,$b){return "$a < $b";}public function gte($a,$b){return "$a >= $b";}public function in($a,$b){return "$a IN $b";}public function isNull($a){return "$a IS NULL";}public function like($a,$b){return "$a LIKE $b ESCAPE '\\'";}
+  public function eq($a,$b){return "$a = $b";}public function neq($a,$b){return "$a <> $b";}public function gt($a,$b){return "$a > $b";}public function isNotNull($a){return "$a IS NOT NULL";}public function lt($a,$b){return "$a < $b";}public function gte($a,$b){return "$a >= $b";}public function in($a,$b){return "$a IN $b";}public function isNull($a){return "$a IS NULL";}public function like($a,$b){return "$a LIKE $b ESCAPE '\\'";}
   public function andX(...$parts){return new Expression('AND',$parts);}public function orX(...$parts){return new Expression('OR',$parts);}
   public function select(...$columns){$this->kind='SELECT';$this->columns=implode(',',$columns);return $this;}public function from($table,$alias=''){$this->table=$table;$this->alias=$alias;return $this;}
   public function innerJoin($base,$table,$alias,$on){$this->joins[]="INNER JOIN $table $alias ON $on";return $this;}public function where($condition){$this->where=[(string)$condition];return $this;}public function andWhere($condition){$this->where[]=(string)$condition;return $this;}
-  public function orderBy($key,$dir){$this->order=["$key $dir"];return $this;}public function addOrderBy($key,$dir){$this->order[]="$key $dir";return $this;}public function setMaxResults($n){$this->limit=$n;return $this;}public function setFirstResult($n){$this->offset=$n;return $this;}
-  public function insert($table){$this->kind='INSERT';$this->table=$table;return $this;}public function setValue($key,$v){$this->values[$key]=$v;return $this;}public function update($table){$this->kind='UPDATE';$this->table=$table;return $this;}public function set($key,$v){return $this->setValue($key,$v);}
+  public function having($expression){$this->having=(string)$expression;return $this;}public function groupBy(...$columns){$this->group=$columns;return $this;}public function orderBy($key,$dir){$this->order=["$key $dir"];return $this;}public function addOrderBy($key,$dir){$this->order[]="$key $dir";return $this;}public function setMaxResults($n){$this->limit=$n;return $this;}public function setFirstResult($n){$this->offset=$n;return $this;}
+  public function delete($table){$this->kind='DELETE';$this->table=$table;return $this;}public function insert($table){$this->kind='INSERT';$this->table=$table;return $this;}public function setValue($key,$v){$this->values[$key]=$v;return $this;}public function update($table){$this->kind='UPDATE';$this->table=$table;return $this;}public function set($key,$v){return $this->setValue($key,$v);}
   private function run(){if($this->kind==='INSERT'&&str_ends_with($this->table,'_client_events')&&$this->db->failEvents)throw new \PDOException('event failure');
-   $sql=match($this->kind){'INSERT'=>'INSERT INTO '.$this->table.'('.implode(',',array_keys($this->values)).') VALUES('.implode(',',$this->values).')','UPDATE'=>'UPDATE '.$this->table.' SET '.implode(',',array_map(fn($k,$v)=>"$k=$v",array_keys($this->values),$this->values)),default=>'SELECT '.$this->columns.' FROM '.$this->table.($this->alias?' '.$this->alias:'').' '.implode(' ',$this->joins)};
-   if($this->where)$sql.=' WHERE '.implode(' AND ',$this->where);if($this->order)$sql.=' ORDER BY '.implode(',',$this->order);if($this->limit)$sql.=' LIMIT '.$this->limit.' OFFSET '.$this->offset;
-   $statement=$this->db->pdo->prepare($sql);$statement->execute($this->params);return $statement;}
+   $sql=match($this->kind){'DELETE'=>'DELETE FROM '.$this->table,'INSERT'=>'INSERT INTO '.$this->table.'('.implode(',',array_keys($this->values)).') VALUES('.implode(',',$this->values).')','UPDATE'=>'UPDATE '.$this->table.' SET '.implode(',',array_map(fn($k,$v)=>"$k=$v",array_keys($this->values),$this->values)),default=>'SELECT '.$this->columns.' FROM '.$this->table.($this->alias?' '.$this->alias:'').' '.implode(' ',$this->joins)};
+   if($this->where)$sql.=' WHERE '.implode(' AND ',$this->where);if($this->group)$sql.=' GROUP BY '.implode(',',$this->group);if($this->having)$sql.=' HAVING '.$this->having;if($this->order)$sql.=' ORDER BY '.implode(',',$this->order);if($this->limit)$sql.=' LIMIT '.$this->limit.' OFFSET '.$this->offset;
+   $statement=$this->db->pdo->prepare($sql);foreach($this->params as $key=>$value)$statement->bindValue($key,$value,is_int($value)?PDO::PARAM_INT:($value===null?PDO::PARAM_NULL:PDO::PARAM_STR));$statement->execute();return $statement;}
   public function executeQuery(){return new Result($this->run());}public function executeStatement(){return $this->run()->rowCount();}public function getLastInsertId(){return $this->db->pdo->lastInsertId();}
  }
  $config=new Config();\OCP\Server::$config=$config;$db=new DB($app);$session=new Session();$groups=new Groups();$users=new Users();$request=new Request();
@@ -62,5 +62,16 @@ namespace {
  $apiClass='OCA\\'.$ns.'\\Controller\\ApiController';$accessClass='OCA\\'.$ns.'\\Service\\Access';$session->uid='alice';$api=(new ReflectionClass($apiClass))->newInstanceWithoutConstructor();foreach(['request'=>$request,'a'=>new $accessClass($session,$groups),'s'=>$store] as $key=>$value){$property=new ReflectionProperty($apiClass,$key);$property->setValue($api,$value);}
  $request->params=['result'=>'interesse','reason'=>'Prix trop élevé','note'=>'x'];check($api->call(1)->status===400,'server rejects a reason from another outcome');$request->params['reason']='Projet cuisine';check($api->call(1)->status===200,'server accepts configured optional reason and stores it');check($db->pdo->query("SELECT reason FROM {$app}_calls ORDER BY id DESC LIMIT 1")->fetchColumn()==='Projet cuisine','accepted reason is persisted for reporting');
  foreach(['saveAppointment'] as $method){$reflection=new ReflectionMethod('OCA\\'.$ns.'\\Controller\\ActivityController',$method);check(!$reflection->getAttributes('OCP\\AppFramework\\Http\\Attribute\\NoCSRFRequired'),'new write endpoint keeps Nextcloud CSRF protection');}
+ $db->pdo->exec("ALTER TABLE {$app}_prospects ADD COLUMN created_at INTEGER;UPDATE {$app}_prospects SET created_at=".(time()-20*86400));
+ check(count($activity->globalSearch('alice','Note enrichie')['rows'])===1,'global search finds client comment in own scope');
+ check(count($activity->globalSearch('bob','Note enrichie')['rows'])===0,'global search does not disclose another commercial comment');
+ check(count($activity->globalSearch(null,'alice')['rows'])>=1,'manager search resolves a commercial display name');
+ check(count($activity->neglected('alice','callback')['rows'])===0,'closed callback does not appear as overdue');
+ $rows=$activity->neglected('alice','idle',7)['rows'];check(count($rows)>=1,'idle client appears in follow-up list');
+ $db->pdo->exec("UPDATE {$app}_prospects SET last_call_at=0 WHERE id=1");
+ $store->insert($app.'_audit',['prospect_id'=>1,'action'=>'sim','created_at'=>time()-10*86400]);$store->insert($app.'_audit',['prospect_id'=>1,'action'=>'sim','created_at'=>time()-86400]);
+ check(count($activity->neglected('alice','estimate',7)['rows'])===0,'recent estimate is not flagged because an older estimate exists');
+ $db->pdo->exec("DELETE FROM {$app}_audit WHERE created_at>".(time()-2*86400));check(count($activity->neglected('alice','estimate',7)['rows'])===1,'latest old estimate without follow-up is flagged');
+ $db->pdo->exec("UPDATE {$app}_prospects SET last_call_at=".time()." WHERE id=1");check(count($activity->neglected('alice','estimate',7)['rows'])===0,'call after estimate clears missing follow-up alert');
  echo "$folder: $count activity checks passed\n";
 }

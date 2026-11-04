@@ -16,13 +16,14 @@
 * Saisie des appels différée en cas de coupure réseau
 * Boîte WhatsApp partagée : conversations attribuées au commercial de la fiche, file d'attente pour les numéros inconnus, réponses avec photos et documents
 * Téléphonie : Asterisk/FreePBX, Yeastar, 3CX, API HTTP ou lien softphone ; WhatsApp : lien, Meta Cloud API, 360dialog, Twilio (pré-réglages et webhooks)]]></description>
-	<version>1.7.1</version>
+	<version>1.8.0</version>
 	<licence>agpl</licence>
 	<author>Rafik</author>
 	<namespace>EasyCrm</namespace>
 	<category>office</category>
 	<category>organization</category>
 	<dependencies><nextcloud min-version="28" max-version="40"/></dependencies>
+	<background-jobs><job>OCA\EasyCrm\BackgroundJob\CollectDocuments</job></background-jobs>
 	<repair-steps><post-migration><step>OCA\EasyCrm\Migration\CreateGroups</step></post-migration><install><step>OCA\EasyCrm\Migration\CreateGroups</step></install></repair-steps>
 	<navigations><navigation><name>EasyCrm</name><route>easycrm.page.index</route></navigation></navigations>
 </info>
