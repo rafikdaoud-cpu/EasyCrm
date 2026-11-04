@@ -5,7 +5,7 @@ This repository has independent Nextcloud applications and Odoo editions. Read [
 - `callcrm/`: internal CSM edition, app ID `callcrm`, namespace `OCA\CallCrm`.
 - `nextcloud/`: EasyCrm Nextcloud edition, app ID `easycrm`, namespace `OCA\EasyCrm`.
 - Preserve edition-specific telephony, WhatsApp, languages and configuration. Never copy a whole application over the other. Keep corresponding new services/controllers behaviorally aligned, while converting IDs, table prefixes, group prefixes and migration/index names.
-- Application versions: Call CRM 0.27.0 and EasyCrm 1.8.0. Increment versions for subsequent shipped changes; do not rewrite migrations that may already have run.
+- Application versions: Call CRM 0.28.0 and EasyCrm 1.8.0. Increment versions for subsequent shipped changes; do not rewrite migrations that may already have run.
 - Use the existing checkout; cloud tasks are isolated. Do not create worktrees unless requested.
 - Run `tools/test-nextcloud.sh`; prerequisites and limitations are in the handoff. Keep tests meaningful and preserve command failures.
 - Preserve server-side role checks, CSRF protection, user isolation, transactionality and single-account time accounting. Do not use client-provided user IDs or time counters as authority.
@@ -16,3 +16,5 @@ This repository has independent Nextcloud applications and Odoo editions. Read [
 - The user approved and now receives the sidebar / My day theme. Preserve per-commercial outcome details on the same row. See `docs/UI_THEME.md`.
 
 - Document reception: preserve originals, never expose storage tokens or mailbox credentials. Respect current client assignment on every download. Mailbox credentials use Nextcloud ICrypto; collection is disabled by default. Read docs/DOCUMENTS.md for IMAP, WhatsApp and conversion requirements.
+
+- Client document links (Call CRM only, `callcrm/COLLECTE.md`): public token pages must keep hashed tokens, brute-force protection, content checks and owner-folder delivery. The EasyCrm edition does not have this feature yet; port it deliberately if requested.

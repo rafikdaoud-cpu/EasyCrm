@@ -162,3 +162,15 @@ Demande livrée : options 3/4/6, avec réception WhatsApp et e-mail. La boîte n
 - Migrations additives Call CRM 1014 / EasyCrm 1010. Background job enregistré dans info.xml. Aucun changement des anciennes migrations. LibreOffice, IMAP et GD sont des dépendances de serveur, pas fournis par le ZIP ; leur disponibilité est affichée dans les réglages. L’agent n’a pas installé de paquet sur le VPS ni activé une vraie boîte mail.
 
 Validation locale : tests/documents.php inclut client-activity.php pour chaque édition ; SQLite réel, doubles Nextcloud/fichiers, conversion JPEG réelle vérifiée par pdfinfo (A4, une page, PDF 1.4), conservation des originaux, déduplication, nom de fichier, correspondances ambiguës, réaffectation et droits de téléchargement, mot de passe non exposé, collecte WA simulée et décodage MIME. Tests client-activity étendus à recherche/commentaires/noms, relances et devis récents. tests/documents-browser.cjs exécute les deux applications dans Chromium (API fictive) pour recherche, relances, réglages, liens PJ et parcours mobile/alertes. Aucun test de connexion à une boîte réelle, aucune conversion LibreOffice réelle ou recette Nextcloud/stockage du VPS dans cet environnement. Avant déploiement, tester ces intégrations avec une boîte et des pièces fictives et vérifier le cron. Le registre de conversion peut croître ; surveillance du stockage nécessaire selon la charge. Pagination par décalage limitée à 10 000, affiner les recherches très larges.
+
+## Call CRM 0.28.0 — lien de dépôt de documents client
+
+Voir `callcrm/COLLECTE.md`. Service `Collect` (jeton haché, dépôts en AppData `collect-<id>`,
+envoi final vers `Documents clients/…` dans les Fichiers du commercial actuel, copie dans
+`callcrm_documents` source `client_link`, événement `documents` en chronologie), contrôleurs
+`CollectController` (CRM, CSRF) et `CollectPublicController` (PublicPage, BruteForceProtection,
+AnonRateLimit), page `templates/collect.php` + `js/collect.js`, scanner `js/docscan.js` /
+`js/scanpdf.js` / `js/vendor/opencv.js` repris de l'application Coordination. Migration 1015.
+Tâche de fond `CollectDocuments` : `Collect::cleanup()` expire les liens et purge leurs dépôts.
+Tests : `tests/collect.php` (dans `tools/test-nextcloud.sh`) et `tests/collect-browser.py`.
+Seulement dans l'édition Call CRM ; EasyCrm non porté.
