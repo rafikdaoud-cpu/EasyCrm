@@ -126,12 +126,13 @@ window.addEventListener('beforeunload',e=>{if([...dirtyChecks.values()].some(v=>
 function chronology(pid){
  const box=h('div',{class:'card crm-chronology'}),items=h('div'),message=h('p',{class:'muted'});let kind='all',cursor='',sequence=0;
  const more=h('button',{onclick:()=>load(true)},'Afficher les événements précédents');
- const title={call:'Appel',note:'Commentaire modifié',sim:'Simulation enregistrée',assign:'Affectation modifiée',appointment:'Rendez-vous'};
+ const title={call:'Appel',note:'Commentaire modifié',sim:'Simulation enregistrée',assign:'Affectation modifiée',appointment:'Rendez-vous',documents:'Documents client'};
  const render=e=>{const b=e.body||{};let body;
   if(e.kind==='call')body=[h('strong',{},ST[b.result]||b.result),b.reason?h('p',{},'Motif : '+b.reason):'',b.note?h('p',{},b.note):'',b.callback_at?h('small',{},'Rappel : '+fmt(b.callback_at)):''];
   else if(e.kind==='assign')body=[b.from+' → '+b.to];
   else if(e.kind==='sim')body=[h('strong',{},Math.round(b.total||0).toLocaleString('fr-FR')+' DA'),h('p',{},[b.in?.model,b.in?.w&&b.in?.l?b.in.w+' × '+b.in.l+' m':''].filter(Boolean).join(' · '))];
   else if(e.kind==='appointment')body=[h('strong',{},b.title),h('p',{},fmt(b.starts_at)+' · '+({open:'Prévu',done:'Terminé',cancelled:'Annulé'}[b.state]||'')),b.notes||''];
+  else if(e.kind==='documents')body=[b.action==='received'?'Documents reçus du client : '+b.count+(b.folder?' · '+b.folder:''):'Lien envoyé au client : '+b.count+' document(s) demandé(s)'+(b.expires_at?', valable jusqu’au '+fmt(b.expires_at):'')];
   else body=[b.note||'Commentaire effacé'];
   return h('article',{class:'crm-event','data-kind':e.kind},h('div',{class:'bar'},h('strong',{},title[e.kind]||'Événement'),h('small',{},fmt(e.created_at))),h('div',{class:'crm-event-body'},body),h('small',{},e.author));
  };
@@ -159,7 +160,7 @@ function clientWorkspace(p,info,form,note,reason,cb,getResult,saveCall){
  watchEdits('call','Résultat d’appel non enregistré',()=>form.isConnected&&!!getResult());
  info.addEventListener('crm-saved',saved);
  const wrap=h('details',{class:'card crm-client-info'},h('summary',{},'Informations du client'));info.classList.remove('card');info.replaceWith(wrap);wrap.append(info);if(window.innerWidth>760)wrap.open=true;
- const columns=root.querySelector('.cols');if(columns){columns.classList.add('crm-client-columns');columns.children[1].append(clientAppointments(p),documentsCard(p.id));}
+ const columns=root.querySelector('.cols');if(columns){columns.classList.add('crm-client-columns');columns.children[1].append(clientAppointments(p),collectCard(p),documentsCard(p.id));}
  const footer=h('div',{class:'crm-client-footer'},p.phone&&me.can.call?h('a',{class:'footer-call',href:'tel:'+p.phone},'☎ Appeler'):'',p.phone&&me.can.call?h('a',{class:'footer-wa',href:'https://wa.me/'+waNum(p.phone),target:'_blank',rel:'noopener noreferrer'},'WhatsApp'):'',me.can.call?h('button',{class:'primary',onclick:()=>{if(getResult())saveCall();else{wrap.open=true;info.querySelector('button')?.click();}}},'Enregistrer'):'');root.querySelector('.crm-page')?.append(footer);
 }
 function agenda(){
@@ -200,6 +201,60 @@ function documentsCard(pid=null){
  box.append(h('h3',{},pid===null?'Pièces reçues · À rattacher':'Pièces jointes du client'),h('button',{onclick:()=>load()},'Actualiser'),msg,rows,more);
  if(pid!==null&&(me.can.call||me.can.assign)){const file=h('input',{type:'file','aria-label':'Ajouter une pièce au dossier'}),upload=h('button',{onclick:async()=>{if(!file.files.length){msg.textContent='Choisissez un fichier.';return;}if(file.files[0].size>25*1024*1024){msg.textContent='Fichier limité à 25 Mo.';return;}const fd=new FormData();fd.append('file',file.files[0]);upload.disabled=true;try{await api('/prospects/'+pid+'/documents',{method:'POST',body:fd});file.value='';load();}catch(e){msg.textContent=e.message;}finally{upload.disabled=false;}}},'Ajouter au dossier');box.append(h('div',{class:'bar'},file,upload));watchEdits('document-upload','Pièce jointe sélectionnée mais non envoyée',()=>box.isConnected&&file.files.length>0);}
  setTimeout(()=>load(),0);return box;
+}
+/** Lien de dépôt de documents envoyé au client : création (liste et durée réglables), suivi, annulation. */
+function collectCard(p){
+ const box=h('details',{class:'card crm-collect-card',open:window.innerWidth>760}),rows=h('div'),msg=h('p',{class:'muted',role:'status'}),result=h('div');
+ const canSend=me.can.call||me.can.assign;
+ const STATE={open:'En attente du client',expired:'Expiré',revoked:'Annulé / remplacé',submitted:'Documents reçus',submitting:'Envoi en cours'};
+ async function load(){try{const r=await api('/prospects/'+p.id+'/collect');if(!box.isConnected)return;rows.replaceChildren(...r.map(l=>h('div',{class:'crm-collect-link','data-state':l.state},
+  h('div',{class:'bar'},h('strong',{},STATE[l.state]||l.state),h('small',{},l.uploaded+' / '+l.requested+' document(s)')),
+  h('small',{},'Créé le '+fmt(l.created_at)+(l.state==='open'?' · expire le '+fmt(l.expires_at):'')+(l.submitted_at?' · reçu le '+fmt(l.submitted_at):'')),
+  l.state==='submitted'&&l.folder_path?h('p',{},'Dossier Nextcloud de '+(l.owner||'')+' : ',h('a',{href:OC.generateUrl('/apps/files/?dir='+encodeURIComponent(l.folder_path)),target:'_blank',rel:'noopener noreferrer'},l.folder_path)):'',
+  l.state==='open'&&canSend?h('button',{onclick:async()=>{if(!confirm('Annuler ce lien ? Le client ne pourra plus l’utiliser.'))return;try{await api('/collect/'+l.id+'/revoke',{method:'POST'});load();}catch(e){msg.textContent=e.message;}}},'Annuler le lien'):'')));
+  msg.textContent=r.length?'':'Aucune demande envoyée.';}catch(e){msg.textContent=e.message;}}
+ async function editor(){
+  let s;try{s=await api('/collect/settings');}catch(e){msg.textContent=e.message;return;}
+  const list=h('div',{class:'crm-collect-docs'});
+  const line=(label,required,checked=true)=>{const cb=h('input',{type:'checkbox',checked}),req=h('input',{type:'checkbox',checked:required}),text=h('input',{value:label,maxlength:120,'aria-label':'Libellé du document'});return h('div',{class:'bar crm-collect-doc-line'},h('label',{},cb,' Demander'),text,h('label',{},req,' Obligatoire'));};
+  s.documents.forEach(d=>list.append(line(d.label,d.required)));
+  const add=h('button',{onclick:()=>{list.append(line('',true));list.lastChild.querySelector('input[maxlength]').focus();}},'+ Autre document');
+  const days=h('input',{type:'number',min:1,max:s.max_days,value:s.days,style:'width:5em','aria-label':'Durée de validité en jours'});
+  const create=h('button',{class:'primary',onclick:async()=>{
+   const documents=[...list.children].filter(r=>r.querySelector('input[type=checkbox]').checked).map(r=>({label:r.querySelector('input[maxlength]').value.trim(),required:r.querySelectorAll('input[type=checkbox]')[1].checked})).filter(d=>d.label);
+   if(!documents.length){msg.textContent='Cochez au moins un document.';return;}
+   create.disabled=true;try{const r=await api('/prospects/'+p.id+'/collect',{method:'POST',body:{documents,days:Number(days.value)}});showLink(r.url,r.link);load();}catch(e){msg.textContent=e.message;}finally{create.disabled=false;}}},'Créer le lien');
+  result.replaceChildren(h('div',{class:'crm-collect-editor'},h('p',{class:'muted'},'Documents demandés au client (modifiables pour ce client) :'),list,add,h('label',{style:'display:block;margin:8px 0'},'Lien valable ',days,' jour(s)'),h('div',{class:'bar'},create,h('button',{onclick:()=>result.replaceChildren()},'Fermer'))));
+ }
+ function showLink(url,link){
+  const text='Bonjour, merci d’envoyer vos documents avec votre téléphone en ouvrant ce lien sécurisé (valable jusqu’au '+fmt(link.expires_at)+') : '+url;
+  const field=h('input',{value:url,readonly:true,'aria-label':'Lien à envoyer au client',onfocus:e=>e.target.select()});
+  result.replaceChildren(h('div',{class:'crm-collect-result'},h('strong',{},'Lien créé — à envoyer au client :'),field,
+   h('div',{class:'bar'},
+    h('button',{class:'primary',onclick:async()=>{try{await navigator.clipboard.writeText(url);msg.textContent='Lien copié.';}catch(e){field.select();msg.textContent='Copiez le lien sélectionné.';}}},'Copier le lien'),
+    p.phone?h('a',{class:'crm-agenda-call',href:'https://wa.me/'+waNum(p.phone)+'?text='+encodeURIComponent(text),target:'_blank',rel:'noopener noreferrer'},'Envoyer par WhatsApp'):'',
+    p.phone?h('a',{class:'crm-agenda-call',href:'sms:'+p.phone+'?body='+encodeURIComponent(text)},'Envoyer par SMS'):'',
+    p.email?h('a',{class:'crm-agenda-call',href:'mailto:'+p.email+'?subject='+encodeURIComponent('Vos documents')+'&body='+encodeURIComponent(text)},'Envoyer par e-mail'):''),
+   h('p',{class:'muted'},'Le lien ne sera plus affiché ensuite : en cas de perte, créez-en un nouveau (l’ancien est annulé). Les documents arriveront dans le dossier Nextcloud du commercial de la fiche.')));
+ }
+ box.append(h('summary',{},'Documents à demander au client'),rows,msg,result,canSend?h('button',{class:'primary',onclick:editor},'📨 Demander des documents au client'):'');
+ setTimeout(load,0);return box;
+}
+/** Administration : liste de documents proposée par défaut et durée de validité des liens. */
+function collectSettingsCard(){
+ const box=h('div',{class:'card'}),body=h('div'),out=h('p',{class:'muted',role:'status'});box.append(h('h3',{},'Demande de documents au client · liste par défaut'),body,out);
+ api('/collect/settings').then(s=>{
+  const list=h('div',{class:'crm-collect-docs'});
+  const line=(label,required)=>{const row=h('div',{class:'bar crm-collect-doc-line'},h('input',{value:label,maxlength:120,'aria-label':'Libellé du document'}),h('label',{},h('input',{type:'checkbox',checked:required}),' Obligatoire'),h('button',{onclick:()=>row.remove(),'aria-label':'Retirer ce document'},'✕'));return row;};
+  s.documents.forEach(d=>list.append(line(d.label,d.required)));
+  const days=h('input',{type:'number',min:1,max:s.max_days,value:s.days,style:'width:5em'});
+  body.replaceChildren(h('p',{class:'muted'},'Proposée à chaque création de lien ; le commercial peut l’ajuster pour un client. '+s.max_documents+' documents au maximum.'),list,
+   h('button',{onclick:()=>{list.append(line('',true));list.lastChild.querySelector('input').focus();}},'+ Ajouter un document'),
+   h('label',{style:'display:block;margin:8px 0'},'Validité par défaut des liens : ',days,' jour(s)'),
+   h('button',{class:'primary',onclick:async()=>{const documents=[...list.children].map(r=>({label:r.querySelector('input').value.trim(),required:r.querySelector('input[type=checkbox]').checked})).filter(d=>d.label);
+    try{await api('/collect/settings',{method:'POST',body:{documents,days:Number(days.value)}});out.textContent='Liste enregistrée.';}catch(e){out.textContent=e.message;}}},'Enregistrer'));
+ }).catch(e=>{out.textContent=e.message;});
+ return box;
 }
 function documentSettingsCard(){
  const box=h('div',{class:'card'}),body=h('div'),message=h('p',{class:'muted',role:'status'});box.append(h('h3',{},'Réception des pièces · WhatsApp et e-mail'),body,message);
@@ -1531,7 +1586,7 @@ function admin() {
       }}, 'Réattribuer aux commerciaux actuels')),
     orph,
     h('p', {class:'muted'}, 'Profils : définis par les groupes (AD ou Nextcloud) associés aux rôles administrateur, superviseur, commercial et lecture seule.'));
-  if(me.can.fields)root.querySelector('.crm-page')?.append(documentSettingsCard());
+  if(me.can.fields)root.querySelector('.crm-page')?.append(documentSettingsCard(),collectSettingsCard());
   if(me.can.assign)root.querySelector('.crm-page')?.append(documentsCard());
   adminPanels();
   api('/recordings').then(rows => {

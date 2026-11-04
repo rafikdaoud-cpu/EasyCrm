@@ -1,5 +1,17 @@
 <?php
 return ['routes' => [
+	// Lien de dépôt de documents : page publique du client (sans compte) et API publique par jeton.
+	['name'=>'collect_public#page','url'=>'/collecte/{token}','verb'=>'GET'],
+	['name'=>'collect_public#info','url'=>'/api/public/collecte/{token}','verb'=>'GET'],
+	['name'=>'collect_public#upload','url'=>'/api/public/collecte/{token}/doc/{index}','verb'=>'POST'],
+	['name'=>'collect_public#remove','url'=>'/api/public/collecte/{token}/doc/{index}/delete','verb'=>'POST'],
+	['name'=>'collect_public#submit','url'=>'/api/public/collecte/{token}/submit','verb'=>'POST'],
+	// Côté CRM : réglages et liens d'une fiche.
+	['name'=>'collect#settings','url'=>'/api/collect/settings','verb'=>'GET'],
+	['name'=>'collect#configure','url'=>'/api/collect/settings','verb'=>'POST'],
+	['name'=>'collect#list','url'=>'/api/prospects/{id}/collect','verb'=>'GET'],
+	['name'=>'collect#create','url'=>'/api/prospects/{id}/collect','verb'=>'POST'],
+	['name'=>'collect#revoke','url'=>'/api/collect/{id}/revoke','verb'=>'POST'],
 	['name'=>'document#list','url'=>'/api/prospects/{id}/documents','verb'=>'GET'],
 	['name'=>'document#upload','url'=>'/api/prospects/{id}/documents','verb'=>'POST'],
 	['name'=>'document#inbox','url'=>'/api/documents/inbox','verb'=>'GET'],

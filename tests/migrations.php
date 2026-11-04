@@ -29,7 +29,7 @@ namespace {
  $allIndexes = [];
  foreach ([['callcrm','CallCrm','Version1009Date20261102090000','Version1010Date20261102120000','Version1011Date20261102150000','Version1012Date20261102160000'],['nextcloud','EasyCrm','Version1005Date20261102090000','Version1006Date20261102120000','Version1007Date20261102150000','Version1008Date20261102160000']] as [$folder,$ns,$ann,$presence,$lunch,$policy]) {
   $schema = new Schema(); $output = new class implements \OCP\Migration\IOutput {};
-  foreach ([$ann,$presence,$lunch,$policy,$folder==='callcrm'?'Version1013Date20261103120000':'Version1009Date20261103120000',$folder==='callcrm'?'Version1014Date20261104120000':'Version1010Date20261104120000'] as $version) {
+  foreach ([$ann,$presence,$lunch,$policy,$folder==='callcrm'?'Version1013Date20261103120000':'Version1009Date20261103120000',$folder==='callcrm'?'Version1014Date20261104120000':'Version1010Date20261104120000',...($folder==='callcrm'?['Version1015Date20261105100000']:[])] as $version) {
    require __DIR__.'/../'.$folder.'/lib/Migration/'.$version.'.php';
    $class = 'OCA\\'.$ns.'\\Migration\\'.$version; $migration = new $class();
    $migration->changeSchema($output,fn()=>$schema,[]); $first = serialize($schema);
@@ -44,6 +44,11 @@ namespace {
     if (isset($allIndexes[$name])) throw new \RuntimeException('Index collision: '.$name);
     $allIndexes[$name] = true;
    }
+  }
+  if ($folder === 'callcrm') foreach (['collect_links'=>['id','prospect_id','token_hash','created_by','owner','state','folder_path','documents','created_at','expires_at','submitted_at'],'collect_files'=>['id','link_id','doc_index','file_token','name','mime','size','created_at']] as $table=>$columns) {
+   $t = $schema->tables['callcrm_'.$table] ?? null;
+   if (!$t || array_diff($columns,array_keys($t->columns))) throw new \RuntimeException('Missing migration fields: '.$table);
+   foreach ($t->indexes as $name=>$index) { if (isset($allIndexes[$name]) || strlen($name) > 30) throw new \RuntimeException('Index collision or name too long: '.$name); $allIndexes[$name] = true; }
   }
   $lunch = $schema->tables[$id.'_presence']->columns['lunch_day'][1];
   if (($lunch['notnull'] ?? true) !== false || $lunch['default'] !== null) throw new \RuntimeException('lunch_day must allow NULL before first lunch');
