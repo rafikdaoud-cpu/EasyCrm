@@ -10,7 +10,8 @@ class CollectController extends Controller {
  private function prospect(int $id):?array{$p=$this->store->get($id);return $p&&$this->access->can('view')&&($this->access->can('all')||$p['assigned_to']===$this->access->uid())?$p:null;}
  private function canSend():bool{return $this->manager()||$this->access->can('call');}
  #[NoAdminRequired]
- public function settings():JSONResponse{if(!$this->access->can('view'))return $this->error('Accès refusé',403);return new JSONResponse($this->collect->settings());}
+ /** Liste et validité : réservées à l'administrateur (le commercial ne les voit pas). */
+ public function settings():JSONResponse{if(!$this->access->can('fields'))return $this->error('Accès refusé',403);return new JSONResponse($this->collect->settings());}
  #[NoAdminRequired]
  public function configure():JSONResponse{
   if(!$this->access->can('fields'))return $this->error('Accès refusé',403);
@@ -22,7 +23,9 @@ class CollectController extends Controller {
  public function create(int $id):JSONResponse{
   $p=$this->prospect($id);if(!$p)return $this->error('Client introuvable',404);if(!$this->canSend())return $this->error('Accès refusé',403);
   $uid=$this->access->uid();$owner=(string)($p['assigned_to']??'')!==''?(string)$p['assigned_to']:$uid;
-  try{$r=$this->collect->create($id,$uid,$owner,$this->request->getParam('documents'),$this->request->getParam('days'));}catch(\InvalidArgumentException $e){return $this->error($e->getMessage());}
+  // Liste et durée imposées par les réglages de l'administrateur ; toute valeur envoyée par le navigateur est ignorée.
+  $s=$this->collect->settings();
+  try{$r=$this->collect->create($id,$uid,$owner,$s['documents'],$s['days']);}catch(\InvalidArgumentException $e){return $this->error($e->getMessage());}
   $link=$this->url->linkToRouteAbsolute('callcrm.collect_public.page',['token'=>$r['token']]);
   try{$this->activity->event($id,$uid,'documents',['action'=>'link','count'=>count($this->collect->docs($this->collect->find($r['id']))),'expires_at'=>$r['expires_at']]);}catch(\Throwable $e){}
   return new JSONResponse(['url'=>$link,'link'=>$this->collect->summary($this->collect->find($r['id']))]);

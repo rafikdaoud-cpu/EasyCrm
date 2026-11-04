@@ -116,7 +116,7 @@ class Collect {
  public function summary(array $link,?int $now=null):array{
   $docs=$this->docs($link);$files=$this->files((int)$link['id']);$state=$link['state'];
   if($state==='open'&&(int)$link['expires_at']<=($now??time()))$state='expired';
-  return ['id'=>(int)$link['id'],'state'=>$state,'created_at'=>(int)$link['created_at'],'expires_at'=>(int)$link['expires_at'],'submitted_at'=>(int)$link['submitted_at'],'created_by'=>$link['created_by'],'owner'=>$link['owner'],'folder_path'=>$link['folder_path'],'requested'=>count($docs),'uploaded'=>count($files),'documents'=>array_map(fn($d)=>$d['label'],$docs)];
+  return ['id'=>(int)$link['id'],'state'=>$state,'created_at'=>(int)$link['created_at'],'expires_at'=>(int)$link['expires_at'],'submitted_at'=>(int)$link['submitted_at'],'created_by'=>$link['created_by'],'owner'=>$link['owner'],'folder_path'=>$link['folder_path'],'requested'=>count($docs),'uploaded'=>count($files)];
  }
 
  // ---------- Dépôts du client ----------
