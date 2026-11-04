@@ -19,6 +19,7 @@ node tests/simulator-history-ui.cjs
 "$PHP_BIN" tests/collect.php
 node --check callcrm/js/collect.js
 node --check callcrm/js/docscan.js
+node --check callcrm/js/docscan-worker.js
 node --check callcrm/js/scanpdf.js
 "$PHP_BIN" tests/migrations.php
 git diff --check

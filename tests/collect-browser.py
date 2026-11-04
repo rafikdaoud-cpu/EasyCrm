@@ -39,7 +39,8 @@ HTML = ('<!doctype html><html lang="fr"><meta charset="utf-8"><meta name="viewpo
         '<link rel="stylesheet" href="/apps/callcrm/css/collect.css"><body>'
         f'<main id="crm-collect" class="crm-collect" data-api="/apps/callcrm/api/public/collecte/{TOKEN}"><p>Chargement…</p></main>'
         '<script src="/apps/callcrm/js/scanpdf.js"></script><script src="/apps/callcrm/js/docscan.js"></script><script src="/apps/callcrm/js/collect.js"></script></body></html>')
-CSP = "default-src 'none'; script-src 'self' 'unsafe-eval'; style-src 'self'; img-src 'self' blob: data:; connect-src 'self'; media-src 'self' blob:"
+# 'unsafe-eval' uniquement pour les attentes de Playwright ; OpenCV passe par le worker (fichier statique, sans CSP).
+CSP = "default-src 'none'; script-src 'self' 'unsafe-eval'; worker-src 'self'; style-src 'self'; img-src 'self' blob: data:; connect-src 'self'; media-src 'self' blob:"
 
 with sync_playwright() as p:
     browser = p.chromium.launch(executable_path=os.environ.get('CHROMIUM_BIN') or None, headless=True,
@@ -65,7 +66,7 @@ with sync_playwright() as p:
             return route.fulfill(json=view())
         page.route(BASE + 'api/public/collecte/**', api)
         page.route(BASE + 'collecte/' + TOKEN, lambda r: r.fulfill(content_type='text/html', headers={'Content-Security-Policy': CSP}, body=HTML))
-        for name, kind in [('css/collect.css', 'text/css'), ('js/scanpdf.js', 'application/javascript'), ('js/docscan.js', 'application/javascript'), ('js/collect.js', 'application/javascript'), ('js/vendor/opencv.js', 'application/javascript')]:
+        for name, kind in [('css/collect.css', 'text/css'), ('js/scanpdf.js', 'application/javascript'), ('js/docscan.js', 'application/javascript'), ('js/collect.js', 'application/javascript'), ('js/docscan-worker.js', 'application/javascript'), ('js/vendor/opencv.js', 'application/javascript')]:
             page.route(BASE + name, static(name, kind))
         page.goto(BASE + 'collecte/' + TOKEN)
         page.locator('.crm-collect-doc').first.wait_for()
