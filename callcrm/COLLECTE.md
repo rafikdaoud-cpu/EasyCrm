@@ -1,13 +1,12 @@
-# Lien de dépôt de documents pour le client (Call CRM 0.28.0)
+# Lien de dépôt de documents pour le client (Call CRM 0.28.1)
 
 ## Parcours
 
 1. **Commercial** — fiche client, carte « Documents à demander au client » →
-   « 📨 Demander des documents au client ». La liste par défaut est proposée ; il peut
-   décocher, renommer, ajouter un document et marquer obligatoire/facultatif, puis choisir
-   la validité (défaut réglable, 1 à 30 jours). « Créer le lien » affiche le lien une
-   seule fois, avec « Copier », « WhatsApp », « SMS » et « E-mail ». Créer un nouveau
-   lien annule le précédent encore ouvert ; « Annuler le lien » le désactive.
+   « 📨 Envoyer le lien de documents au client ». Il ne choisit ni la liste ni la durée :
+   l'administrateur les fixe (voir plus bas). Le lien s'affiche une seule fois, avec
+   « Copier », « WhatsApp », « SMS » et « E-mail ». Créer un nouveau lien annule le
+   précédent encore ouvert ; « Annuler le lien » le désactive.
 2. **Client** — ouvre le lien sur son téléphone, sans compte. Il voit la liste et
    « 📷 Scanner mes documents » : caméra plein écran, photo automatique quand le document
    est détecté (OpenCV, détection rapide en attendant le chargement), redressement,
@@ -20,8 +19,12 @@
    Ils apparaissent aussi dans « Pièces jointes du client » et dans la chronologie
    (« Documents client »). La carte du lien affiche « Documents reçus » et le dossier.
 
-L'administrateur règle la liste par défaut et la validité dans Administration →
-« Demande de documents au client · liste par défaut » (30 documents au maximum).
+L'administrateur seul règle la liste des documents (obligatoires ou facultatifs, 30 au
+maximum) et la validité des liens (1 à 30 jours, 3 par défaut) dans Administration →
+« Demande de documents au client · liste et validité ». Le serveur ignore toute liste ou
+durée envoyée par un autre utilisateur ; les superviseurs et commerciaux ne voient pas ces
+réglages. Depuis 0.28.1, la carte « Rendez-vous » n'est plus affichée sur la fiche client
+(les rendez-vous existants et l'Agenda sont conservés).
 
 ## Sécurité
 

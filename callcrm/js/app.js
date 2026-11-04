@@ -152,15 +152,13 @@ function appointmentEditor(pid,appointment=null,after=()=>{}){
  const buttons=h('div',{class:'bar'},h('button',{class:'primary',onclick:()=>submit('open')},'Enregistrer le rendez-vous'),appointment?h('button',{onclick:()=>submit('done')},'Terminé'):'',appointment?h('button',{onclick:()=>submit('cancelled')},'Annuler le rendez-vous'):'');
  const overlay=h('div',{class:'crm-dialog-bg'},h('section',{class:'crm-dialog',role:'dialog','aria-modal':'true','aria-label':'Rendez-vous client'},h('div',{class:'bar'},h('h2',{},appointment?'Modifier le rendez-vous':'Nouveau rendez-vous'),h('button',{'aria-label':'Fermer',onclick:close},'×')),h('label',{},'Date et heure · '+zone,date),h('label',{},'Objet',title),h('label',{},'Consignes',notes),msg,buttons));root.append(overlay);date.focus();
 }
-function clientAppointments(p){const box=h('details',{class:'card crm-client-appointments',open:window.innerWidth>760}),rows=h('div'),out=h('p',{class:'muted'});const refresh=async()=>{try{const r=await api('/prospects/'+p.id+'/appointments');if(!box.isConnected)return;rows.replaceChildren(...r.rows.map(a=>h('div',{class:'crm-appointment'},h('strong',{},a.title),h('p',{},fmt(a.starts_at)),a.notes?h('p',{},a.notes):'',me.can.call||me.can.assign?h('button',{onclick:()=>appointmentEditor(p.id,a,refresh)},'Modifier / terminer'):'')));out.textContent=r.rows.length?'':'Aucun rendez-vous prévu.';}catch(e){out.textContent=e.message;}};
- box.append(h('summary',{},'Rendez-vous'),rows,out,me.can.call||me.can.assign?h('button',{class:'primary',onclick:()=>appointmentEditor(p.id,null,refresh)},'+ Nouveau rendez-vous'):'');setTimeout(refresh,0);return box;}
 function clientWorkspace(p,info,form,note,reason,cb,getResult,saveCall){
  let baseline=JSON.stringify(collect(info));const saved=e=>{baseline=JSON.stringify(e.detail||collect(info));};
  watchEdits('client','Informations du client modifiées',()=>info.isConnected&&JSON.stringify(collect(info))!==baseline);
  watchEdits('call','Résultat d’appel non enregistré',()=>form.isConnected&&!!getResult());
  info.addEventListener('crm-saved',saved);
  const wrap=h('details',{class:'card crm-client-info'},h('summary',{},'Informations du client'));info.classList.remove('card');info.replaceWith(wrap);wrap.append(info);if(window.innerWidth>760)wrap.open=true;
- const columns=root.querySelector('.cols');if(columns){columns.classList.add('crm-client-columns');columns.children[1].append(clientAppointments(p),collectCard(p),documentsCard(p.id));}
+ const columns=root.querySelector('.cols');if(columns){columns.classList.add('crm-client-columns');columns.children[1].append(collectCard(p),documentsCard(p.id));}
  const footer=h('div',{class:'crm-client-footer'},p.phone&&me.can.call?h('a',{class:'footer-call',href:'tel:'+p.phone},'☎ Appeler'):'',p.phone&&me.can.call?h('a',{class:'footer-wa',href:'https://wa.me/'+waNum(p.phone),target:'_blank',rel:'noopener noreferrer'},'WhatsApp'):'',me.can.call?h('button',{class:'primary',onclick:()=>{if(getResult())saveCall();else{wrap.open=true;info.querySelector('button')?.click();}}},'Enregistrer'):'');root.querySelector('.crm-page')?.append(footer);
 }
 function agenda(){
@@ -213,23 +211,15 @@ function collectCard(p){
   l.state==='submitted'&&l.folder_path?h('p',{},'Dossier Nextcloud de '+(l.owner||'')+' : ',h('a',{href:OC.generateUrl('/apps/files/?dir='+encodeURIComponent(l.folder_path)),target:'_blank',rel:'noopener noreferrer'},l.folder_path)):'',
   l.state==='open'&&canSend?h('button',{onclick:async()=>{if(!confirm('Annuler ce lien ? Le client ne pourra plus l’utiliser.'))return;try{await api('/collect/'+l.id+'/revoke',{method:'POST'});load();}catch(e){msg.textContent=e.message;}}},'Annuler le lien'):'')));
   msg.textContent=r.length?'':'Aucune demande envoyée.';}catch(e){msg.textContent=e.message;}}
- async function editor(){
-  let s;try{s=await api('/collect/settings');}catch(e){msg.textContent=e.message;return;}
-  const list=h('div',{class:'crm-collect-docs'});
-  const line=(label,required,checked=true)=>{const cb=h('input',{type:'checkbox',checked}),req=h('input',{type:'checkbox',checked:required}),text=h('input',{value:label,maxlength:120,'aria-label':'Libellé du document'});return h('div',{class:'bar crm-collect-doc-line'},h('label',{},cb,' Demander'),text,h('label',{},req,' Obligatoire'));};
-  s.documents.forEach(d=>list.append(line(d.label,d.required)));
-  const add=h('button',{onclick:()=>{list.append(line('',true));list.lastChild.querySelector('input[maxlength]').focus();}},'+ Autre document');
-  const days=h('input',{type:'number',min:1,max:s.max_days,value:s.days,style:'width:5em','aria-label':'Durée de validité en jours'});
-  const create=h('button',{class:'primary',onclick:async()=>{
-   const documents=[...list.children].filter(r=>r.querySelector('input[type=checkbox]').checked).map(r=>({label:r.querySelector('input[maxlength]').value.trim(),required:r.querySelectorAll('input[type=checkbox]')[1].checked})).filter(d=>d.label);
-   if(!documents.length){msg.textContent='Cochez au moins un document.';return;}
-   create.disabled=true;try{const r=await api('/prospects/'+p.id+'/collect',{method:'POST',body:{documents,days:Number(days.value)}});showLink(r.url,r.link);load();}catch(e){msg.textContent=e.message;}finally{create.disabled=false;}}},'Créer le lien');
-  result.replaceChildren(h('div',{class:'crm-collect-editor'},h('p',{class:'muted'},'Documents demandés au client (modifiables pour ce client) :'),list,add,h('label',{style:'display:block;margin:8px 0'},'Lien valable ',days,' jour(s)'),h('div',{class:'bar'},create,h('button',{onclick:()=>result.replaceChildren()},'Fermer'))));
+ /** Liste et validité définies par l'administrateur : le commercial envoie simplement le lien. */
+ async function send(btn){
+  if(!confirm('Créer un lien de dépôt de documents pour ce client ? Un lien encore ouvert sera remplacé.'))return;
+  btn.disabled=true;try{const r=await api('/prospects/'+p.id+'/collect',{method:'POST'});showLink(r.url,r.link);load();}catch(e){msg.textContent=e.message;}finally{btn.disabled=false;}
  }
  function showLink(url,link){
   const text='Bonjour, merci d’envoyer vos documents avec votre téléphone en ouvrant ce lien sécurisé (valable jusqu’au '+fmt(link.expires_at)+') : '+url;
   const field=h('input',{value:url,readonly:true,'aria-label':'Lien à envoyer au client',onfocus:e=>e.target.select()});
-  result.replaceChildren(h('div',{class:'crm-collect-result'},h('strong',{},'Lien créé — à envoyer au client :'),field,
+  result.replaceChildren(h('div',{class:'crm-collect-result'},h('strong',{},'Lien créé ('+link.requested+' document(s), valable jusqu’au '+fmt(link.expires_at)+') — à envoyer au client :'),field,
    h('div',{class:'bar'},
     h('button',{class:'primary',onclick:async()=>{try{await navigator.clipboard.writeText(url);msg.textContent='Lien copié.';}catch(e){field.select();msg.textContent='Copiez le lien sélectionné.';}}},'Copier le lien'),
     p.phone?h('a',{class:'crm-agenda-call',href:'https://wa.me/'+waNum(p.phone)+'?text='+encodeURIComponent(text),target:'_blank',rel:'noopener noreferrer'},'Envoyer par WhatsApp'):'',
@@ -237,20 +227,20 @@ function collectCard(p){
     p.email?h('a',{class:'crm-agenda-call',href:'mailto:'+p.email+'?subject='+encodeURIComponent('Vos documents')+'&body='+encodeURIComponent(text)},'Envoyer par e-mail'):''),
    h('p',{class:'muted'},'Le lien ne sera plus affiché ensuite : en cas de perte, créez-en un nouveau (l’ancien est annulé). Les documents arriveront dans le dossier Nextcloud du commercial de la fiche.')));
  }
- box.append(h('summary',{},'Documents à demander au client'),rows,msg,result,canSend?h('button',{class:'primary',onclick:editor},'📨 Demander des documents au client'):'');
+ box.append(h('summary',{},'Documents à demander au client'),rows,msg,result,canSend?h('button',{class:'primary',onclick:e=>send(e.currentTarget)},'📨 Envoyer le lien de documents au client'):'');
  setTimeout(load,0);return box;
 }
 /** Administration : liste de documents proposée par défaut et durée de validité des liens. */
 function collectSettingsCard(){
- const box=h('div',{class:'card'}),body=h('div'),out=h('p',{class:'muted',role:'status'});box.append(h('h3',{},'Demande de documents au client · liste par défaut'),body,out);
+ const box=h('div',{class:'card'}),body=h('div'),out=h('p',{class:'muted',role:'status'});box.append(h('h3',{},'Demande de documents au client · liste et validité'),body,out);
  api('/collect/settings').then(s=>{
   const list=h('div',{class:'crm-collect-docs'});
   const line=(label,required)=>{const row=h('div',{class:'bar crm-collect-doc-line'},h('input',{value:label,maxlength:120,'aria-label':'Libellé du document'}),h('label',{},h('input',{type:'checkbox',checked:required}),' Obligatoire'),h('button',{onclick:()=>row.remove(),'aria-label':'Retirer ce document'},'✕'));return row;};
   s.documents.forEach(d=>list.append(line(d.label,d.required)));
   const days=h('input',{type:'number',min:1,max:s.max_days,value:s.days,style:'width:5em'});
-  body.replaceChildren(h('p',{class:'muted'},'Proposée à chaque création de lien ; le commercial peut l’ajuster pour un client. '+s.max_documents+' documents au maximum.'),list,
+  body.replaceChildren(h('p',{class:'muted'},'Documents demandés dans chaque lien envoyé par les commerciaux (ils ne voient pas cette liste). '+s.max_documents+' documents au maximum.'),list,
    h('button',{onclick:()=>{list.append(line('',true));list.lastChild.querySelector('input').focus();}},'+ Ajouter un document'),
-   h('label',{style:'display:block;margin:8px 0'},'Validité par défaut des liens : ',days,' jour(s)'),
+   h('label',{style:'display:block;margin:8px 0'},'Validité des liens : ',days,' jour(s)'),
    h('button',{class:'primary',onclick:async()=>{const documents=[...list.children].map(r=>({label:r.querySelector('input').value.trim(),required:r.querySelector('input[type=checkbox]').checked})).filter(d=>d.label);
     try{await api('/collect/settings',{method:'POST',body:{documents,days:Number(days.value)}});out.textContent='Liste enregistrée.';}catch(e){out.textContent=e.message;}}},'Enregistrer'));
  }).catch(e=>{out.textContent=e.message;});

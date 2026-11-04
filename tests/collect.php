@@ -49,15 +49,20 @@ ok($collect->settings()['days']===3,'invalid lists and durations rejected (empty
 $collect->configure([['label'=>'CNI recto','required'=>true],['label'=>'CNI verso','required'=>true],['label'=>'Fiche de paie','required'=>false]],5);
 ok($collect->settings()['documents'][2]===['label'=>'Fiche de paie','required'=>false]&&$collect->settings()['days']===5,'administrator customizes default list and validity');
 $request->params=['documents'=>[['label'=>'X']],'days'=>3];ok($crm('alice')->configure()->status===403,'commercial cannot change default list');
+$request->params=[];ok($crm('alice')->settings()->status===403&&$crm('super')->settings()->status===403&&$crm('admin')->settings()->status===200,'only the administrator sees the document list and validity');
+$collect->configure($collect->settings()['documents'],3);
 
 // Création du lien
-$request->params=['documents'=>[['label'=>'CNI recto','required'=>true],['label'=>'CNI verso','required'=>true],['label'=>'Fiche de paie','required'=>false]],'days'=>3];
+// Valeurs envoyées par le navigateur : ignorées, la liste et la durée de l'administrateur s'appliquent.
+$request->params=['documents'=>[['label'=>'Document pirate','required'=>false]],'days'=>30];
 ok($crm('bob')->create(1)->status===404,'another commercial cannot create a link for this client');
 ok($crm('reader')->create(1)->status===403,'read-only user cannot send a document request');
 $r=$crm('alice')->create(1);$url=$r->data['url'];$token=$tokenOf($url);
 ok($r->status===200&&preg_match('/^[A-Za-z0-9_-]{32}$/',$token)===1,'assigned commercial creates a 32-character link');
 ok(!str_contains(json_encode($db->pdo->query("SELECT * FROM {$app}_collect_links")->fetchAll()),$token),'token stored only as a hash');
 $row=$collect->open($token);ok($row&&(int)$row['expires_at']-(int)$row['created_at']===3*86400&&$row['owner']==='alice','link valid 3 days, owner = assigned commercial');
+ok(array_column($collect->docs($row),'label')===['CNI recto','CNI verso','Fiche de paie'],'document list and validity sent by the browser are ignored (administrator settings apply)');
+ok(!isset($r->data['link']['documents']),'commercial response does not list the documents');
 ok($collect->open('x'.substr($token,1))===null&&$collect->open('court')===null,'wrong or malformed token rejected');
 ok($db->pdo->query("SELECT count(*) FROM {$app}_client_events WHERE kind='documents'")->fetchColumn()==1,'link creation recorded in client chronology');
 $r2=$crm('alice')->create(1);$token2=$tokenOf($r2->data['url']);
@@ -92,10 +97,10 @@ $again=$public->submit($token);ok($again->status===410&&$again->data['state']===
 ok($public->info($token)->data['state']==='submitted','client sees documents already sent');
 
 // Expiration, révocation, droits
-$store->reassign([1],'alice','admin');$request->params=['documents'=>[['label'=>'A']],'days'=>1];$t3=$tokenOf($crm('alice')->create(1)->data['url']);$l3=$collect->open($t3);$collect->upload($l3,0,$PDF);
+$store->reassign([1],'alice','admin');$collect->configure([['label'=>'A']],1);$request->params=[];$t3=$tokenOf($crm('alice')->create(1)->data['url']);$l3=$collect->open($t3);$collect->upload($l3,0,$PDF);
 ok($collect->open($t3,time()+86401)===null&&$public->info($t3)->status===200,'link expires after its validity');
 ok($collect->cleanup(time()+86401)===1&&$collect->find((int)$l3['id'])['state']==='expired'&&!isset($appData->root->children['collect-'.$l3['id']]),'background job expires links and deletes pending uploads');
-$request->params=['documents'=>[['label'=>'A']],'days'=>2];$t4=$tokenOf($crm('alice')->create(1)->data['url']);$id4=(int)$collect->open($t4)['id'];
+$request->params=[];$t4=$tokenOf($crm('alice')->create(1)->data['url']);$id4=(int)$collect->open($t4)['id'];
 ok($crm('bob')->revoke($id4)->status===404,'another commercial cannot cancel the link');
 ok($crm('alice')->revoke($id4)->status===200&&$public->info($t4)->status===410,'commercial cancels the link; client is told');
 foreach(['info','upload','remove','submit','page']as $m){$ref=new ReflectionMethod(\OCA\CallCrm\Controller\CollectPublicController::class,$m);ok($ref->getAttributes('OCP\\AppFramework\\Http\\Attribute\\PublicPage')&&$ref->getAttributes('OCP\\AppFramework\\Http\\Attribute\\BruteForceProtection'),"public $m endpoint has brute-force protection");}
