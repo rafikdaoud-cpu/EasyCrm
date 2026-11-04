@@ -36,7 +36,7 @@ video = camera(str(out / 'fake-camera.y4m'))
 BASE = 'https://cloud.test/apps/callcrm/'
 TOKEN = 'T' * 32
 HTML = ('<!doctype html><html lang="fr"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
-        '<link rel="stylesheet" href="/apps/callcrm/css/collect.css"><body>'
+        '<link rel="stylesheet" href="/apps/callcrm/css/nextcloud-like.css"><link rel="stylesheet" href="/apps/callcrm/css/collect.css"><body>'
         f'<main id="crm-collect" class="crm-collect" data-api="/apps/callcrm/api/public/collecte/{TOKEN}"><p>Chargement…</p></main>'
         '<script src="/apps/callcrm/js/scanpdf.js"></script><script src="/apps/callcrm/js/docscan.js"></script><script src="/apps/callcrm/js/collect.js"></script></body></html>')
 # 'unsafe-eval' uniquement pour les attentes de Playwright ; OpenCV passe par le worker (fichier statique, sans CSP).
@@ -68,10 +68,22 @@ with sync_playwright() as p:
         page.route(BASE + 'collecte/' + TOKEN, lambda r: r.fulfill(content_type='text/html', headers={'Content-Security-Policy': CSP}, body=HTML))
         for name, kind in [('css/collect.css', 'text/css'), ('js/scanpdf.js', 'application/javascript'), ('js/docscan.js', 'application/javascript'), ('js/collect.js', 'application/javascript'), ('js/docscan-worker.js', 'application/javascript'), ('js/vendor/opencv.js', 'application/javascript')]:
             page.route(BASE + name, static(name, kind))
+        # Comme Nextcloud : <body> ne défile pas, et les boutons ont leur propre style.
+        page.route(BASE + 'css/nextcloud-like.css', lambda r: r.fulfill(content_type='text/css', body='html,body{height:100%;overflow:hidden;margin:0}button,label{background:#1e293b;color:#93c5fd;border:0}'))
         page.goto(BASE + 'collecte/' + TOKEN)
         page.locator('.crm-collect-doc').first.wait_for()
         assert page.locator('.crm-collect-doc').count() == 3
         assert page.locator('.crm-collect-footer button').is_disabled(), 'submit allowed before required documents'
+        state['docs'] += [{'index': i, 'label': 'Pièce supplémentaire ' + str(i), 'required': False} for i in range(3, 11)]
+        page.evaluate("location.reload()"); page.locator('#doc-10').wait_for()
+        assert page.locator('#crm-collect').evaluate('e=>e.scrollHeight>e.clientHeight+200'), 'page content not scrollable'
+        page.locator('#crm-collect').evaluate('e=>e.scrollTop=e.scrollHeight')
+        assert page.locator('#doc-10').evaluate('e=>{const r=e.getBoundingClientRect();return r.bottom>0&&r.top<innerHeight}'), 'cannot scroll to the last document'
+        page.mouse.move(width / 2, 300); page.locator('#crm-collect').evaluate('e=>e.scrollTop=0'); page.mouse.wheel(0, 3000); page.wait_for_timeout(300)
+        assert page.locator('#crm-collect').evaluate('e=>e.scrollTop>500'), 'wheel/touch scrolling does not move the page'
+        assert page.locator('#doc-0 .crm-btn-primary').evaluate('e=>getComputedStyle(e).backgroundColor')=='rgb(27, 79, 156)', 'Nextcloud button style overrides ours'
+        page.screenshot(path=str(out / f'collect-{width}-scrolled.png'))
+        state['docs'] = state['docs'][:3]; page.evaluate("location.reload()"); page.locator('#doc-2').wait_for()
         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), 'horizontal overflow'
         assert page.locator('.crm-collect-bar span').evaluate('e=>e.getBoundingClientRect().width')==0, 'progress bar not empty at 0/3'
         page.screenshot(path=str(out / f'collect-{width}-start.png'))
