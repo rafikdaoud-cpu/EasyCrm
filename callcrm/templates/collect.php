@@ -3,6 +3,7 @@
 \OCP\Util::addStyle('callcrm', 'collect');
 \OCP\Util::addScript('callcrm', 'scanpdf');
 \OCP\Util::addScript('callcrm', 'docscan');
+\OCP\Util::addScript('callcrm', 'collect-i18n');
 \OCP\Util::addScript('callcrm', 'collect');
 // Aperçu du lien (WhatsApp, SMS, iMessage) : nom et logo de l'entreprise.
 $preview = $_['preview'] ?? [];

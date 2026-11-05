@@ -38,7 +38,7 @@ TOKEN = 'T' * 32
 HTML = ('<!doctype html><html lang="fr"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
         '<link rel="stylesheet" href="/apps/callcrm/css/nextcloud-like.css"><link rel="stylesheet" href="/apps/callcrm/css/collect.css"><body>'
         f'<main id="crm-collect" class="crm-collect" data-api="/apps/callcrm/api/public/collecte/{TOKEN}"><p>Chargement…</p></main>'
-        '<script src="/apps/callcrm/js/scanpdf.js"></script><script src="/apps/callcrm/js/docscan.js"></script><script src="/apps/callcrm/js/collect.js"></script></body></html>')
+        '<script src="/apps/callcrm/js/scanpdf.js"></script><script src="/apps/callcrm/js/docscan.js"></script><script src="/apps/callcrm/js/collect-i18n.js"></script><script src="/apps/callcrm/js/collect.js"></script></body></html>')
 # 'unsafe-eval' uniquement pour les attentes de Playwright ; OpenCV passe par le worker (fichier statique, sans CSP).
 CSP = "default-src 'none'; script-src 'self' 'unsafe-eval'; worker-src 'self'; style-src 'self'; img-src 'self' blob: data:; connect-src 'self'; media-src 'self' blob:"
 
@@ -66,7 +66,7 @@ with sync_playwright() as p:
             return route.fulfill(json=view())
         page.route(BASE + 'api/public/collecte/**', api)
         page.route(BASE + 'collecte/' + TOKEN, lambda r: r.fulfill(content_type='text/html', headers={'Content-Security-Policy': CSP}, body=HTML))
-        for name, kind in [('css/collect.css', 'text/css'), ('js/scanpdf.js', 'application/javascript'), ('js/docscan.js', 'application/javascript'), ('js/collect.js', 'application/javascript'), ('js/docscan-worker.js', 'application/javascript'), ('js/vendor/opencv.js', 'application/javascript')]:
+        for name, kind in [('css/collect.css', 'text/css'), ('js/scanpdf.js', 'application/javascript'), ('js/docscan.js', 'application/javascript'), ('js/collect-i18n.js', 'application/javascript'), ('js/collect.js', 'application/javascript'), ('js/docscan-worker.js', 'application/javascript'), ('js/vendor/opencv.js', 'application/javascript')]:
             page.route(BASE + name, static(name, kind))
         # Comme Nextcloud : <body> ne défile pas, et les boutons ont leur propre style.
         page.route(BASE + 'css/nextcloud-like.css', lambda r: r.fulfill(content_type='text/css', body='html,body{height:100%;overflow:hidden;margin:0}button,label{background:#1e293b;color:#93c5fd;border:0}'))
@@ -87,6 +87,19 @@ with sync_playwright() as p:
         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), 'horizontal overflow'
         assert page.locator('.crm-collect-bar span').evaluate('e=>e.getBoundingClientRect().width')==0, 'progress bar not empty at 0/3'
         page.screenshot(path=str(out / f'collect-{width}-start.png'))
+        # Arabe : bouton de langue, page de droite à gauche, choix mémorisé au rechargement.
+        page.locator('.crm-collect-lang').click(); page.get_by_text('📄 إرسال وثائقكم').wait_for()
+        assert page.locator('#crm-collect').get_attribute('dir') == 'rtl' and page.locator('#doc-0').get_by_text('إجبارية').count() == 1
+        assert page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), 'horizontal overflow (arabic)'
+        page.evaluate("location.reload()"); page.get_by_text('📄 إرسال وثائقكم').wait_for()
+        page.screenshot(path=str(out / f'collect-{width}-arabic.png'))
+        page.get_by_role('button', name='📷 تصوير وثائقي').click(); page.locator('.co-docscan[dir=rtl]').wait_for()
+        page.wait_for_function("document.querySelector('.co-docscan-title-text')?.textContent.startsWith('الوثيقة 1/3')")
+        page.wait_for_function("document.querySelector('.co-docscan-done')?.textContent==='إنهاء'")
+        page.screenshot(path=str(out / f'collect-{width}-arabic-scan.png'))
+        page.locator('.co-docscan-close').click(); page.locator('.co-docscan').wait_for(state='detached')
+        page.locator('.crm-collect-lang').click(); page.get_by_text('📄 Envoi de vos documents').wait_for()
+        assert page.locator('#crm-collect').get_attribute('dir') == 'ltr'
         # Scanner guidé : document 1 puis 2 sans quitter la caméra.
         page.get_by_role('button', name='📷 Scanner mes documents').click(); page.locator('.co-docscan').wait_for()
         page.locator('.co-docscan-bottom .co-docscan-chip').click()  # Auto coupé le temps qu'OpenCV se charge

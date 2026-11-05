@@ -192,3 +192,9 @@ Chronologie : événement `documents` `started` au premier document, `received` 
 
 ## Call CRM 0.29.2 — message au client en français et en arabe
 - Le texte WhatsApp / SMS / e-mail du lien de documents est bilingue (français puis arabe), le lien seul sur la dernière ligne.
+
+## Call CRM 0.29.3 — page client en arabe
+- Textes de la page publique dans `js/collect-i18n.js` (fr, ar) ; `docscan.js` accepte `opts.text`, `opts.dir`, `opts.lang` (français par défaut, Coordination inchangée).
+- Langue : `?lang=ar|fr`, sinon choix mémorisé (localStorage), sinon langue du téléphone ; bouton 🌐 en haut. Arabe = `dir="rtl"`.
+- Les intitulés de documents viennent des réglages admin (pas traduits) : l'admin peut les écrire en deux langues.
+- Test navigateur : `tests/collect-browser.py` (passage en arabe, scanner RTL, retour au français).
