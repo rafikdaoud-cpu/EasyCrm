@@ -189,3 +189,6 @@ Chronologie : événement `documents` `started` au premier document, `received` 
 - Image = logo Nextcloud « Personnaliser l'apparence » (thème) : favicon PNG/JPEG, sinon logo, sinon logo d'en-tête (les .ico et .svg sont ignorés car WhatsApp/iMessage ne les affichent pas).
 - Sans logo personnalisé : pas d'image (pas d'image cassée). Test : `tests/collect-preview.php`.
 - Les messageries gardent l'aperçu en cache par lien : seuls les nouveaux liens montrent le logo.
+
+## Call CRM 0.29.2 — message au client en français et en arabe
+- Le texte WhatsApp / SMS / e-mail du lien de documents est bilingue (français puis arabe), le lien seul sur la dernière ligne.

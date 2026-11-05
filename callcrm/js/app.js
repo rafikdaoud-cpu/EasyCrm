@@ -217,14 +217,17 @@ function collectCard(p){
   btn.disabled=true;try{const r=await api('/prospects/'+p.id+'/collect',{method:'POST'});showLink(r.url,r.link);load();}catch(e){msg.textContent=e.message;}finally{btn.disabled=false;}
  }
  function showLink(url,link){
-  const text='Bonjour, merci d’envoyer vos documents avec votre téléphone en ouvrant ce lien sécurisé (valable jusqu’au '+fmt(link.expires_at)+') : '+url;
+  // Message bilingue français / arabe, lien seul sur la dernière ligne (cliquable dans WhatsApp et les SMS).
+  const until=fmt(link.expires_at);
+  const text='Bonjour, merci d’envoyer vos documents avec votre téléphone en ouvrant ce lien sécurisé (valable jusqu’au '+until+') :\n\n'
+   +'مرحبًا، يُرجى إرسال وثائقكم عبر هاتفكم بفتح هذا الرابط الآمن (صالح إلى غاية '+until+'):\n\n'+url;
   const field=h('input',{value:url,readonly:true,'aria-label':'Lien à envoyer au client',onfocus:e=>e.target.select()});
   result.replaceChildren(h('div',{class:'crm-collect-result'},h('strong',{},'Lien créé ('+link.requested+' document(s), valable jusqu’au '+fmt(link.expires_at)+') — à envoyer au client :'),field,
    h('div',{class:'bar'},
     h('button',{class:'primary',onclick:async()=>{try{await navigator.clipboard.writeText(url);msg.textContent='Lien copié.';}catch(e){field.select();msg.textContent='Copiez le lien sélectionné.';}}},'Copier le lien'),
     p.phone?h('a',{class:'crm-agenda-call',href:'https://wa.me/'+waNum(p.phone)+'?text='+encodeURIComponent(text),target:'_blank',rel:'noopener noreferrer'},'Envoyer par WhatsApp'):'',
     p.phone?h('a',{class:'crm-agenda-call',href:'sms:'+p.phone+'?body='+encodeURIComponent(text)},'Envoyer par SMS'):'',
-    p.email?h('a',{class:'crm-agenda-call',href:'mailto:'+p.email+'?subject='+encodeURIComponent('Vos documents')+'&body='+encodeURIComponent(text)},'Envoyer par e-mail'):''),
+    p.email?h('a',{class:'crm-agenda-call',href:'mailto:'+p.email+'?subject='+encodeURIComponent('Vos documents / وثائقكم')+'&body='+encodeURIComponent(text)},'Envoyer par e-mail'):''),
    h('p',{class:'muted'},'Le lien ne sera plus affiché ensuite : en cas de perte, créez-en un nouveau (l’ancien est annulé). Les documents arriveront dans le dossier Nextcloud du commercial de la fiche.')));
  }
  box.append(h('summary',{},'Documents à demander au client'),rows,msg,result,canSend?h('button',{class:'primary',onclick:e=>send(e.currentTarget)},'📨 Envoyer le lien de documents au client'):'');
