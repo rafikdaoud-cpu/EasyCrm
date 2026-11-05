@@ -198,3 +198,6 @@ Chronologie : événement `documents` `started` au premier document, `received` 
 - Langue : `?lang=ar|fr`, sinon choix mémorisé (localStorage), sinon langue du téléphone ; bouton 🌐 en haut. Arabe = `dir="rtl"`.
 - Les intitulés de documents viennent des réglages admin (pas traduits) : l'admin peut les écrire en deux langues.
 - Test navigateur : `tests/collect-browser.py` (passage en arabe, scanner RTL, retour au français).
+
+## Call CRM 0.29.4 — nouvelle icône (conseiller avec casque)
+- `img/app.svg` (blanc, barre Nextcloud) et `img/app-dark.svg` (noir, menus clairs) ; même icône dans le logo de la barre latérale (`crm-brand-mark`).
