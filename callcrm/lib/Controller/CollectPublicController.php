@@ -22,11 +22,38 @@ class CollectPublicController extends Controller {
   return $this->json(['error'=>['submitted'=>'Vos documents ont déjà été envoyés. Merci !','revoked'=>'Ce lien a été remplacé ou annulé. Demandez un nouveau lien à votre conseiller.','expired'=>'Ce lien a expiré. Demandez un nouveau lien à votre conseiller.','submitting'=>'Envoi en cours…'][$state]??'Lien indisponible.','state'=>$state],410);
  }
 
+ /** Fiche et destinataire des documents : commercial actuel de la fiche, à défaut celui du lien. */
+ private function target(array $l):array|JSONResponse{
+  $p=$this->store->get((int)$l['prospect_id']);if(!$p)return $this->json(['error'=>'Dossier indisponible : contactez votre conseiller.'],410);
+  $owner=(string)($p['assigned_to']??'');if($owner===''||!$this->users->get($owner))$owner=(string)$l['owner'];
+  if($owner===''||!$this->users->get($owner))return $this->json(['error'=>'Dossier sans conseiller : contactez l’agence.'],409);
+  return [$p,$owner];
+ }
+
+ /**
+  * Aperçu du lien dans WhatsApp, SMS, iMessage… : logo de l'entreprise (Nextcloud > Personnaliser l'apparence)
+  * au lieu de l'icône Nextcloud. Favicon PNG/JPEG en priorité (carré), sinon logo, sinon logo d'en-tête.
+  */
+ private function preview():array{
+  $name='';$image='';
+  try{
+   $defaults=\OCP\Server::get(\OCP\Defaults::class);$name=(string)$defaults->getName();
+   $config=\OCP\Server::get(\OCP\IAppConfig::class);$v=$config->getValueString('theming','cachebuster','0');
+   foreach(['favicon','logo','logoheader'] as $key){
+    $mime=$config->getValueString('theming',$key.'Mime','');
+    if(in_array($mime,['image/png','image/jpeg','image/gif','image/webp'],true)){
+     $image=$this->url->getAbsoluteURL($this->url->linkToRoute('theming.Theming.getImage',['key'=>$key])).'?v='.rawurlencode($v);break;
+    }
+   }
+  }catch(\Throwable $e){$this->logger->debug('callcrm: aperçu du lien sans logo',['exception'=>$e]);}
+  return ['site'=>$name!==''?$name:'Nextcloud','title'=>($name!==''?$name.' – ':'').'Envoi de vos documents','description'=>'Envoyez vos documents en toute sécurité depuis votre téléphone.','image'=>$image];
+ }
+
  #[PublicPage]
  #[NoCSRFRequired]
  #[BruteForceProtection(action: 'callcrm_collect')]
  public function page(string $token):TemplateResponse{
-  $r=new TemplateResponse(Application::APP_ID,'collect',['api'=>rtrim($this->url->linkToRoute('callcrm.page.index'),'/').'/api/public/collecte/'.rawurlencode($token)],TemplateResponse::RENDER_AS_BASE);
+  $r=new TemplateResponse(Application::APP_ID,'collect',['api'=>rtrim($this->url->linkToRoute('callcrm.page.index'),'/').'/api/public/collecte/'.rawurlencode($token),'preview'=>$this->preview()],TemplateResponse::RENDER_AS_BASE);
   // Scanner : caméra du téléphone ; OpenCV.js tourne dans un Web Worker (js/docscan-worker.js),
   // la page n'a donc besoin ni d'eval ni de WASM, seulement d'autoriser ce worker.
   $policy=new FeaturePolicy();$policy->addAllowedCameraDomain("'self'");$r->setFeaturePolicy($policy);
@@ -51,7 +78,14 @@ class CollectPublicController extends Controller {
   $f=$this->request->getUploadedFile('file');
   if(!$f||($f['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_OK||empty($f['tmp_name'])||!is_uploaded_file($f['tmp_name']))return $this->json(['error'=>in_array($f['error']??0,[UPLOAD_ERR_INI_SIZE,UPLOAD_ERR_FORM_SIZE],true)?'Fichier trop volumineux pour le serveur.':'Aucun fichier reçu : vérifiez la connexion et réessayez.'],400);
   if(($f['size']??0)>Collect::MAX_FILE)return $this->json(['error'=>'Fichier supérieur à 20 Mo.'],413);
-  try{return $this->json(['ok'=>true]+$this->collect->upload($l,$index,(string)file_get_contents($f['tmp_name']))+['view'=>$this->collect->publicView($l)]);}
+  $t=$this->target($l);if($t instanceof JSONResponse)return $t;[$p,$owner]=$t;
+  try{
+   // Livraison immédiate : le document arrive chez le commercial dès cet envoi.
+   $r=$this->collect->upload($l,$p,$owner,$index,(string)file_get_contents($f['tmp_name']));
+   if($r['first'])try{$this->activity->event((int)$p['id'],$owner,'documents',['action'=>'started']);}catch(\Throwable $e){}
+   unset($r['first']);
+   return $this->json(['ok'=>true]+$r+['view'=>$this->collect->publicView($this->collect->find((int)$l['id']))]);
+  }
   catch(\OutOfBoundsException $e){return $this->json(['error'=>$e->getMessage()],404);}
   catch(\InvalidArgumentException $e){return $this->json(['error'=>$e->getMessage()],400);}
   catch(\Throwable $e){$this->logger->error('Call CRM : dépôt client impossible',['app'=>'callcrm','exception'=>$e]);return $this->json(['error'=>'Erreur technique : réessayez dans un instant.'],500);}
@@ -63,7 +97,8 @@ class CollectPublicController extends Controller {
  #[AnonRateLimit(limit: 120, period: 600)]
  public function remove(string $token,int $index):JSONResponse{
   $l=$this->link($token);if($l instanceof JSONResponse)return $l;
-  $this->collect->remove($l,$index);return $this->json(['ok'=>true,'view'=>$this->collect->publicView($l)]);
+  $t=$this->target($l);if($t instanceof JSONResponse)return $t;[$p,$owner]=$t;
+  $this->collect->remove($l,$p,$owner,$index);return $this->json(['ok'=>true,'view'=>$this->collect->publicView($l)]);
  }
 
  #[PublicPage]
@@ -72,10 +107,7 @@ class CollectPublicController extends Controller {
  #[AnonRateLimit(limit: 20, period: 600)]
  public function submit(string $token):JSONResponse{
   $l=$this->link($token);if($l instanceof JSONResponse)return $l;
-  $p=$this->store->get((int)$l['prospect_id']);if(!$p)return $this->json(['error'=>'Dossier indisponible : contactez votre conseiller.'],410);
-  // Commercial actuel de la fiche ; à défaut celui du lien.
-  $owner=(string)($p['assigned_to']??'');if($owner===''||!$this->users->get($owner))$owner=(string)$l['owner'];
-  if($owner===''||!$this->users->get($owner))return $this->json(['error'=>'Dossier sans conseiller : contactez l’agence.'],409);
+  $t=$this->target($l);if($t instanceof JSONResponse)return $t;[$p,$owner]=$t;
   try{$r=$this->collect->submit($l,$p,$owner);}
   catch(\InvalidArgumentException $e){return $this->json(['error'=>$e->getMessage()],400);}
   catch(\Throwable $e){$this->logger->error('Call CRM : envoi final des documents client impossible',['app'=>'callcrm','exception'=>$e]);return $this->json(['error'=>'L’envoi n’a pas abouti. Vos documents sont conservés : réessayez dans un instant.'],500);}

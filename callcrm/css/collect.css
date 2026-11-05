@@ -7,6 +7,9 @@ html, body { background: var(--crm-bg) !important; }
   box-sizing: border-box; padding: 16px max(16px, calc((100% - 608px) / 2)) calc(120px + env(safe-area-inset-bottom)); color: var(--crm-ink); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 16px; line-height: 1.45; }
 .crm-collect *, .crm-collect *::before, .crm-collect *::after { box-sizing: border-box; }
 .crm-collect-loading { text-align: center; color: var(--crm-muted); padding: 40px 0; }
+#crm-collect .crm-collect-lang { display: block; margin: 0 0 4px auto; min-height: 40px; padding: 0 14px; border-radius: 20px; border: 1px solid var(--crm-line); background: #fff; color: var(--crm-ink); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; }
+#crm-collect[dir="rtl"] .crm-collect-lang { margin: 0 auto 4px 0; }
+#crm-collect[dir="rtl"] { font-family: system-ui, "Segoe UI", Tahoma, "Noto Sans Arabic", sans-serif; }
 .crm-collect-header h1 { font-size: 22px; margin: 4px 0 6px; }
 .crm-collect-header p { margin: 0 0 14px; color: #334155; font-size: 15px; }
 .crm-collect-progress { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 14px; font-weight: 600; font-size: 14px; }

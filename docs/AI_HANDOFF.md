@@ -174,3 +174,27 @@ AnonRateLimit), page `templates/collect.php` + `js/collect.js`, scanner `js/docs
 Tâche de fond `CollectDocuments` : `Collect::cleanup()` expire les liens et purge leurs dépôts.
 Tests : `tests/collect.php` (dans `tools/test-nextcloud.sh`) et `tests/collect-browser.py`.
 Seulement dans l'édition Call CRM ; EasyCrm non porté.
+
+## Call CRM 0.29.0 — livraison immédiate des documents client
+
+`Collect::upload(link, prospect, owner, index, bytes)` écrit directement dans les Fichiers du
+commercial (dossier `Documents clients/<client>/<date du lien>/`, nom `NN - libellé.ext`,
+remplacement si le document est refait) et dans `callcrm_documents`. `submit()` ne fait plus
+que vérifier les obligatoires et fermer le lien ; il livre encore les dépôts en attente
+(`file_token` non vide, dossier AppData `collect-<id>`) laissés par les versions ≤ 0.28.3.
+Chronologie : événement `documents` `started` au premier document, `received` à la fin.
+
+## Call CRM 0.29.1 — logo de l'entreprise dans l'aperçu du lien client
+- La page `collecte/{token}` ajoute `og:title`, `og:site_name`, `og:description`, `og:image` et `apple-touch-icon`.
+- Image = logo Nextcloud « Personnaliser l'apparence » (thème) : favicon PNG/JPEG, sinon logo, sinon logo d'en-tête (les .ico et .svg sont ignorés car WhatsApp/iMessage ne les affichent pas).
+- Sans logo personnalisé : pas d'image (pas d'image cassée). Test : `tests/collect-preview.php`.
+- Les messageries gardent l'aperçu en cache par lien : seuls les nouveaux liens montrent le logo.
+
+## Call CRM 0.29.2 — message au client en français et en arabe
+- Le texte WhatsApp / SMS / e-mail du lien de documents est bilingue (français puis arabe), le lien seul sur la dernière ligne.
+
+## Call CRM 0.29.3 — page client en arabe
+- Textes de la page publique dans `js/collect-i18n.js` (fr, ar) ; `docscan.js` accepte `opts.text`, `opts.dir`, `opts.lang` (français par défaut, Coordination inchangée).
+- Langue : `?lang=ar|fr`, sinon choix mémorisé (localStorage), sinon langue du téléphone ; bouton 🌐 en haut. Arabe = `dir="rtl"`.
+- Les intitulés de documents viennent des réglages admin (pas traduits) : l'admin peut les écrire en deux langues.
+- Test navigateur : `tests/collect-browser.py` (passage en arabe, scanner RTL, retour au français).

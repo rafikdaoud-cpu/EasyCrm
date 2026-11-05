@@ -412,7 +412,22 @@
      * Ouvre le scanner plein écran.
      * opts : { title, documentMode, maxPages, onPage(canvas) → Promise, onFallback(), onDocMode(bool), onClose(count) }
      */
+    /** Textes de l'écran du scanner (français par défaut ; opts.text remplace tout ou partie, ex. arabe). */
+    const TEXT = {
+        dialog: 'Scanner de document', title: 'Scan', close: 'Fermer le scanner', opening: 'Ouverture de la caméra…',
+        shutter: 'Prendre la photo maintenant', engineOpenCV: 'Détection OpenCV', engineLoading: 'Détection rapide · chargement OpenCV…',
+        engineLight: 'Détection rapide', engineError: (e) => 'Détection rapide · OpenCV ' + e,
+        pages: (n) => n + ' page' + (n > 1 ? 's' : ''), bw: (on) => on ? '◐ N&B : oui' : '◐ N&B : non', auto: (on) => on ? '⚡ Auto : oui' : '⚡ Auto : non',
+        done: (n) => n ? `Terminer (${n})` : 'Terminer', fallback: '📷 Utiliser l’appareil photo du téléphone', retry: '↻ Réessayer',
+        denied: 'Accès à la caméra refusé. Autorisez la caméra pour ce site dans les réglages du navigateur, ou utilisez l’appareil photo du téléphone.',
+        unavailable: 'Caméra indisponible sur cet appareil ou ce navigateur.', maxPages: (n) => `${n} pages maximum : appuyez sur Terminer.`,
+        place: 'Posez la pièce à plat sur un fond sombre, entièrement visible.', taken: '✓ Page prise. Retournez la pièce pour le verso, ou Terminer.',
+        detectedManual: 'Document détecté : appuyez sur le déclencheur.', hold: 'Document détecté : ne bougez plus…', shooting: 'Prise de vue…',
+        captureFail: 'Prise de vue impossible : réessayez.',
+    };
+
     function open(opts) {
+        const T = Object.assign({}, TEXT, opts.text || {});
         const maxPages = Math.max(0, opts.maxPages ?? 10);
         let stream = null, timer = 0, closed = false, capturing = false, count = 0;
         let auto = true, docMode = !!opts.documentMode;
@@ -421,16 +436,18 @@
         const urls = engineUrls();
 
         const overlay = el('div', 'co-docscan');
-        overlay.setAttribute('role', 'dialog'); overlay.setAttribute('aria-modal', 'true'); overlay.setAttribute('aria-label', 'Scanner de document');
+        overlay.setAttribute('role', 'dialog'); overlay.setAttribute('aria-modal', 'true'); overlay.setAttribute('aria-label', T.dialog);
+        if (opts.dir) overlay.setAttribute('dir', opts.dir);
+        if (opts.lang) overlay.setAttribute('lang', opts.lang);
         const top = el('div', 'co-docscan-top');
         const title = el('div', 'co-docscan-title');
-        const titleText = el('span', 'co-docscan-title-text', opts.title || 'Scan');
+        const titleText = el('span', 'co-docscan-title-text', opts.title || T.title);
         title.appendChild(titleText);
         const counter = el('span', 'co-docscan-count', '');
         title.appendChild(counter);
         const docBtn = el('button', 'co-docscan-chip', ''); docBtn.type = 'button';
         const engineTag = el('span', 'co-docscan-engine', '');
-        const closeBtn = el('button', 'co-docscan-close', '✕'); closeBtn.type = 'button'; closeBtn.setAttribute('aria-label', 'Fermer le scanner');
+        const closeBtn = el('button', 'co-docscan-close', '✕'); closeBtn.type = 'button'; closeBtn.setAttribute('aria-label', T.close);
         top.append(title, docBtn, closeBtn);
         title.appendChild(engineTag);
 
@@ -438,7 +455,7 @@
         const video = el('video', 'co-docscan-video');
         video.setAttribute('playsinline', ''); video.setAttribute('muted', ''); video.muted = true; video.setAttribute('autoplay', '');
         const canvas = el('canvas', 'co-docscan-overlay');
-        const hint = el('div', 'co-docscan-hint', 'Ouverture de la caméra…'); hint.setAttribute('role', 'status'); hint.setAttribute('aria-live', 'polite');
+        const hint = el('div', 'co-docscan-hint', T.opening); hint.setAttribute('role', 'status'); hint.setAttribute('aria-live', 'polite');
         const flash = el('div', 'co-docscan-flash');
         const error = el('div', 'co-docscan-error'); error.hidden = true;
         // Panneau de vérification (mode guidé) : aperçu, valider, suivant… posé sur la caméra.
@@ -448,7 +465,7 @@
 
         const bottom = el('div', 'co-docscan-bottom');
         const autoBtn = el('button', 'co-docscan-chip', ''); autoBtn.type = 'button';
-        const shutter = el('button', 'co-docscan-shutter', ''); shutter.type = 'button'; shutter.setAttribute('aria-label', 'Prendre la photo maintenant');
+        const shutter = el('button', 'co-docscan-shutter', ''); shutter.type = 'button'; shutter.setAttribute('aria-label', T.shutter);
         const doneBtn = el('button', 'co-docscan-done', ''); doneBtn.type = 'button';
         bottom.append(autoBtn, shutter, doneBtn);
         overlay.append(top, stage, bottom);
@@ -457,14 +474,14 @@
         const detectCtx = detectCanvas.getContext('2d', { willReadFrequently: true });
 
         const refreshButtons = () => {
-            engineTag.textContent = engineState === 'opencv' ? 'Détection OpenCV' : engineState === 'loading' ? 'Détection rapide · chargement OpenCV…'
-                : engineError ? 'Détection rapide · OpenCV ' + engineError : 'Détection rapide';
-            counter.textContent = count ? ` · ${count} page${count > 1 ? 's' : ''}` : '';
-            docBtn.textContent = docMode ? '◐ N&B : oui' : '◐ N&B : non';
+            engineTag.textContent = engineState === 'opencv' ? T.engineOpenCV : engineState === 'loading' ? T.engineLoading
+                : engineError ? T.engineError(engineError) : T.engineLight;
+            counter.textContent = count ? ' · ' + T.pages(count) : '';
+            docBtn.textContent = T.bw(docMode);
             docBtn.setAttribute('aria-pressed', String(docMode));
-            autoBtn.textContent = auto ? '⚡ Auto : oui' : '⚡ Auto : non';
+            autoBtn.textContent = T.auto(auto);
             autoBtn.setAttribute('aria-pressed', String(auto));
-            doneBtn.textContent = count ? `Terminer (${count})` : 'Terminer';
+            doneBtn.textContent = T.done(count);
             shutter.disabled = capturing || count >= maxPages || !stream;
         };
         const say = (text) => { if (hint.textContent !== text) hint.textContent = text; };
@@ -488,9 +505,9 @@
             stop();
             error.replaceChildren();
             const p = el('p', '', message);
-            const fallback = el('button', 'co-docscan-fallback', '📷 Utiliser l’appareil photo du téléphone'); fallback.type = 'button';
+            const fallback = el('button', 'co-docscan-fallback', T.fallback); fallback.type = 'button';
             fallback.addEventListener('click', () => { const cb = opts.onFallback; close(); if (cb) cb(); });
-            const retry = el('button', 'co-docscan-chip', '↻ Réessayer'); retry.type = 'button';
+            const retry = el('button', 'co-docscan-chip', T.retry); retry.type = 'button';
             retry.addEventListener('click', () => { error.hidden = true; start(); });
             error.append(p, fallback, retry);
             error.hidden = false; hint.hidden = true;
@@ -498,14 +515,12 @@
         }
 
         async function start() {
-            hint.hidden = false; say('Ouverture de la caméra…');
+            hint.hidden = false; say(T.opening);
             try {
                 stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } } });
             } catch (err) {
                 const denied = err && (err.name === 'NotAllowedError' || err.name === 'SecurityError');
-                showError(denied
-                    ? 'Accès à la caméra refusé. Autorisez la caméra pour ce site dans les réglages du navigateur, ou utilisez l’appareil photo du téléphone.'
-                    : 'Caméra indisponible sur cet appareil ou ce navigateur.');
+                showError(denied ? T.denied : T.unavailable);
                 return;
             }
             if (closed) { stop(); return; }
@@ -582,11 +597,11 @@
 
             const progress = Math.min(1, stable / STABLE_FRAMES);
             draw(quad, auto && armed ? progress : 0);
-            if (count >= maxPages) say(`${maxPages} pages maximum : appuyez sur Terminer.`);
-            else if (!quad) say(armed ? 'Posez la pièce à plat sur un fond sombre, entièrement visible.' : '✓ Page prise. Retournez la pièce pour le verso, ou Terminer.');
-            else if (!auto) say('Document détecté : appuyez sur le déclencheur.');
-            else if (!armed) say('✓ Page prise. Retournez la pièce pour le verso, ou Terminer.');
-            else say(progress < 1 ? 'Document détecté : ne bougez plus…' : 'Prise de vue…');
+            if (count >= maxPages) say(T.maxPages(maxPages));
+            else if (!quad) say(armed ? T.place : T.taken);
+            else if (!auto) say(T.detectedManual);
+            else if (!armed) say(T.taken);
+            else say(progress < 1 ? T.hold : T.shooting);
 
             if (auto && armed && quad && stable >= STABLE_FRAMES && count < maxPages) capture(quad);
         }
@@ -618,7 +633,7 @@
                 capturedQuad = detectedQuad; armed = false; stable = 0;
             } catch (err) {
                 console.error('DocScan capture:', err);
-                say('Prise de vue impossible : réessayez.');
+                say(T.captureFail);
             } finally {
                 capturing = false; refreshButtons();
             }

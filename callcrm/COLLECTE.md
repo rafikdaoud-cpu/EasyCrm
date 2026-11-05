@@ -1,4 +1,4 @@
-# Lien de dépôt de documents pour le client (Call CRM 0.28.2)
+# Lien de dépôt de documents pour le client (Call CRM 0.29.0)
 
 ## Parcours
 
@@ -13,11 +13,17 @@
    aperçu, « ✅ Envoyer et suivant », document suivant. « 🖼️ Galerie / PDF » permet aussi
    d'envoyer des photos existantes (assemblées en PDF sur le téléphone) ou un PDF.
    « 📤 Envoyer et terminer » est actif quand les documents obligatoires sont envoyés.
-3. **Arrivée** — les fichiers sont copiés dans les **Fichiers Nextcloud du commercial
-   actuel de la fiche** (à défaut, celui qui a créé le lien) :
-   `Documents clients/<Nom Prénom> (n°ID)/<AAAA-MM-JJ HHhMM>/01 - <document>.pdf`.
-   Ils apparaissent aussi dans « Pièces jointes du client » et dans la chronologie
-   (« Documents client »). La carte du lien affiche « Documents reçus » et le dossier.
+3. **Arrivée immédiate** (depuis 0.29.0) — chaque document est livré **dès que le client
+   l'envoie** (« ✅ Envoyer et suivant » ou Galerie / PDF), sans attendre la fin : copié
+   dans les **Fichiers Nextcloud du commercial actuel de la fiche** (à défaut, celui qui a
+   créé le lien) :
+   `Documents clients/<Nom Prénom> (n°ID)/<date du lien>/01 - <document>.pdf`, et ajouté aux
+   « Pièces jointes du client ». Refaire un document remplace le fichier ; « Retirer » le
+   supprime du dossier (la pièce reste dans la fiche). Si la fiche est réaffectée en cours
+   de route, les documents suivants vont au nouveau commercial. La chronologie indique
+   « Le client a commencé à envoyer ses documents », puis la fin. « ✅ Terminer » ne fait que
+   clôturer le lien (documents obligatoires présents) ; un client qui abandonne en cours de
+   route a déjà transmis ce qu'il a envoyé.
 
 L'administrateur seul règle la liste des documents (obligatoires ou facultatifs, 30 au
 maximum) et la validité des liens (1 à 30 jours, 3 par défaut) dans Administration →
