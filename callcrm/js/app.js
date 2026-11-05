@@ -312,7 +312,7 @@ function nav() {
   if (['admin','superviseur'].includes(me.role)) t.push(['documents','Pièces reçues'],['annonce','Annonce'],['commerciaux','Commerciaux']);
   const states = TABS.slice(); if (me.can.all) states.push(['tous','Tous']);
   return h('aside', {class:'client-navigation crm-sidebar', 'aria-label':'Navigation CRM'},
-    h('div', {class:'crm-brand'}, h('span', {class:'crm-brand-mark', 'aria-hidden':'true'}, 'C'), h('strong', {}, 'Call CRM')),
+    h('div', {class:'crm-brand'}, h('span', {class:'crm-brand-mark', 'aria-hidden':'true'}, window.OC&&OC.imagePath ? h('img', {src:OC.imagePath('callcrm','app.svg'), alt:'', width:22, height:22}) : 'C'), h('strong', {}, 'Call CRM')),
     h('div', {class:'nav', role:'navigation'}, t.map(([key,label]) => h('button', {
       class:(key === 'dossiers' ? inDossiers : tab === key) ? 'on' : '', 'data-k':key,
       'aria-current':(key === 'dossiers' ? inDossiers : tab === key) ? 'page' : null, onclick:() => go(key)}, icon(key), h('span',{class:'crm-nav-label'},label)))),
