@@ -6,9 +6,9 @@ use OCP\IDBConnection;use OCP\IConfig;use OCP\Files\IAppData;use OCP\Files\IRoot
  * Lien de dépôt de documents envoyé à un client (page publique, sans compte).
  *
  * Le jeton n'est stocké que haché (SHA-256) : la base ne permet pas de reconstituer le lien.
- * Les fichiers déposés restent dans les données privées de l'application jusqu'à
- * « Envoyer et terminer » ; ils sont alors copiés dans les Fichiers Nextcloud du commercial
- * (Documents clients/<client> (n°ID)/<date>/) et enregistrés dans les pièces de la fiche.
+ * Chaque document est livré dès son envoi : copié dans les Fichiers Nextcloud du commercial
+ * (Documents clients/<client> (n°ID)/<date du lien>/) et enregistré dans les pièces de la fiche.
+ * « Terminer » ne fait que fermer le lien (documents obligatoires présents).
  */
 class Collect {
  const MAX_DOCS=30;
@@ -95,7 +95,8 @@ class Collect {
  public function byToken(string $token):?array{return self::validTokenFormat($token)?$this->row('callcrm_collect_links','token_hash',self::hashToken($token)):null;}
 
  public function find(int $id):?array{return $this->row('callcrm_collect_links','id',$id);}
- public function revoke(int $id):void{$this->update($id,['state'=>'revoked']);$this->clearStaging($id);}
+ /** Annule le lien ; les documents déjà livrés restent chez le commercial. */
+ public function revoke(int $id):void{$this->update($id,['state'=>'revoked']);}
 
  public function files(int $linkId):array{$q=$this->q();$q->select('*')->from('callcrm_collect_files')->where($q->expr()->eq('link_id',$q->createNamedParameter($linkId)))->orderBy('doc_index','ASC');$o=[];foreach($q->executeQuery()->fetchAll()as $f)$o[(int)$f['doc_index']]=$f;return $o;}
 
@@ -119,15 +120,11 @@ class Collect {
   return ['id'=>(int)$link['id'],'state'=>$state,'created_at'=>(int)$link['created_at'],'expires_at'=>(int)$link['expires_at'],'submitted_at'=>(int)$link['submitted_at'],'created_by'=>$link['created_by'],'owner'=>$link['owner'],'folder_path'=>$link['folder_path'],'requested'=>count($docs),'uploaded'=>count($files)];
  }
 
- // ---------- Dépôts du client ----------
+ // ---------- Dépôts du client : livraison immédiate ----------
 
- /** Dossier de dépôt dans les données privées de l'application (ISimpleFolder), ou null. */
- private function staging(int $linkId,bool $create){
-  try{return $this->data->getFolder('collect-'.$linkId);}catch(NotFoundException $e){return $create?$this->data->newFolder('collect-'.$linkId):null;}
- }
- private function clearStaging(int $linkId):void{
-  try{$this->staging($linkId,false)?->delete();}catch(\Throwable $e){}
-  $q=$this->q();$q->delete('callcrm_collect_files')->where($q->expr()->eq('link_id',$q->createNamedParameter($linkId)))->executeStatement();
+ /** Ancien dossier de dépôt (versions ≤ 0.28.3) dans les données privées de l'application, ou null. */
+ private function staging(int $linkId){
+  try{return $this->data->getFolder('collect-'.$linkId);}catch(NotFoundException $e){return null;}
  }
 
  /** Contrôle du contenu réel (pas de l'extension) : PDF, JPEG ou PNG. */
@@ -138,30 +135,6 @@ class Collect {
   return null;
  }
 
- /** Dépose (ou remplace) le fichier du document n°index. */
- public function upload(array $link,int $index,string $bytes):array{
-  $docs=$this->docs($link);
-  if(!isset($docs[$index]))throw new \OutOfBoundsException('Document inconnu.');
-  if($bytes===''||strlen($bytes)>self::MAX_FILE)throw new \InvalidArgumentException('Fichier vide ou supérieur à 20 Mo.');
-  $mime=self::detect($bytes);if(!$mime)throw new \InvalidArgumentException('Format refusé : envoyez un PDF ou une photo (JPEG, PNG).');
-  $files=$this->files((int)$link['id']);$total=strlen($bytes);foreach($files as $i=>$f)if($i!==$index)$total+=(int)$f['size'];
-  if($total>self::MAX_TOTAL)throw new \InvalidArgumentException('Taille totale maximale atteinte (150 Mo).');
-  $token=bin2hex(random_bytes(16));$folder=$this->staging((int)$link['id'],true);$folder->newFile($token)->putContent($bytes);
-  $old=$files[$index]??null;
-  try{
-   if($old){$q=$this->q();$q->update('callcrm_collect_files')->set('file_token',$q->createNamedParameter($token))->set('mime',$q->createNamedParameter($mime))->set('size',$q->createNamedParameter(strlen($bytes)))->set('created_at',$q->createNamedParameter(time()))->where($q->expr()->eq('id',$q->createNamedParameter($old['id'])))->executeStatement();}
-   else{$q=$this->q();$q->insert('callcrm_collect_files');foreach(['link_id'=>(int)$link['id'],'doc_index'=>$index,'file_token'=>$token,'name'=>$docs[$index]['label'],'mime'=>$mime,'size'=>strlen($bytes),'created_at'=>time()]as $k=>$v)$q->setValue($k,$q->createNamedParameter($v));$q->executeStatement();}
-  }catch(\Throwable $e){try{$folder->getFile($token)->delete();}catch(\Throwable $x){}throw $e;}
-  if($old){try{$folder->getFile($old['file_token'])->delete();}catch(\Throwable $e){}}
-  return ['index'=>$index,'size'=>strlen($bytes),'mime'=>$mime];
- }
-
- public function remove(array $link,int $index):void{
-  $f=$this->files((int)$link['id'])[$index]??null;if(!$f)return;
-  $q=$this->q();$q->delete('callcrm_collect_files')->where($q->expr()->eq('id',$q->createNamedParameter($f['id'])))->executeStatement();
-  try{$this->staging((int)$link['id'],false)?->getFile($f['file_token'])->delete();}catch(\Throwable $e){}
- }
-
  public static function safeSegment(string $s):string{
   $s=preg_replace('/[\x00-\x1f\x7f\/\\\\:*?"<>|]+/u',' ',$s)??'';$s=trim(preg_replace('/\s+/u',' ',$s)??'',' .');
   return mb_substr($s===''?'Client':$s,0,80);
@@ -170,41 +143,90 @@ class Collect {
   foreach($segments as $seg){$base=$base->nodeExists($seg)?$base->get($seg):$base->newFolder($seg);if(!($base instanceof Folder))throw new \RuntimeException('Un fichier porte déjà le nom du dossier « '.$seg.' ».');}
   return $base;
  }
+ /** Dossier du lien dans les Fichiers du commercial : Documents clients/<client> (n°ID)/<date de création du lien>/. */
+ private function ownerFolder(array $link,array $prospect,string $owner):Folder{
+  $client=self::safeSegment(trim(($prospect['lastname']??'').' '.($prospect['firstname']??'')).' (n°'.$prospect['id'].')');
+  return $this->ensureFolder($this->root->getUserFolder($owner),[self::ROOT_FOLDER,$client,date('Y-m-d H\hi',(int)$link['created_at'])]);
+ }
+ private function relative(Folder $folder,string $owner):string{
+  $path=$folder->getPath();$prefix='/'.$owner.'/files';
+  return mb_substr(str_starts_with($path,$prefix)?substr($path,strlen($prefix)):$path,0,512);
+ }
+ private function fileName(int $index,string $label,string $mime):string{
+  return sprintf('%02d - %s.%s',$index+1,self::safeSegment($label),self::ACCEPTED[$mime]??'bin');
+ }
 
  /**
-  * « Envoyer et terminer » : documents obligatoires présents, copie dans les Fichiers du
-  * commercial, enregistrement dans les pièces de la fiche, lien fermé. Rend le chemin créé.
+  * Livre immédiatement le document n°index : écrit dans les Fichiers du commercial (en
+  * remplaçant une version précédente du même document), l'ajoute aux pièces de la fiche et
+  * l'inscrit sur le lien. Le client n'a pas besoin d'aller au bout pour que le commercial le reçoive.
+  */
+ public function upload(array $link,array $prospect,string $owner,int $index,string $bytes):array{
+  $docs=$this->docs($link);
+  if(!isset($docs[$index]))throw new \OutOfBoundsException('Document inconnu.');
+  if($bytes===''||strlen($bytes)>self::MAX_FILE)throw new \InvalidArgumentException('Fichier vide ou supérieur à 20 Mo.');
+  $mime=self::detect($bytes);if(!$mime)throw new \InvalidArgumentException('Format refusé : envoyez un PDF ou une photo (JPEG, PNG).');
+  $files=$this->files((int)$link['id']);$total=strlen($bytes);foreach($files as $i=>$f)if($i!==$index)$total+=(int)$f['size'];
+  if($total>self::MAX_TOTAL)throw new \InvalidArgumentException('Taille totale maximale atteinte (150 Mo).');
+  $folder=$this->ownerFolder($link,$prospect,$owner);
+  $old=$files[$index]??null;
+  if($old&&empty($old['file_token'])&&$folder->nodeExists((string)$old['name'])){try{$folder->get((string)$old['name'])->delete();}catch(\Throwable $e){}}
+  $name=$this->fileName($index,$docs[$index]['label'],$mime);
+  if($folder->nodeExists($name))$folder->get($name)->delete();
+  $folder->newFile($name,$bytes);
+  try{
+   if($old){$q=$this->q();$q->update('callcrm_collect_files')->set('file_token',$q->createNamedParameter(''))->set('name',$q->createNamedParameter($name))->set('mime',$q->createNamedParameter($mime))->set('size',$q->createNamedParameter(strlen($bytes)))->set('created_at',$q->createNamedParameter(time()))->where($q->expr()->eq('id',$q->createNamedParameter($old['id'])))->executeStatement();}
+   else{$q=$this->q();$q->insert('callcrm_collect_files');foreach(['link_id'=>(int)$link['id'],'doc_index'=>$index,'file_token'=>'','name'=>$name,'mime'=>$mime,'size'=>strlen($bytes),'created_at'=>time()]as $k=>$v)$q->setValue($k,$q->createNamedParameter($v));$q->executeStatement();}
+   $this->update((int)$link['id'],['owner'=>$owner,'folder_path'=>$this->relative($folder,$owner)]);
+  }catch(\Throwable $e){try{$folder->get($name)->delete();}catch(\Throwable $x){}throw $e;}
+  if($old&&!empty($old['file_token'])){try{$this->staging((int)$link['id'])?->getFile($old['file_token'])->delete();}catch(\Throwable $e){}}
+  $this->documents->receive((int)$prospect['id'],'client_link','link:'.$link['id'].':'.$index.':'.hash('sha256',$bytes),$name,$bytes,'Lien client','Document envoyé par le client');
+  return ['index'=>$index,'size'=>strlen($bytes),'mime'=>$mime,'first'=>!$files];
+ }
+
+ /** Retire un document envoyé (fichier du commercial supprimé ; la pièce reste dans la fiche). */
+ public function remove(array $link,array $prospect,string $owner,int $index):void{
+  $f=$this->files((int)$link['id'])[$index]??null;if(!$f)return;
+  $q=$this->q();$q->delete('callcrm_collect_files')->where($q->expr()->eq('id',$q->createNamedParameter($f['id'])))->executeStatement();
+  try{
+   if(!empty($f['file_token']))$this->staging((int)$link['id'])?->getFile($f['file_token'])->delete();
+   else{$folder=$this->ownerFolder($link,$prospect,$owner);if($folder->nodeExists((string)$f['name']))$folder->get((string)$f['name'])->delete();}
+  }catch(\Throwable $e){}
+ }
+
+ /**
+  * « Terminer » : documents obligatoires présents, lien fermé. Les documents sont déjà livrés ;
+  * seuls d'éventuels dépôts d'une version précédente (en attente) sont livrés ici.
   */
  public function submit(array $link,array $prospect,string $owner,?int $now=null):array{
   $now??=time();$docs=$this->docs($link);$files=$this->files((int)$link['id']);
   $missing=[];foreach($docs as $i=>$d)if($d['required']&&!isset($files[$i]))$missing[]=$d['label'];
   if($missing)throw new \InvalidArgumentException('Documents obligatoires manquants : '.implode(', ',$missing).'.');
   if(!$files)throw new \InvalidArgumentException('Aucun document envoyé.');
-  // Verrou : un seul envoi final, même en cas de double appui.
   $q=$this->q();$q->update('callcrm_collect_links')->set('state',$q->createNamedParameter('submitting'))->where($q->expr()->eq('id',$q->createNamedParameter($link['id'])))->andWhere($q->expr()->eq('state',$q->createNamedParameter('open')));
   if($q->executeStatement()!==1)throw new \RuntimeException('Envoi déjà en cours ou terminé.');
   try{
-   $client=self::safeSegment(trim(($prospect['lastname']??'').' '.($prospect['firstname']??'')).' (n°'.$prospect['id'].')');
-   $folder=$this->ensureFolder($this->root->getUserFolder($owner),[self::ROOT_FOLDER,$client,date('Y-m-d H\hi',$now)]);
-   $staging=$this->staging((int)$link['id'],false);if(!$staging)throw new \RuntimeException('Fichiers déposés introuvables.');
+   $folder=$this->ownerFolder($link,$prospect,$owner);
    foreach($files as $i=>$f){
-    $bytes=$staging->getFile($f['file_token'])->getContent();
-    $name=sprintf('%02d - %s.%s',$i+1,self::safeSegment($docs[$i]['label']??$f['name']),self::ACCEPTED[$f['mime']]??'bin');
-    if($folder->nodeExists($name))$name=sprintf('%02d - %s (%s).%s',$i+1,self::safeSegment($docs[$i]['label']??$f['name']),bin2hex(random_bytes(2)),self::ACCEPTED[$f['mime']]??'bin');
+    if(empty($f['file_token']))continue;
+    $staging=$this->staging((int)$link['id']);if(!$staging)throw new \RuntimeException('Fichiers déposés introuvables.');
+    $bytes=$staging->getFile($f['file_token'])->getContent();$name=$this->fileName($i,$docs[$i]['label']??$f['name'],$f['mime']);
+    if($folder->nodeExists($name))$folder->get($name)->delete();
     $folder->newFile($name,$bytes);
-    $this->documents->receive((int)$prospect['id'],'client_link','link:'.$link['id'].':'.$i.':'.hash('sha256',$bytes),$name,$bytes,'Lien client','Documents envoyés par le client');
+    $this->documents->receive((int)$prospect['id'],'client_link','link:'.$link['id'].':'.$i.':'.hash('sha256',$bytes),$name,$bytes,'Lien client','Document envoyé par le client');
+    $u=$this->q();$u->update('callcrm_collect_files')->set('file_token',$u->createNamedParameter(''))->set('name',$u->createNamedParameter($name))->where($u->expr()->eq('id',$u->createNamedParameter($f['id'])))->executeStatement();
    }
-   $path=$folder->getPath();$prefix='/'.$owner.'/files';$path=str_starts_with($path,$prefix)?substr($path,strlen($prefix)):$path;
-   $this->update((int)$link['id'],['state'=>'submitted','submitted_at'=>$now,'folder_path'=>mb_substr($path,0,512),'owner'=>$owner]);
+   $path=$this->relative($folder,$owner);
+   $this->update((int)$link['id'],['state'=>'submitted','submitted_at'=>$now,'folder_path'=>$path,'owner'=>$owner]);
   }catch(\Throwable $e){$this->update((int)$link['id'],['state'=>'open']);throw $e;}
-  $this->clearStaging((int)$link['id']);
+  try{$this->staging((int)$link['id'])?->delete();}catch(\Throwable $e){}
   return ['folder'=>$path,'count'=>count($files)];
  }
 
- /** Tâche de fond : libère les dépôts des liens expirés non envoyés (la révocation les libère déjà). */
+ /** Tâche de fond : expire les liens ouverts arrivés à échéance (les documents déjà envoyés restent livrés). */
  public function cleanup(?int $now=null):int{
-  $q=$this->q();$q->select('id','expires_at')->from('callcrm_collect_links')->where($q->expr()->eq('state',$q->createNamedParameter('open')))->andWhere($q->expr()->lt('expires_at',$q->createNamedParameter(($now??time())+1)))->setMaxResults(200);
-  $n=0;foreach($q->executeQuery()->fetchAll()as $r){$this->clearStaging((int)$r['id']);$this->update((int)$r['id'],['state'=>'expired']);$n++;}
+  $q=$this->q();$q->select('id')->from('callcrm_collect_links')->where($q->expr()->eq('state',$q->createNamedParameter('open')))->andWhere($q->expr()->lt('expires_at',$q->createNamedParameter(($now??time())+1)))->setMaxResults(200);
+  $n=0;foreach($q->executeQuery()->fetchAll()as $r){$this->update((int)$r['id'],['state'=>'expired']);try{$this->staging((int)$r['id'])?->delete();}catch(\Throwable $e){}$n++;}
   return $n;
  }
 }

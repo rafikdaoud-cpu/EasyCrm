@@ -132,7 +132,7 @@ function chronology(pid){
   else if(e.kind==='assign')body=[b.from+' → '+b.to];
   else if(e.kind==='sim')body=[h('strong',{},Math.round(b.total||0).toLocaleString('fr-FR')+' DA'),h('p',{},[b.in?.model,b.in?.w&&b.in?.l?b.in.w+' × '+b.in.l+' m':''].filter(Boolean).join(' · '))];
   else if(e.kind==='appointment')body=[h('strong',{},b.title),h('p',{},fmt(b.starts_at)+' · '+({open:'Prévu',done:'Terminé',cancelled:'Annulé'}[b.state]||'')),b.notes||''];
-  else if(e.kind==='documents')body=[b.action==='received'?'Documents reçus du client : '+b.count+(b.folder?' · '+b.folder:''):'Lien envoyé au client : '+b.count+' document(s) demandé(s)'+(b.expires_at?', valable jusqu’au '+fmt(b.expires_at):'')];
+  else if(e.kind==='documents')body=[b.action==='received'?'Le client a terminé l’envoi : '+b.count+' document(s)'+(b.folder?' · '+b.folder:''):b.action==='started'?'Le client a commencé à envoyer ses documents (livrés au fur et à mesure)':'Lien envoyé au client : '+b.count+' document(s) demandé(s)'+(b.expires_at?', valable jusqu’au '+fmt(b.expires_at):'')];
   else body=[b.note||'Commentaire effacé'];
   return h('article',{class:'crm-event','data-kind':e.kind},h('div',{class:'bar'},h('strong',{},title[e.kind]||'Événement'),h('small',{},fmt(e.created_at))),h('div',{class:'crm-event-body'},body),h('small',{},e.author));
  };
@@ -204,11 +204,11 @@ function documentsCard(pid=null){
 function collectCard(p){
  const box=h('details',{class:'card crm-collect-card',open:window.innerWidth>760}),rows=h('div'),msg=h('p',{class:'muted',role:'status'}),result=h('div');
  const canSend=me.can.call||me.can.assign;
- const STATE={open:'En attente du client',expired:'Expiré',revoked:'Annulé / remplacé',submitted:'Documents reçus',submitting:'Envoi en cours'};
+ const STATE={open:'En cours (documents reçus au fur et à mesure)',expired:'Expiré',revoked:'Annulé / remplacé',submitted:'Documents reçus',submitting:'Envoi en cours'};
  async function load(){try{const r=await api('/prospects/'+p.id+'/collect');if(!box.isConnected)return;rows.replaceChildren(...r.map(l=>h('div',{class:'crm-collect-link','data-state':l.state},
   h('div',{class:'bar'},h('strong',{},STATE[l.state]||l.state),h('small',{},l.uploaded+' / '+l.requested+' document(s)')),
   h('small',{},'Créé le '+fmt(l.created_at)+(l.state==='open'?' · expire le '+fmt(l.expires_at):'')+(l.submitted_at?' · reçu le '+fmt(l.submitted_at):'')),
-  l.state==='submitted'&&l.folder_path?h('p',{},'Dossier Nextcloud de '+(l.owner||'')+' : ',h('a',{href:OC.generateUrl('/apps/files/?dir='+encodeURIComponent(l.folder_path)),target:'_blank',rel:'noopener noreferrer'},l.folder_path)):'',
+  l.uploaded&&l.folder_path?h('p',{},'Dossier Nextcloud de '+(l.owner||'')+' : ',h('a',{href:OC.generateUrl('/apps/files/?dir='+encodeURIComponent(l.folder_path)),target:'_blank',rel:'noopener noreferrer'},l.folder_path)):'',
   l.state==='open'&&canSend?h('button',{onclick:async()=>{if(!confirm('Annuler ce lien ? Le client ne pourra plus l’utiliser.'))return;try{await api('/collect/'+l.id+'/revoke',{method:'POST'});load();}catch(e){msg.textContent=e.message;}}},'Annuler le lien'):'')));
   msg.textContent=r.length?'':'Aucune demande envoyée.';}catch(e){msg.textContent=e.message;}}
  /** Liste et validité définies par l'administrateur : le commercial envoie simplement le lien. */

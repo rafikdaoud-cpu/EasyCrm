@@ -74,32 +74,38 @@ $token=$token2;$link=$collect->open($token);
 // Vue publique et dépôts
 $v=$public->info($token);ok($v->status===200&&count($v->data['documents'])===3&&!str_contains(json_encode($v->data),'Nadia')&&!isset($v->data['prospect_id']),'public view lists documents without client data');
 ok($public->info(str_repeat('A',32))->status===404,'unknown token answers 404');
-foreach(['<html>%%EOF','%PDF-1.4 coupé','',"GIF89a"] as $bad){try{$collect->upload($link,0,$bad);throw new LogicException('accepted');}catch(InvalidArgumentException $e){}}
-ok(count($collect->files((int)$link['id']))===0,'HTML, truncated PDF, empty and GIF files refused');
-try{$collect->upload($link,7,$PDF);throw new LogicException('accepted');}catch(OutOfBoundsException $e){}ok(true,'unknown document index refused');
-$collect->upload($link,0,$PDF);$collect->upload($link,0,$PDF.' ');ok(count($collect->files((int)$link['id']))===1&&count($appData->getFolder('collect-'.$link['id'])->children)===1,'re-upload replaces the document without leftovers');
-$request->params=[];$s=$public->submit($token);ok($s->status===400&&str_contains($s->data['error'],'CNI verso'),'submit refused while a required document is missing');
-$collect->upload($link,1,$JPEG);$collect->remove($link,1);ok(!isset($collect->files((int)$link['id'])[1]),'client can remove a document before submitting');
-$collect->upload($link,1,$JPEG);
-
-// Envoi final : dossier du commercial actuel de la fiche
-$store->reassign([1],'bob','admin');
-$s=$public->submit($token);ok($s->status===200&&$s->data['count']===2,'submit with all required documents succeeds');
-$base=$files->getUserFolder('bob')->get('Documents clients');$client=array_key_first($base->children);
-ok($client==='Nadia .. Test Exemple (n°1)','client folder name sanitized (no path separators)');
-$dated=$base->get($client)->children;$out=reset($dated)->children;
-ok(isset($out['01 - CNI recto.pdf'],$out['02 - CNI verso.jpg'])&&$out['01 - CNI recto.pdf']->bytes===$PDF.' ','files written to current commercial Nextcloud folder with numbered names');
-ok(!isset($files->users['alice']),'previous commercial does not receive the files');
-ok($db->pdo->query("SELECT count(*) FROM {$app}_documents WHERE prospect_id=1 AND source='client_link'")->fetchColumn()==2,'documents also listed in the client card attachments');
-$l=$collect->find((int)$link['id']);ok($l['state']==='submitted'&&str_starts_with($l['folder_path'],'/Documents clients/')&&$l['owner']==='bob','link closed with Nextcloud folder path');
-ok(!isset($appData->root->children['collect-'.$link['id']])&&count($collect->files((int)$link['id']))===0,'temporary uploads removed after submit');
+$p=$store->get(1);$docsOf=function($uid)use($files){$f=$files->getUserFolder($uid);if(!$f->nodeExists('Documents clients'))return [];$c=$f->get('Documents clients');$client=reset($c->children);$dated=reset($client->children);return $dated->children;};
+foreach(['<html>%%EOF','%PDF-1.4 coupé','',"GIF89a"] as $bad){try{$collect->upload($link,$p,'alice',0,$bad);throw new LogicException('accepted');}catch(InvalidArgumentException $e){}}
+ok(count($collect->files((int)$link['id']))===0&&$docsOf('alice')===[],'HTML, truncated PDF, empty and GIF files refused (nothing delivered)');
+try{$collect->upload($link,$p,'alice',7,$PDF);throw new LogicException('accepted');}catch(OutOfBoundsException $e){}ok(true,'unknown document index refused');
+// Livraison immédiate : chaque document arrive chez le commercial dès son envoi, sans attendre la fin.
+$r=$collect->upload($link,$p,'alice',0,$PDF);$out=$docsOf('alice');
+ok($r['first']&&isset($out['01 - CNI recto.pdf'])&&$out['01 - CNI recto.pdf']->bytes===$PDF,'first document delivered to the commercial Nextcloud folder immediately');
+ok($db->pdo->query("SELECT count(*) FROM {$app}_documents WHERE prospect_id=1 AND source='client_link'")->fetchColumn()==1,'first document already in the client card attachments');
+$l=$collect->find((int)$link['id']);ok($l['state']==='open'&&str_starts_with($l['folder_path'],'/Documents clients/')&&$l['owner']==='alice','link stays open and shows the Nextcloud folder while the client continues');
+ok(array_key_first($files->getUserFolder('alice')->get('Documents clients')->children)==='Nadia .. Test Exemple (n°1)','client folder name sanitized (no path separators)');
+$r=$collect->upload($link,$p,'alice',0,$PDF.' ');$out=$docsOf('alice');ok(!$r['first']&&count($out)===1&&$out['01 - CNI recto.pdf']->bytes===$PDF.' '&&count($collect->files((int)$link['id']))===1,'re-scan replaces the document in the commercial folder');
+$request->params=[];$s=$public->submit($token);ok($s->status===400&&str_contains($s->data['error'],'CNI verso'),'finish refused while a required document is missing');
+$collect->upload($link,$p,'alice',1,$JPEG);ok(isset($docsOf('alice')['02 - CNI verso.jpg']),'second document delivered as soon as it is sent');
+$collect->remove($link,$p,'alice',1);ok(!isset($collect->files((int)$link['id'])[1])&&!isset($docsOf('alice')['02 - CNI verso.jpg']),'client can remove a document: file withdrawn from the commercial folder');
+$collect->upload($link,$p,'alice',1,$JPEG);
+// Réaffectation en cours de route : les documents suivants vont au nouveau commercial.
+$store->reassign([1],'bob','admin');$collect->upload($link,$store->get(1),'bob',2,$PDF);
+ok(isset($docsOf('bob')['03 - Fiche de paie.pdf'])&&!isset($docsOf('alice')['03 - Fiche de paie.pdf']),'after reassignment, next documents go to the new commercial');
+$s=$public->submit($token);ok($s->status===200&&$s->data['count']===3,'finish closes the link once required documents are delivered');
+$l=$collect->find((int)$link['id']);ok($l['state']==='submitted'&&$l['owner']==='bob'&&str_starts_with($l['folder_path'],'/Documents clients/'),'link closed with Nextcloud folder path');
+ok($db->pdo->query("SELECT count(*) FROM {$app}_documents WHERE prospect_id=1 AND source='client_link'")->fetchColumn()==4,'finishing does not duplicate documents in the client card');
 $again=$public->submit($token);ok($again->status===410&&$again->data['state']==='submitted','link cannot be reused after submission');
+// Dépôt en attente d'une version précédente (≤ 0.28.3) : livré à la fin, pas perdu.
+$collect->configure([['label'=>'Ancien dépôt']],3);$request->params=[];$t5=$tokenOf($crm('admin')->create(1)->data['url']);$l5=$collect->open($t5);
+$appData->newFolder('collect-'.$l5['id'])->newFile('a1b2')->putContent($PDF);$db->pdo->exec("INSERT INTO {$app}_collect_files(link_id,doc_index,file_token,name,mime,size,created_at) VALUES({$l5['id']},0,'a1b2','Ancien dépôt','application/pdf',".strlen($PDF).",0)");
+ok($public->submit($t5)->status===200&&!isset($appData->root->children['collect-'.$l5['id']])&&$db->pdo->query("SELECT count(*) FROM {$app}_documents WHERE source='client_link' AND name='01 - Ancien dépôt.pdf'")->fetchColumn()==1,'documents pending from a previous version are delivered on finish');
 ok($public->info($token)->data['state']==='submitted','client sees documents already sent');
 
 // Expiration, révocation, droits
-$store->reassign([1],'alice','admin');$collect->configure([['label'=>'A']],1);$request->params=[];$t3=$tokenOf($crm('alice')->create(1)->data['url']);$l3=$collect->open($t3);$collect->upload($l3,0,$PDF);
+$store->reassign([1],'alice','admin');$collect->configure([['label'=>'A']],1);$request->params=[];$t3=$tokenOf($crm('alice')->create(1)->data['url']);$l3=$collect->open($t3);$collect->upload($l3,$store->get(1),'alice',0,$PDF);
 ok($collect->open($t3,time()+86401)===null&&$public->info($t3)->status===200,'link expires after its validity');
-ok($collect->cleanup(time()+86401)===1&&$collect->find((int)$l3['id'])['state']==='expired'&&!isset($appData->root->children['collect-'.$l3['id']]),'background job expires links and deletes pending uploads');
+ok($collect->cleanup(time()+86401)===1&&$collect->find((int)$l3['id'])['state']==='expired'&&count($collect->files((int)$l3['id']))===1,'background job expires links; documents already sent stay delivered');
 $request->params=[];$t4=$tokenOf($crm('alice')->create(1)->data['url']);$id4=(int)$collect->open($t4)['id'];
 ok($crm('bob')->revoke($id4)->status===404,'another commercial cannot cancel the link');
 ok($crm('alice')->revoke($id4)->status===200&&$public->info($t4)->status===410,'commercial cancels the link; client is told');

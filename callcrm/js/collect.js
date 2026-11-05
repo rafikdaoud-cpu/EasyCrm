@@ -92,7 +92,7 @@
         const list = docs.map(d => h('li', { class: 'crm-collect-doc' + (d.uploaded ? ' is-done' : ''), id: 'doc-' + d.index },
             h('div', { class: 'crm-collect-doc-head' },
                 h('span', { class: 'crm-collect-state', 'aria-hidden': 'true' }, d.uploaded ? '✅' : (d.index + 1)),
-                h('div', {}, h('strong', {}, d.label), h('small', {}, d.uploaded ? 'Envoyé · ' + size(d.size) : (d.required ? 'Obligatoire' : 'Facultatif')))),
+                h('div', {}, h('strong', {}, d.label), h('small', {}, d.uploaded ? '✓ Reçu par votre conseiller · ' + size(d.size) : (d.required ? 'Obligatoire' : 'Facultatif')))),
             h('div', { class: 'crm-collect-doc-actions' },
                 h('button', { type: 'button', class: 'crm-btn ' + (d.uploaded ? 'crm-btn-light' : 'crm-btn-primary'), onclick: () => guided(d.index) }, d.uploaded ? '📷 Refaire' : '📷 Scanner'),
                 h('label', { class: 'crm-btn crm-btn-light crm-file' }, '🖼️ Galerie / PDF',
@@ -100,7 +100,7 @@
                         const files = Array.from(e.target.files || []); e.target.value = '';
                         if (!files.length || busy) return;
                         busy = true; message('⏳ Envoi de « ' + d.label + ' »…', false);
-                        try { await upload(d.index, await pdfFromFiles(files)); render(); message('✅ « ' + d.label + ' » envoyé.', false); }
+                        try { await upload(d.index, await pdfFromFiles(files)); render(); message('✅ « ' + d.label + ' » transmis à votre conseiller.', false); }
                         catch (err) { message(err.message); }
                         finally { busy = false; }
                     } })),
@@ -114,7 +114,7 @@
         root.replaceChildren(
             h('header', { class: 'crm-collect-header' },
                 h('h1', {}, '📄 Envoi de vos documents'),
-                h('p', {}, 'Photographiez chaque document : la photo se prend toute seule quand le document est bien cadré. Lien valable jusqu’au ' + date(view.expires_at) + '.')),
+                h('p', {}, 'Photographiez chaque document : la photo se prend toute seule quand le document est bien cadré. Chaque document est transmis à votre conseiller dès son envoi. Lien valable jusqu’au ' + date(view.expires_at) + '.')),
             h('div', { class: 'crm-collect-progress', role: 'status' },
                 (() => { const fill = h('span'); fill.style.width = Math.round(100 * done / docs.length) + '%'; return h('div', { class: 'crm-collect-bar', role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': docs.length, 'aria-valuenow': done }, fill); })(),
                 h('span', {}, done + ' / ' + docs.length + ' document' + (docs.length > 1 ? 's' : '') + ' envoyé' + (done > 1 ? 's' : ''))),
@@ -124,15 +124,15 @@
             h('p', { class: 'crm-collect-tip' }, 'Conseil : posez le document à plat sur une surface sombre, bien éclairée, sans reflet.'),
             h('footer', { class: 'crm-collect-footer' },
                 h('button', { type: 'button', class: 'crm-btn crm-btn-success crm-btn-big', disabled: !ready, onclick: submit },
-                    ready ? '📤 Envoyer et terminer' : 'Documents obligatoires manquants : ' + required.filter(d => !d.uploaded).length)));
+                    ready ? '✅ Terminer' : 'Documents obligatoires manquants : ' + required.filter(d => !d.uploaded).length)));
     }
 
     async function submit() {
         if (busy) return;
         const missingOptional = view.documents.filter(d => !d.uploaded && !d.required).length;
-        if (!confirm('Envoyer vos documents à votre conseiller ?' + (missingOptional ? '\n' + missingOptional + ' document(s) facultatif(s) non fourni(s).' : '') + '\nVous ne pourrez plus les modifier ensuite.')) return;
+        if (!confirm('Terminer ? Vos documents sont déjà chez votre conseiller.' + (missingOptional ? '\n' + missingOptional + ' document(s) facultatif(s) non fourni(s).' : '') + '\nVous ne pourrez plus en ajouter ensuite.')) return;
         busy = true;
-        const btn = root.querySelector('.crm-collect-footer button'); btn.disabled = true; btn.textContent = '⏳ Envoi en cours…';
+        const btn = root.querySelector('.crm-collect-footer button'); btn.disabled = true; btn.textContent = '⏳ Finalisation…';
         try {
             const r = await call('/submit', 'POST', null, 120000);
             final('✅', 'Merci !', r.count + ' document' + (r.count > 1 ? 's ont été transmis' : ' a été transmis') + ' à votre conseiller. Vous pouvez fermer cette page.');
@@ -177,7 +177,7 @@
                 h('button', { type: 'button', class: 'co-guided-primary', onclick: async () => {
                     if (sending) return;
                     sending = true; actions.querySelectorAll('button').forEach(b => { b.disabled = true; });
-                    msg.classList.remove('is-error'); msg.textContent = '⏳ Envoi…';
+                    msg.classList.remove('is-error'); msg.textContent = '⏳ Envoi à votre conseiller…';
                     try {
                         const blob = new Blob([window.CoordinationScan.buildPdf(pages)], { type: 'application/pdf' });
                         await upload(d.index, blob);
@@ -202,8 +202,8 @@
             const missing = view.documents.filter(d => d.required && !d.uploaded);
             scanner.setTitle('Scan terminé');
             scanner.showPanel(h('div', { class: 'co-guided' },
-                h('div', { class: 'co-guided-head' }, h('strong', {}, missing.length ? '⚠️ Documents obligatoires restants' : '✅ Tous les documents obligatoires sont envoyés')),
-                missing.length ? h('ul', { class: 'co-guided-missing' }, missing.map(d => h('li', {}, d.label))) : h('p', {}, 'Dernière étape : appuyez sur « 📤 Envoyer et terminer ».'),
+                h('div', { class: 'co-guided-head' }, h('strong', {}, missing.length ? '⚠️ Documents obligatoires restants' : '✅ Tous les documents obligatoires sont transmis')),
+                missing.length ? h('ul', { class: 'co-guided-missing' }, missing.map(d => h('li', {}, d.label))) : h('p', {}, 'Ils sont déjà chez votre conseiller. Appuyez sur « ✅ Terminer » pour clôturer.'),
                 h('div', { class: 'co-guided-actions' }, h('button', { type: 'button', class: 'co-guided-primary', onclick: () => scanner.close() }, 'Continuer'))));
         }
 
