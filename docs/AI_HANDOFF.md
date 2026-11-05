@@ -183,3 +183,9 @@ remplacement si le document est refait) et dans `callcrm_documents`. `submit()` 
 que vérifier les obligatoires et fermer le lien ; il livre encore les dépôts en attente
 (`file_token` non vide, dossier AppData `collect-<id>`) laissés par les versions ≤ 0.28.3.
 Chronologie : événement `documents` `started` au premier document, `received` à la fin.
+
+## Call CRM 0.29.1 — logo de l'entreprise dans l'aperçu du lien client
+- La page `collecte/{token}` ajoute `og:title`, `og:site_name`, `og:description`, `og:image` et `apple-touch-icon`.
+- Image = logo Nextcloud « Personnaliser l'apparence » (thème) : favicon PNG/JPEG, sinon logo, sinon logo d'en-tête (les .ico et .svg sont ignorés car WhatsApp/iMessage ne les affichent pas).
+- Sans logo personnalisé : pas d'image (pas d'image cassée). Test : `tests/collect-preview.php`.
+- Les messageries gardent l'aperçu en cache par lien : seuls les nouveaux liens montrent le logo.

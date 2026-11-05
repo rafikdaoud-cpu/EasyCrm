@@ -30,11 +30,30 @@ class CollectPublicController extends Controller {
   return [$p,$owner];
  }
 
+ /**
+  * Aperçu du lien dans WhatsApp, SMS, iMessage… : logo de l'entreprise (Nextcloud > Personnaliser l'apparence)
+  * au lieu de l'icône Nextcloud. Favicon PNG/JPEG en priorité (carré), sinon logo, sinon logo d'en-tête.
+  */
+ private function preview():array{
+  $name='';$image='';
+  try{
+   $defaults=\OCP\Server::get(\OCP\Defaults::class);$name=(string)$defaults->getName();
+   $config=\OCP\Server::get(\OCP\IAppConfig::class);$v=$config->getValueString('theming','cachebuster','0');
+   foreach(['favicon','logo','logoheader'] as $key){
+    $mime=$config->getValueString('theming',$key.'Mime','');
+    if(in_array($mime,['image/png','image/jpeg','image/gif','image/webp'],true)){
+     $image=$this->url->getAbsoluteURL($this->url->linkToRoute('theming.Theming.getImage',['key'=>$key])).'?v='.rawurlencode($v);break;
+    }
+   }
+  }catch(\Throwable $e){$this->logger->debug('callcrm: aperçu du lien sans logo',['exception'=>$e]);}
+  return ['site'=>$name!==''?$name:'Nextcloud','title'=>($name!==''?$name.' – ':'').'Envoi de vos documents','description'=>'Envoyez vos documents en toute sécurité depuis votre téléphone.','image'=>$image];
+ }
+
  #[PublicPage]
  #[NoCSRFRequired]
  #[BruteForceProtection(action: 'callcrm_collect')]
  public function page(string $token):TemplateResponse{
-  $r=new TemplateResponse(Application::APP_ID,'collect',['api'=>rtrim($this->url->linkToRoute('callcrm.page.index'),'/').'/api/public/collecte/'.rawurlencode($token)],TemplateResponse::RENDER_AS_BASE);
+  $r=new TemplateResponse(Application::APP_ID,'collect',['api'=>rtrim($this->url->linkToRoute('callcrm.page.index'),'/').'/api/public/collecte/'.rawurlencode($token),'preview'=>$this->preview()],TemplateResponse::RENDER_AS_BASE);
   // Scanner : caméra du téléphone ; OpenCV.js tourne dans un Web Worker (js/docscan-worker.js),
   // la page n'a donc besoin ni d'eval ni de WASM, seulement d'autoriser ce worker.
   $policy=new FeaturePolicy();$policy->addAllowedCameraDomain("'self'");$r->setFeaturePolicy($policy);

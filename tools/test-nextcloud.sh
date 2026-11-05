@@ -17,6 +17,7 @@ node tests/simulator-history-ui.cjs
 "$PHP_BIN" tests/documents.php callcrm
 "$PHP_BIN" tests/documents.php nextcloud
 "$PHP_BIN" tests/collect.php
+"$PHP_BIN" tests/collect-preview.php
 node --check callcrm/js/collect.js
 node --check callcrm/js/docscan.js
 node --check callcrm/js/docscan-worker.js
