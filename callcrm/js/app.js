@@ -249,6 +249,41 @@ function collectSettingsCard(){
  }).catch(e=>{out.textContent=e.message;});
  return box;
 }
+function yeastarSettingsCard(){
+ const box=h('div',{class:'card crm-yeastar-settings'}),body=h('div'),message=h('p',{class:'muted',role:'status'});
+ box.append(h('h3',{},'Téléphonie · Yeastar P550'),body,message);
+ async function load(){try{
+  const s=await api('/yeastar/settings');if(!box.isConnected)return;
+  const url=h('input',{type:'url',value:s.url,placeholder:'https://erp.csmtaksit.dz:8088',autocomplete:'off'});
+  const client=h('input',{value:s.client_id,autocomplete:'off'});
+  const secret=h('input',{type:'password',autocomplete:'new-password',placeholder:s.has_secret?'Clé enregistrée · laisser vide pour conserver':'Clé secrète du client Yeastar'});
+  const clear=h('input',{type:'checkbox'}),linkus=h('input',{type:'url',value:s.linkus_url,placeholder:'Adresse HTTPS de votre Client WEB',autocomplete:'off'});
+  const rows=h('div',{class:'crm-yeastar-extensions'}),associations=[];
+  const addRow=(value={})=>{
+   const select=h('select',{'aria-label':'Commercial'},h('option',{value:''},'— Choisir un commercial —'),...(me.commerciaux||[]).map(u=>h('option',{value:u.uid,selected:u.uid===value.uid},u.name)));
+   if(value.uid&&!(me.commerciaux||[]).some(u=>u.uid===value.uid))select.append(h('option',{value:value.uid,selected:true},'Compte hors groupe : '+value.uid));
+   const extension=h('input',{value:value.extension||'',inputmode:'numeric',maxlength:10,placeholder:'Ex. 1000','aria-label':'Extension Yeastar'}),row=h('div',{class:'bar'}),item={select,extension,row};
+   row.append(h('label',{},'Commercial',select),h('label',{},'Extension',extension),h('button',{type:'button',onclick:()=>{associations.splice(associations.indexOf(item),1);row.remove();}},'Supprimer'));associations.push(item);rows.append(row);
+  };
+  (s.extensions||[]).forEach(addRow);
+  const payload=()=>({url:url.value,client_id:client.value,secret:secret.value,clear_secret:clear.checked,linkus_url:linkus.value,extensions:associations.map(x=>({uid:x.select.value,extension:x.extension.value}))});
+  let baseline=JSON.stringify(payload());watchEdits('yeastar-settings','Réglages Yeastar modifiés',()=>box.isConnected&&JSON.stringify(payload())!==baseline);
+  const save=h('button',{type:'button',class:'primary',onclick:async()=>{
+   save.disabled=true;message.textContent='Enregistrement…';try{
+    const result=await api('/yeastar/settings',{method:'POST',body:payload()});secret.value='';clear.checked=false;
+    secret.placeholder=result.has_secret?'Clé enregistrée · laisser vide pour conserver':'Clé secrète du client Yeastar';baseline=JSON.stringify(payload());
+    message.textContent='Réglages enregistrés. '+(result.has_secret?'Clé secrète conservée chiffrée.':'Aucune clé enregistrée.');
+   }catch(e){message.textContent=e.message;}finally{save.disabled=false;}
+  }},'Enregistrer les réglages Yeastar');
+  body.replaceChildren(h('p',{class:'muted'},'Préparation du connecteur : ces réglages ne déclenchent pas encore les appels et ne reçoivent pas les Webhooks. Les boutons d’appel actuels restent inchangés.'),
+   h('div',{class:'g2'},h('label',{},'Adresse HTTPS du P550',url),h('label',{},'ID du client API',client),h('label',{},'Clé secrète du client API',secret),h('label',{},'Adresse Linkus Web (facultative)',linkus)),
+   h('label',{},clear,' Supprimer la clé enregistrée'),
+   h('p',{class:'muted'},'Utilisez l’adresse de base, sans /integration/api. Un changement d’adresse ou d’ID client efface l’ancienne clé : saisissez-la à nouveau. La clé n’est jamais renvoyée au navigateur.'),
+   h('p',{class:'muted'},'HTTPS : un certificat reconnu par le VPS sera nécessaire pour le connecteur. L’option de désactivation de sa vérification n’est pas proposée.'),
+   h('h4',{},'Extensions des commerciaux'),rows,h('button',{type:'button',onclick:()=>addRow()},'+ Associer un commercial'),
+   h('p',{class:'muted'},'Une extension unique par commercial, par exemple 1000. Le Webhook sera configuré lorsque sa réception sera disponible dans Call CRM.'),h('div',{class:'bar'},save));
+ }catch(e){message.textContent=e.message;}}setTimeout(load,0);return box;
+}
 function documentSettingsCard(){
  const box=h('div',{class:'card'}),body=h('div'),message=h('p',{class:'muted',role:'status'});box.append(h('h3',{},'Réception des pièces · WhatsApp et e-mail'),body,message);
  async function load(){try{const s=await api('/documents/settings');if(!box.isConnected)return;
@@ -1579,7 +1614,7 @@ function admin() {
       }}, 'Réattribuer aux commerciaux actuels')),
     orph,
     h('p', {class:'muted'}, 'Profils : définis par les groupes (AD ou Nextcloud) associés aux rôles administrateur, superviseur, commercial et lecture seule.'));
-  if(me.can.fields)root.querySelector('.crm-page')?.append(documentSettingsCard(),collectSettingsCard());
+  if(me.can.fields)root.querySelector('.crm-page')?.append(yeastarSettingsCard(),documentSettingsCard(),collectSettingsCard());
   if(me.can.assign)root.querySelector('.crm-page')?.append(documentsCard());
   adminPanels();
   api('/recordings').then(rows => {

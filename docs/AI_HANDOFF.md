@@ -1,5 +1,17 @@
 # AI / maintainer handoff — announcements, presence and statistics
 
+## Yeastar settings — 2026-11-09
+
+Call CRM 0.29.5 ajoute Administration → Téléphonie · Yeastar P550 : URL HTTPS
+préremplie, ID client, secret ICrypto non exposé, URL Linkus facultative et
+associations commercial/extension uniques. Endpoints réservés admin CRM avec
+CSRF ; alertes de saisie et bloc repliable conservés. Configuration uniquement,
+sans connexion API, appel ni Webhook à ce stade. EasyCrm conserve sa téléphonie
+existante. Lire [YEASTAR.md](YEASTAR.md) pour les règles de conservation/effacement
+du secret, la topologie sans VPN choisie et le problème de certificat connu.
+Aucune migration SQL, aucune intervention sur le VPS. Tests ajoutés au script
+commun : tests/yeastar-settings.php et tests/yeastar-settings-ui.cjs.
+
 Updated 2026-11-02 (Africa/Algiers). User-facing specifications and technical decisions are recorded here so Claude, Codex or another maintainer can continue without the chat.
 
 ## Repository and delivery

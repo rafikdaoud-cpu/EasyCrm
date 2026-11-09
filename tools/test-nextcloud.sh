@@ -12,6 +12,8 @@ for edition in callcrm nextcloud; do
 done
 node tests/transfers-ui.cjs
 node tests/admin-panels-ui.cjs
+node tests/yeastar-settings-ui.cjs
+"$PHP_BIN" tests/yeastar-settings.php
 node tests/simulator-history-ui.cjs
 "$PHP_BIN" callcrm/tests/simulator.php
 "$PHP_BIN" tests/documents.php callcrm

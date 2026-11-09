@@ -4,7 +4,7 @@
 	<name>Call CRM</name>
 	<summary>Prospection téléphonique : mini CRM / centre de contact</summary>
 	<description>Liste de prospects, simulateur de devis cuisine, appels depuis smartphone, résultats d'appel, rappels, rôles admin / superviseur / commercial / lecture seule, boîte WhatsApp partagée (API officielle), lien de dépôt de documents pour le client avec scanner sur smartphone.</description>
-	<version>0.29.4</version>
+	<version>0.29.5</version>
 	<licence>agpl</licence>
 	<author>Rafik</author>
 	<namespace>CallCrm</namespace>

@@ -12,6 +12,8 @@ return ['routes' => [
 	['name'=>'collect#list','url'=>'/api/prospects/{id}/collect','verb'=>'GET'],
 	['name'=>'collect#create','url'=>'/api/prospects/{id}/collect','verb'=>'POST'],
 	['name'=>'collect#revoke','url'=>'/api/collect/{id}/revoke','verb'=>'POST'],
+	['name'=>'yeastar#settings','url'=>'/api/yeastar/settings','verb'=>'GET'],
+	['name'=>'yeastar#configure','url'=>'/api/yeastar/settings','verb'=>'POST'],
 	['name'=>'document#list','url'=>'/api/prospects/{id}/documents','verb'=>'GET'],
 	['name'=>'document#upload','url'=>'/api/prospects/{id}/documents','verb'=>'POST'],
 	['name'=>'document#inbox','url'=>'/api/documents/inbox','verb'=>'GET'],
