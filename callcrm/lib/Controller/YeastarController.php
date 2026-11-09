@@ -25,7 +25,7 @@ class YeastarController extends Controller {
     public function configure(): JSONResponse {
         if (!$this->access->can('fields')) return new JSONResponse(['error' => 'Accès refusé'], 403);
         $input = [];
-        foreach (['url', 'client_id', 'secret', 'clear_secret', 'linkus_url', 'extensions'] as $key) {
+        foreach (['url', 'client_id', 'secret', 'clear_secret', 'linkus_url', 'extensions', 'allow_self_signed'] as $key) {
             $value = $this->request->getParam($key);
             if ($value !== null) $input[$key] = $value;
         }

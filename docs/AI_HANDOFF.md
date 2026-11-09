@@ -1,5 +1,18 @@
 # AI / maintainer handoff — announcements, presence and statistics
 
+## Certificat Yeastar temporaire — 2026-11-10
+
+Call CRM 0.29.6 : à la demande explicite de l’utilisateur, ajout de la case
+« Autoriser le certificat autosigné (temporaire) » aux réglages Yeastar.
+`allow_self_signed` booléen strict, faux par défaut, conservé si omis et modifiable
+uniquement par admin CRM. Aucune requête n’existe encore : le futur connecteur
+HTTP devra appliquer ce choix par requête P550 seulement ; ne pas l’appliquer
+aux autres services ni au navigateur. HTTPS reste obligatoire. L’UI explique
+la perte de vérification d’identité et la restriction du port à l’IP du VPS.
+Tests PHP et jsdom étendus, documentation YEASTAR.md synchronisée dans le paquet.
+Pas de nouvelle migration, aucune intervention distante. Suite complète locale
+`tools/test-nextcloud.sh` réussie, y compris les tests PHP et jsdom de l’option.
+
 ## Yeastar settings — 2026-11-09
 
 Call CRM 0.29.5 ajoute Administration → Téléphonie · Yeastar P550 : URL HTTPS

@@ -10,10 +10,13 @@ test('Yeastar settings preserve credentials, associations and unsaved-edit prote
  await new Promise(r=>setTimeout(r,20));
  const secret=box.querySelector('input[type=password]');assert.equal(secret.value,'');assert.match(secret.placeholder,/enregistrée/);assert.equal(guard(),false);
  const button=text=>[...box.querySelectorAll('button')].find(b=>b.textContent===text);
+ const selfSigned=box.querySelector('[aria-label="Autoriser le certificat autosigné"]');assert.equal(selfSigned.checked,false);
+ selfSigned.click();assert.equal(guard(),true);
  button('+ Associer un commercial').click();assert.equal(guard(),true);
  const row=box.querySelector('.crm-yeastar-extensions').lastElementChild;row.querySelector('select').value='bob';row.querySelector('input').value='1001';
  secret.value='fresh-key';button('Enregistrer les réglages Yeastar').click();await new Promise(r=>setTimeout(r,20));
- assert.equal(posted.secret,'fresh-key');assert.equal(posted.extensions.length,2);assert.equal(posted.extensions[1].extension,'1001');assert.equal(secret.value,'');assert.equal(guard(),false);
+ assert.equal(posted.secret,'fresh-key');assert.equal(posted.allow_self_signed,true);assert.equal(posted.extensions.length,2);assert.equal(posted.extensions[1].extension,'1001');assert.equal(secret.value,'');assert.equal(guard(),false);
+ selfSigned.click();button('Enregistrer les réglages Yeastar').click();await new Promise(r=>setTimeout(r,20));assert.equal(posted.allow_self_signed,false);assert.equal(guard(),false);
  row.querySelector('button').click();assert.equal(guard(),true);
  assert.match(box.textContent,/ne déclenchent pas encore les appels/);
 });

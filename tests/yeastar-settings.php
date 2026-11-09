@@ -21,6 +21,18 @@ namespace {
     function check($ok, $message) { if (!$ok) throw new \RuntimeException($message); echo "PASS $message\n"; }
     $config = new Config(); $settings = new \OCA\CallCrm\Service\YeastarSettings($config, new Crypto());
     check($settings->settings()['url'] === 'https://erp.csmtaksit.dz:8088', 'P550 address is prefilled');
+    check($settings->settings()['allow_self_signed'] === false, 'certificate verification bypass is disabled by default');
+    $settings->save(['allow_self_signed'=>true]);
+    check($settings->settings()['allow_self_signed'] === true, 'admin opt-in is persisted');
+    $settings->save([]);
+    check($settings->settings()['allow_self_signed'] === true, 'omitted TLS setting preserves opt-in');
+    $settings->save(['allow_self_signed'=>false]);
+    check($settings->settings()['allow_self_signed'] === false, 'certificate verification can be restored');
+    foreach (['false', 'true', 1, [], 'invalid'] as $value) {
+        $before = $config->values;
+        try { $settings->save(['allow_self_signed'=>$value]); throw new \LogicException('Expected invalid TLS setting'); } catch (\InvalidArgumentException $e) {}
+        check($config->values === $before, 'non-boolean TLS setting is rejected without writes');
+    }
     $input = ['client_id' => 'test-client', 'secret' => 'private-test-key', 'extensions' => [['uid' => 'alice', 'extension' => '1000']]];
     $result = $settings->save($input);
     check($result['has_secret'] && !str_contains(json_encode($result), 'private-test-key') && !isset($result['secret']), 'settings never return the secret');
@@ -42,8 +54,9 @@ namespace {
     $controller = new \OCA\CallCrm\Controller\YeastarController($request, new \OCA\CallCrm\Service\Access(true), $settings, $groups);
     $request->params = ['extensions'=>[['uid'=>'outsider','extension'=>'1001']]];
     check($controller->configure()->status === 400, 'extension assignment requires commercial group membership');
-    $request->params = $input;
+    $request->params = $input + ['allow_self_signed'=>true];
     check($controller->configure()->status === 200, 'admin can save valid commercial assignment');
+    check($controller->settings()->data['allow_self_signed'] === true, 'controller accepts and returns TLS opt-in');
     $method = new \ReflectionMethod($controller, 'configure');
     check(!$method->getAttributes('OCP\\AppFramework\\Http\\Attribute\\NoCSRFRequired'), 'save keeps framework CSRF protection');
 }

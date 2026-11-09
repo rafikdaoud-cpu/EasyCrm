@@ -20,6 +20,7 @@ class YeastarSettings {
             'client_id' => $s['client_id'] ?? '',
             'has_secret' => !empty($s['secret']),
             'linkus_url' => $s['linkus_url'] ?? '',
+            'allow_self_signed' => ($s['allow_self_signed'] ?? false) === true,
             'extensions' => $s['extensions'] ?? [],
         ];
     }
@@ -41,6 +42,11 @@ class YeastarSettings {
     public function save(array $input): array {
         $s = $this->stored();
         $cur = $this->settings();
+        $allow = $input['allow_self_signed'] ?? $cur['allow_self_signed'];
+        if (!is_bool($allow)) {
+            throw new \InvalidArgumentException('L’option de certificat autosigné doit être activée ou désactivée.');
+        }
+        $s['allow_self_signed'] = $allow;
         $s['url'] = $this->url((string)($input['url'] ?? $cur['url']), true);
         $s['linkus_url'] = trim((string)($input['linkus_url'] ?? $cur['linkus_url']));
         if ($s['linkus_url'] !== '') $s['linkus_url'] = $this->url($s['linkus_url'], false);

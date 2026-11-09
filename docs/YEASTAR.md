@@ -1,4 +1,4 @@
-# Réglages Yeastar P550 — Call CRM 0.29.5
+# Réglages Yeastar P550 — Call CRM 0.29.6
 
 ## Configuration livrée
 
@@ -9,6 +9,10 @@ enregistrer les paramètres suivants :
   Utiliser la base du serveur, sans `/integration/api`.
 - ID du client API et clé secrète provenant de **Intégrations → API** du P550.
 - Adresse HTTPS de Linkus Web, facultative ; ne pas deviner son chemin.
+- « Autoriser le certificat autosigné (temporaire) », décoché par défaut.
+  Le booléen `allow_self_signed` est enregistré uniquement sur demande admin ;
+  toute autre valeur que true/false est refusée. La modification participe à
+  l’alerte de saisie et peut être annulée en décochant puis en enregistrant.
 - Associations commerciales : sélectionner un compte du groupe commercial et
   saisir son extension numérique (exemple : `1000`). Les comptes et extensions
   sont uniques. Un compte sorti du groupe doit être retiré de cette liste.
@@ -36,9 +40,16 @@ l'enregistrement des paramètres comme une authentification Yeastar réussie.
 Le P550 du bureau est derrière FortiGate/box ; l'utilisateur a choisi une
 redirection TCP 8088 sans VPN. Limiter sa source à l'IP publique du VPS. Depuis le
 VPS, HTTPS a répondu 200 avec `curl -k`, mais la vérification normale a échoué
-avec `self signed certificate in certificate chain`. Corriger le certificat et
-sa chaîne de confiance avant d'utiliser les identifiants API. Aucun réglage
-permettant de désactiver TLS n'est ajouté. L'agent n'a pas de connexion au VPS/P550.
+avec `self signed certificate in certificate chain`. L’utilisateur a explicitement
+demandé de différer l’installation du certificat : l’option temporaire permettra
+au futur connecteur de désactiver sa vérification uniquement pour le P550.
+La connexion reste HTTPS mais l’identité du serveur ne sera plus vérifiée
+(ce contournement accepte aussi les autres certificats invalides).
+Cette version ne fait encore aucune requête réseau. Le futur client HTTP devra
+appliquer `verify = !allow_self_signed` par requête Yeastar, jamais globalement,
+et garder les redirections désactivées. Ne pas modifier les vérifications des
+autres services ni celles du navigateur Linkus. Décocher après correction du
+certificat. L’agent n’a pas de connexion au VPS/P550.
 
 ## Suite à développer
 
@@ -48,8 +59,8 @@ documentation du firmware déployé. La base de connecteur dans
 doit pas être copiée aveuglément. La présente livraison ne modifie pas la
 téléphonie existante d'EasyCrm.
 
-Avant les premiers appels : intégrer le client HTTP Nextcloud avec validation
-TLS, contrôle des destinations/redirections, secret seulement côté serveur,
+Avant les premiers appels : intégrer le client HTTP Nextcloud avec vérification
+TLS par défaut et prise en compte du choix admin documenté ci-dessus, contrôle des destinations/redirections, secret seulement côté serveur,
 limitation des droits de l'appelant au dossier et à son extension. Puis ajouter
 une réception authentifiée des événements, déduplication, routage par extension,
 normalisation des numéros et notification des fiches selon leurs droits courants.
@@ -63,7 +74,7 @@ appartenance commerciale) et `tests/yeastar-settings-ui.cjs` (chargement,
 associations, sauvegarde, champ secret vidé et alerte de saisie).
 
 Publier le bon paquet Call CRM, effectuer la mise à jour Nextcloud sous son
-utilisateur habituel puis vérifier la version 0.29.5. Aucune migration SQL ajoutée.
+utilisateur habituel puis vérifier la version 0.29.6. Aucune migration SQL ajoutée.
 La suite complète `tools/test-nextcloud.sh` a réussi localement pour les deux
 éditions, ainsi que les nouveaux tests PHP et jsdom Yeastar.
 Les validations locales emploient des doubles Nextcloud et ne remplacent pas une
