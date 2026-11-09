@@ -1,5 +1,12 @@
 <?php
 return ['routes' => [
+	['name'=>'telephony#test','url'=>'/api/yeastar/test','verb'=>'POST'],
+	['name'=>'telephony#runtime','url'=>'/api/yeastar/runtime','verb'=>'GET'],
+	['name'=>'telephony#dial','url'=>'/api/yeastar/dial','verb'=>'POST'],
+	['name'=>'telephony#incoming','url'=>'/api/yeastar/incoming','verb'=>'GET'],
+	['name'=>'telephony#history','url'=>'/api/prospects/{id}/yeastar','verb'=>'GET'],
+	['name'=>'telephony#webhook','url'=>'/api/yeastar/webhook','verb'=>'POST'],
+
 	// Lien de dépôt de documents : page publique du client (sans compte) et API publique par jeton.
 	['name'=>'collect_public#page','url'=>'/collecte/{token}','verb'=>'GET'],
 	['name'=>'collect_public#info','url'=>'/api/public/collecte/{token}','verb'=>'GET'],

@@ -1,10 +1,10 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const {JSDOM}=require('jsdom');
 test('Yeastar settings preserve credentials, associations and unsaved-edit protection',async()=>{
- const source=fs.readFileSync('callcrm/js/app.js','utf8'),dom=new JSDOM('<main></main>'),document=dom.window.document;
+ const source=fs.readFileSync('callcrm/js/app.js','utf8'),dom=new JSDOM('<main></main>',{url:'https://cloud.example.test'}),document=dom.window.document;
  const saved={url:'https://erp.csmtaksit.dz:8088',client_id:'client-test',has_secret:true,linkus_url:'',extensions:[{uid:'alice',extension:'1000'}]};
  let posted,guard;
- const ctx=vm.createContext({document,Node:dom.window.Node,setTimeout,me:{commerciaux:[{uid:'alice',name:'Alice'},{uid:'bob',name:'Bob'}]},watchEdits:(key,label,check)=>guard=check,api:async(path,opt)=>{assert.equal(path,'/yeastar/settings');if(opt){posted=opt.body;return {...saved,has_secret:!opt.body.clear_secret};}return saved;}});
+ const ctx=vm.createContext({document,window:dom.window,API:'/apps/callcrm/api',URL,refreshYeastarRuntime:async()=>{},Node:dom.window.Node,setTimeout,me:{commerciaux:[{uid:'alice',name:'Alice'},{uid:'bob',name:'Bob'}]},watchEdits:(key,label,check)=>guard=check,api:async(path,opt)=>{assert.equal(path,'/yeastar/settings');if(opt){posted=opt.body;return {...saved,has_secret:!opt.body.clear_secret};}return saved;}});
  vm.runInContext(source.slice(source.indexOf('const h ='),source.indexOf('async function api('))+source.slice(source.indexOf('function yeastarSettingsCard()'),source.indexOf('function documentSettingsCard()')),ctx);
  const box=vm.runInContext('yeastarSettingsCard()',ctx);document.querySelector('main').append(box);
  await new Promise(r=>setTimeout(r,20));
@@ -18,5 +18,16 @@ test('Yeastar settings preserve credentials, associations and unsaved-edit prote
  assert.equal(posted.secret,'fresh-key');assert.equal(posted.allow_self_signed,true);assert.equal(posted.extensions.length,2);assert.equal(posted.extensions[1].extension,'1001');assert.equal(secret.value,'');assert.equal(guard(),false);
  selfSigned.click();button('Enregistrer les réglages Yeastar').click();await new Promise(r=>setTimeout(r,20));assert.equal(posted.allow_self_signed,false);assert.equal(guard(),false);
  row.querySelector('button').click();assert.equal(guard(),true);
- assert.match(box.textContent,/ne déclenchent pas encore les appels/);
+ assert.match(box.textContent,/Activez Yeastar/);
+});
+test('Yeastar intercepts calls and displays signed-event notifications without duplicate popups',async()=>{
+ const source=fs.readFileSync('callcrm/js/app.js','utf8'),dom=new JSDOM('<main><a href="tel:0770322647">Appeler</a></main>',{url:'https://cloud.example.test'}),document=dom.window.document,root=document.querySelector('main');
+ const requests=[],alerts=[],opened=[];let rows=[{id:1,call_id:'c1',phone:'0770322647',direction:'inbound',state:'RING',prospect_id:42,name:'<script>client</script>'}];
+ const ctx=vm.createContext({document,window:dom.window,Node:dom.window.Node,root,fmt:String,detail:id=>opened.push(id),alert:text=>alerts.push(text),api:async(path,opt)=>{requests.push([path,opt]);if(path==='/yeastar/runtime')return{enabled:true,extension:'1029',linkus_url:''};if(path==='/yeastar/dial')return{message:'Appel demandé'};if(path.startsWith('/yeastar/incoming'))return{rows};throw Error(path);}});
+ vm.runInContext(source.slice(source.indexOf('const h ='),source.indexOf('async function api('))+source.slice(source.indexOf('let yeastarRuntime='),source.indexOf('function yeastarSettingsCard()')),ctx);
+ root.querySelector('a').click();await new Promise(r=>setTimeout(r,20));
+ assert.equal(requests.find(([path])=>path==='/yeastar/dial')[1].body.phone,'0770322647');assert.deepEqual(alerts,['Appel demandé']);
+ await vm.runInContext('pollYeastar()',ctx);assert.equal(document.querySelectorAll('.crm-yeastar-popup').length,1);assert.equal(document.querySelector('.crm-yeastar-popup script'),null);
+ document.querySelector('.crm-yeastar-popup button').click();assert.deepEqual(opened,[42]);
+ rows=[{...rows[0],id:2,state:'ANSWER'}];await vm.runInContext('pollYeastar()',ctx);assert.equal(document.querySelectorAll('.crm-yeastar-popup').length,1);assert.match(document.querySelector('.crm-yeastar-popup').textContent,/Décroché/);
 });

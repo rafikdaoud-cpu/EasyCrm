@@ -125,6 +125,7 @@ function canLeave(action,only=null){
 window.addEventListener('beforeunload',e=>{if([...dirtyChecks.values()].some(v=>v.check())){e.preventDefault();e.returnValue='';}});
 function chronology(pid){
  const box=h('div',{class:'card crm-chronology'}),items=h('div'),message=h('p',{class:'muted'});let kind='all',cursor='',sequence=0;
+ setTimeout(()=>{if(box.isConnected)box.after(yeastarHistory(pid));},0);
  const more=h('button',{onclick:()=>load(true)},'Afficher les événements précédents');
  const title={call:'Appel',note:'Commentaire modifié',sim:'Simulation enregistrée',assign:'Affectation modifiée',appointment:'Rendez-vous',documents:'Documents client'};
  const render=e=>{const b=e.body||{};let body;
@@ -249,6 +250,44 @@ function collectSettingsCard(){
  }).catch(e=>{out.textContent=e.message;});
  return box;
 }
+let yeastarRuntime={enabled:false,extension:'',linkus_url:''},yeastarAfter=0,yeastarPolling=false;
+const yeastarPopups=new Map();
+async function refreshYeastarRuntime(){try{yeastarRuntime=await api('/yeastar/runtime');}catch(e){}return yeastarRuntime;}
+const pbxState=s=>({REQUESTED:'Appel demandé',RING:'Sonnerie',ALERT:'Appel en cours',ANSWER:'Décroché',ANSWERED:'Décroché',HOLD:'En attente',BYE:'Terminé'}[s]||s);
+root.addEventListener('click',async e=>{
+ const a=e.target.closest?.('a[href^="tel:"]');if(!a||!root.contains(a))return;
+ // Resolve configuration on every intentional call; do not silently fall back after an API failure.
+ e.preventDefault();
+ try{const config=await api('/yeastar/runtime');yeastarRuntime=config;
+  if(!config.enabled){window.location.href=a.href;return;}
+  if(!config.extension)throw new Error('Aucune extension Yeastar associée à votre compte.');
+  if(a.dataset.dialing)return;a.dataset.dialing='1';
+  const r=await api('/yeastar/dial',{method:'POST',body:{phone:decodeURIComponent(a.getAttribute('href').slice(4))}});alert(r.message);
+ }catch(error){alert(error.message);}finally{delete a.dataset.dialing;}
+});
+async function pollYeastar(){
+ if(yeastarPolling||!yeastarRuntime.enabled||!yeastarRuntime.extension)return;
+ yeastarPolling=true;
+ try{const r=await api('/yeastar/incoming?after='+yeastarAfter);
+  for(const row of r.rows){yeastarAfter=Math.max(yeastarAfter,row.id);if(row.direction!=='inbound')continue;
+   let popup=yeastarPopups.get(row.call_id);
+   if(!popup){if(row.state!=='RING')continue;
+    const box=h('aside',{class:'crm-yeastar-popup',role:'status'}),state=h('p'),actions=h('div',{class:'bar'});
+    box.append(h('strong',{},'☎ Appel entrant'),h('p',{},row.name?row.name+' · '+row.phone:row.phone+' · Client inconnu ou fiche inaccessible'),state,actions);
+    if(row.prospect_id)actions.append(h('button',{onclick:()=>detail(row.prospect_id)},'Ouvrir la fiche'));
+    if(yeastarRuntime.linkus_url)actions.append(h('a',{href:yeastarRuntime.linkus_url,target:'_blank',rel:'noopener noreferrer'},'Linkus Web'));
+    actions.append(h('button',{onclick:()=>box.remove(),'aria-label':'Fermer la notification'},'Fermer'));
+    popup={box,state};yeastarPopups.set(row.call_id,popup);document.body.append(box);
+   }popup.state.textContent=pbxState(row.state);
+  }
+  if(yeastarPopups.size>100){for(const [id,p]of yeastarPopups){if(!p.box.isConnected)yeastarPopups.delete(id);}}
+ }catch(e){/* Retry on next tick; no client content or API secrets are logged. */}finally{yeastarPolling=false;}
+}
+function yeastarHistory(pid){
+ const box=h('details',{class:'card'}),body=h('div');box.append(h('summary',{},'Journal technique Yeastar'),body);
+ const load=async()=>{try{const rows=await api('/prospects/'+pid+'/yeastar');body.replaceChildren(...(rows.length?rows.map(r=>h('p',{},fmt(Number(r.created_at))+' · '+(r.direction==='inbound'?'Entrant':'Sortant')+' · '+pbxState(r.state))):[h('p',{class:'muted'},'Aucun événement Yeastar enregistré.')]));}catch(e){body.textContent=e.message;}};
+ box.addEventListener('toggle',()=>{if(box.open)load();});return box;
+}
 function yeastarSettingsCard(){
  const box=h('div',{class:'card crm-yeastar-settings'}),body=h('div'),message=h('p',{class:'muted',role:'status'});
  box.append(h('h3',{},'Téléphonie · Yeastar P550'),body,message);
@@ -258,6 +297,7 @@ function yeastarSettingsCard(){
   const client=h('input',{value:s.client_id,autocomplete:'off'});
   const secret=h('input',{type:'password',autocomplete:'new-password',placeholder:s.has_secret?'Clé enregistrée · laisser vide pour conserver':'Clé secrète du client Yeastar'});
   const clear=h('input',{type:'checkbox'}),linkus=h('input',{type:'url',value:s.linkus_url,placeholder:'Adresse HTTPS de votre Client WEB',autocomplete:'off'});
+  const enabled=h('input',{type:'checkbox',checked:s.enabled===true}),webhookSecret=h('input',{type:'password',autocomplete:'new-password',placeholder:s.has_webhook_secret?'Secret Webhook enregistré · laisser vide pour conserver':'Secret généré dans le Webhook Yeastar'});
   const selfSigned=h('input',{type:'checkbox',checked:s.allow_self_signed===true,'aria-label':'Autoriser le certificat autosigné'});
   const rows=h('div',{class:'crm-yeastar-extensions'}),associations=[];
   const addRow=(value={})=>{
@@ -267,23 +307,23 @@ function yeastarSettingsCard(){
    row.append(h('label',{},'Commercial',select),h('label',{},'Extension',extension),h('button',{type:'button',onclick:()=>{associations.splice(associations.indexOf(item),1);row.remove();}},'Supprimer'));associations.push(item);rows.append(row);
   };
   (s.extensions||[]).forEach(addRow);
-  const payload=()=>({url:url.value,client_id:client.value,secret:secret.value,clear_secret:clear.checked,linkus_url:linkus.value,allow_self_signed:selfSigned.checked,extensions:associations.map(x=>({uid:x.select.value,extension:x.extension.value}))});
+  const payload=()=>({url:url.value,client_id:client.value,secret:secret.value,clear_secret:clear.checked,linkus_url:linkus.value,enabled:enabled.checked,webhook_secret:webhookSecret.value,allow_self_signed:selfSigned.checked,extensions:associations.map(x=>({uid:x.select.value,extension:x.extension.value}))});
   let baseline=JSON.stringify(payload());watchEdits('yeastar-settings','Réglages Yeastar modifiés',()=>box.isConnected&&JSON.stringify(payload())!==baseline);
   const save=h('button',{type:'button',class:'primary',onclick:async()=>{
    save.disabled=true;message.textContent='Enregistrement…';try{
-    const result=await api('/yeastar/settings',{method:'POST',body:payload()});secret.value='';clear.checked=false;
+    const result=await api('/yeastar/settings',{method:'POST',body:payload()});secret.value='';webhookSecret.value='';clear.checked=false;refreshYeastarRuntime();
     secret.placeholder=result.has_secret?'Clé enregistrée · laisser vide pour conserver':'Clé secrète du client Yeastar';baseline=JSON.stringify(payload());
     message.textContent='Réglages enregistrés. '+(result.has_secret?'Clé secrète conservée chiffrée.':'Aucune clé enregistrée.');
    }catch(e){message.textContent=e.message;}finally{save.disabled=false;}
   }},'Enregistrer les réglages Yeastar');
-  body.replaceChildren(h('p',{class:'muted'},'Préparation du connecteur : ces réglages ne déclenchent pas encore les appels et ne reçoivent pas les Webhooks. Les boutons d’appel actuels restent inchangés.'),
+  body.replaceChildren(h('p',{class:'muted'},'Activez Yeastar pour appeler depuis les fiches. Gardez Linkus Web ouvert et connecté à votre extension pour répondre et utiliser votre casque.'),
    h('div',{class:'g2'},h('label',{},'Adresse HTTPS du P550',url),h('label',{},'ID du client API',client),h('label',{},'Clé secrète du client API',secret),h('label',{},'Adresse Linkus Web (facultative)',linkus)),
-   h('label',{},clear,' Supprimer la clé enregistrée'),
+   h('label',{},enabled,' Activer les appels Yeastar dans Call CRM'),h('label',{},clear,' Supprimer la clé enregistrée'),
    h('p',{class:'muted'},'Utilisez l’adresse de base, sans /integration/api. Un changement d’adresse ou d’ID client efface l’ancienne clé : saisissez-la à nouveau. La clé n’est jamais renvoyée au navigateur.'),
    h('label',{},selfSigned,' Autoriser le certificat autosigné (temporaire)'),
-   h('p',{class:'muted'},'Cette option prévoit de désactiver la vérification du certificat pour les requêtes du connecteur Yeastar uniquement. HTTPS reste obligatoire, mais l’identité du P550 ne sera plus vérifiée. Limitez le port 8088 à l’IP publique du VPS et décochez cette option après installation d’un certificat valide.'),
+   h('p',{class:'muted'},'Cette option désactive la vérification du certificat pour les requêtes du connecteur Yeastar uniquement. HTTPS reste obligatoire, mais l’identité du P550 ne sera plus vérifiée. Limitez le port 8088 à l’IP publique du VPS et décochez cette option après installation d’un certificat valide.'),
    h('h4',{},'Extensions des commerciaux'),rows,h('button',{type:'button',onclick:()=>addRow()},'+ Associer un commercial'),
-   h('p',{class:'muted'},'Une extension unique par commercial, par exemple 1000. Le Webhook sera configuré lorsque sa réception sera disponible dans Call CRM.'),h('div',{class:'bar'},save));
+   h('p',{class:'muted'},'Une extension unique par commercial, par exemple 1029.'),h('h4',{},'Appels entrants · Webhook signé'),h('label',{},'Adresse à copier dans le P550 (méthode POST)',h('input',{readonly:true,value:new URL(API+'/yeastar/webhook',window.location.origin).href})),h('label',{},'Secret du Webhook Yeastar (distinct de la clé API)',webhookSecret),h('p',{class:'muted'},'Dans le P550 : Intégrations → API → Push Webhook. Sélectionnez l’événement 30011 (état des appels), copiez ici le secret généré par Yeastar, puis enregistrez. Activez la surveillance des postes et trunks concernés.'),h('div',{class:'bar'},save,h('button',{type:'button',onclick:async e=>{const b=e.currentTarget;if(JSON.stringify(payload())!==baseline){message.textContent='Enregistrez vos modifications avant le test.';return;}b.disabled=true;message.textContent='Test de connexion…';try{await api('/yeastar/test',{method:'POST'});message.textContent='Authentification Yeastar réussie.';}catch(error){message.textContent=error.message;}finally{b.disabled=false;}}},'Tester la connexion Yeastar')));
  }catch(e){message.textContent=e.message;}}setTimeout(load,0);return box;
 }
 function documentSettingsCard(){
@@ -1807,6 +1847,7 @@ async function checkReminders() {
     }
   }
   go(me.role === 'commercial' ? 'journee' : 'dossiers');
+  refreshYeastarRuntime().then(pollYeastar);setInterval(pollYeastar,3000);setInterval(refreshYeastarRuntime,30000);
   setInterval(() => updateMyPresence(), 30000);
   setInterval(refreshPresenceBoard, 15000);
   setInterval(refreshPersonalTimes, 15000);

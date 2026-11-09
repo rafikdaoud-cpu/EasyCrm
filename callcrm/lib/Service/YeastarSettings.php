@@ -20,9 +20,29 @@ class YeastarSettings {
             'client_id' => $s['client_id'] ?? '',
             'has_secret' => !empty($s['secret']),
             'linkus_url' => $s['linkus_url'] ?? '',
+            'enabled' => ($s['enabled'] ?? false) === true,
+            'has_webhook_secret' => !empty($s['webhook_secret']),
             'allow_self_signed' => ($s['allow_self_signed'] ?? false) === true,
             'extensions' => $s['extensions'] ?? [],
         ];
+    }
+
+    /** Internal credentials; never serialize this result to a browser. */
+    public function credentials(): array {
+        $s = $this->stored();
+        $out = $this->settings();
+        foreach (['secret', 'webhook_secret'] as $key) $out[$key] = empty($s[$key]) ? '' : $this->crypto->decrypt($s[$key]);
+        return $out;
+    }
+
+    /** Persistent encrypted fallback when Nextcloud has no distributed cache. */
+    public function cachedToken(string $key): ?string {
+        $r=json_decode($this->config->getAppValue('callcrm','yeastar_token','{}'),true);
+        if (!is_array($r)||($r['key']??'')!==$key||($r['expires']??0)<=time()||empty($r['token'])) return null;
+        return $this->crypto->decrypt($r['token']);
+    }
+    public function cacheToken(string $key,string $token,int $ttl): void {
+        $this->config->setAppValue('callcrm','yeastar_token',json_encode(['key'=>$key,'expires'=>time()+$ttl,'token'=>$this->crypto->encrypt($token)],JSON_THROW_ON_ERROR));
     }
 
     private function url(string $value, bool $base): string {
@@ -42,6 +62,14 @@ class YeastarSettings {
     public function save(array $input): array {
         $s = $this->stored();
         $cur = $this->settings();
+        $enabled = $input['enabled'] ?? ($cur['enabled'] ?? false);
+        if (!is_bool($enabled)) throw new \InvalidArgumentException('Activation Yeastar invalide.');
+        $s['enabled'] = $enabled;
+        $webhook = (string)($input['webhook_secret'] ?? '');
+        if ($webhook !== '') {
+            if (strlen($webhook) < 24 || strlen($webhook) > 256) throw new \InvalidArgumentException('Secret Webhook invalide (24 à 256 caractères).');
+            $s['webhook_secret'] = $this->crypto->encrypt($webhook);
+        }
         $allow = $input['allow_self_signed'] ?? $cur['allow_self_signed'];
         if (!is_bool($allow)) {
             throw new \InvalidArgumentException('L’option de certificat autosigné doit être activée ou désactivée.');

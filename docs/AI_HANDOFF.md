@@ -1,5 +1,17 @@
 # AI / maintainer handoff — announcements, presence and statistics
 
+## Raccordement Yeastar complet — 2026-11-10
+
+Call CRM 0.30.0 remplace la configuration seule par un connecteur actif : test API,
+get_token chiffré/caché sous verrou, call/dial depuis les liens tel: de l’application,
+Webhooks 30011 signés HMAC-SHA256, notifications entrantes et journal technique
+par client. Migration additive 1016 (`callcrm_pbx_events`). Lire YEASTAR.md pour
+installation, association des extensions, activation, réglages P550 et limites.
+Linkus Web reste requis pour le son et le décroché. Aucun CDR/durée ni modification
+des résultats commerciaux. Aucun accès de l’agent au P550/VPS, API simulée aux
+tests : recette réelle requise par l’utilisateur. EasyCrm conserve son intégration.
+
+
 ## Certificat Yeastar temporaire — 2026-11-10
 
 Call CRM 0.29.6 : à la demande explicite de l’utilisateur, ajout de la case

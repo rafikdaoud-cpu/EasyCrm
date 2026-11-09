@@ -29,7 +29,7 @@ namespace {
  $allIndexes = [];
  foreach ([['callcrm','CallCrm','Version1009Date20261102090000','Version1010Date20261102120000','Version1011Date20261102150000','Version1012Date20261102160000'],['nextcloud','EasyCrm','Version1005Date20261102090000','Version1006Date20261102120000','Version1007Date20261102150000','Version1008Date20261102160000']] as [$folder,$ns,$ann,$presence,$lunch,$policy]) {
   $schema = new Schema(); $output = new class implements \OCP\Migration\IOutput {};
-  foreach ([$ann,$presence,$lunch,$policy,$folder==='callcrm'?'Version1013Date20261103120000':'Version1009Date20261103120000',$folder==='callcrm'?'Version1014Date20261104120000':'Version1010Date20261104120000',...($folder==='callcrm'?['Version1015Date20261105100000']:[])] as $version) {
+  foreach ([$ann,$presence,$lunch,$policy,$folder==='callcrm'?'Version1013Date20261103120000':'Version1009Date20261103120000',$folder==='callcrm'?'Version1014Date20261104120000':'Version1010Date20261104120000',...($folder==='callcrm'?['Version1015Date20261105100000','Version1016Date20261110090000']:[])] as $version) {
    require __DIR__.'/../'.$folder.'/lib/Migration/'.$version.'.php';
    $class = 'OCA\\'.$ns.'\\Migration\\'.$version; $migration = new $class();
    $migration->changeSchema($output,fn()=>$schema,[]); $first = serialize($schema);

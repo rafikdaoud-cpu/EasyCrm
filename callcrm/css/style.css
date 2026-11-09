@@ -331,3 +331,5 @@ body[data-themes*="dark"] #callcrm,body[data-theme-dark] #callcrm{--brand:var(--
 #callcrm .crm-collect-doc-line input:not([type]){flex:1 1 220px;min-width:0}
 #callcrm .crm-collect-result input{width:100%;margin:6px 0}
 #callcrm .crm-collect-result .bar,#callcrm .crm-collect-editor .bar{flex-wrap:wrap;gap:6px}
+
+.crm-yeastar-popup{position:fixed;right:20px;bottom:24px;z-index:10010;background:var(--color-main-background,#fff);color:var(--color-main-text,#222);border:2px solid #006b95;border-radius:14px;box-shadow:0 8px 30px #0003;padding:18px;width:min(390px,calc(100vw - 40px));max-height:65vh;overflow:auto}.crm-yeastar-popup p{margin:10px 0}

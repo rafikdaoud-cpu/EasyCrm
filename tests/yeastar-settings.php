@@ -15,7 +15,7 @@ namespace {
         public function getAppValue($app, $key, $default) { return $this->values[$key] ?? $default; }
         public function setAppValue($app, $key, $value) { $this->values[$key] = $value; }
     }
-    class Crypto implements \OCP\Security\ICrypto { public function encrypt($value) { return 'encrypted:'.base64_encode($value); } }
+    class Crypto implements \OCP\Security\ICrypto { public function encrypt($value) { return 'encrypted:'.base64_encode($value); } public function decrypt($value) { return base64_decode(substr($value,10)); } }
     class Request implements \OCP\IRequest { public array $params = []; public function getParam($key) { return $this->params[$key] ?? null; } }
     class Groups implements \OCP\IGroupManager { public function isInGroup($uid, $group) { return $group === 'grp-comm-all' && in_array($uid, ['alice', 'bob'], true); } }
     function check($ok, $message) { if (!$ok) throw new \RuntimeException($message); echo "PASS $message\n"; }

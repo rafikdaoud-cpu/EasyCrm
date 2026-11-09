@@ -1,9 +1,9 @@
 # Déployer Call CRM / EasyCrm
 
-Mise à jour du 2026-11-10 : **Call CRM 0.29.6**, réglages Yeastar et option temporaire de certificat autosigné,
-sans migration SQL nouvelle. EasyCrm reste en 1.8.0. Voir [YEASTAR.md](YEASTAR.md).
+Mise à jour du 2026-11-10 : **Call CRM 0.30.0**, connecteur Yeastar entrant/sortant,
+avec migration SQL additive 1016. EasyCrm reste en 1.8.0. Voir [YEASTAR.md](YEASTAR.md).
 Après installation et `occ upgrade`, ouvrir Administration → Téléphonie · Yeastar
-P550 et saisir les paramètres. Ceci ne raccorde pas encore les appels au P550.
+P550 et saisir les paramètres. Activer l’intégration, tester l’API et configurer le Webhook signé selon YEASTAR.md.
 
 Versions de ce lot : **Call CRM 0.25.1** et **EasyCrm 1.6.1**. Les deux applications sont indépendantes : ni les tables, ni les rôles, ni les préférences ne sont partagés.
 
@@ -16,7 +16,7 @@ Versions de ce lot : **Call CRM 0.25.1** et **EasyCrm 1.6.1**. Les deux applicat
 
 | ZIP | Dossier racine dans le ZIP | Destination |
 |---|---|---|
-| callcrm-0.29.6.zip | callcrm/ | custom_apps/callcrm/ |
+| callcrm-0.30.0.zip | callcrm/ | custom_apps/callcrm/ |
 | easycrm-1.8.0.zip | easycrm/ | custom_apps/easycrm/ |
 
 Ne pas créer `callcrm/callcrm` ou `easycrm/easycrm`. Ne pas renommer les identifiants des applications pour les faire correspondre à un dossier. Le dossier Git `nextcloud/` contient l'application d'identifiant `easycrm` et le script l'archive correctement.

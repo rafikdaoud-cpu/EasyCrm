@@ -14,6 +14,7 @@ node tests/transfers-ui.cjs
 node tests/admin-panels-ui.cjs
 node tests/yeastar-settings-ui.cjs
 "$PHP_BIN" tests/yeastar-settings.php
+"$PHP_BIN" tests/yeastar-telephony.php
 node tests/simulator-history-ui.cjs
 "$PHP_BIN" callcrm/tests/simulator.php
 "$PHP_BIN" tests/documents.php callcrm
