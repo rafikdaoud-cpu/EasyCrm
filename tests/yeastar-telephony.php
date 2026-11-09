@@ -1,7 +1,7 @@
 <?php
 namespace OCP {interface ICacheFactory{} interface IDBConnection{}}
 namespace OCP\Http\Client {interface IClientService{}}
-namespace OCP\Lock {interface ILockingProvider{const LOCK_EXCLUSIVE=2;}}
+namespace OCP\Lock {interface ILockingProvider{const LOCK_EXCLUSIVE=2;} class LockedException extends \Exception {}}
 namespace OCA\CallCrm\Service {class Store {public array $rows=[];public function get($id){return $this->rows[$id]??null;}}}
 namespace {
 require __DIR__.'/yeastar-settings.php';
@@ -9,12 +9,18 @@ require __DIR__.'/../callcrm/lib/Service/YeastarClient.php';
 require __DIR__.'/../callcrm/lib/Service/YeastarEvents.php';
 require __DIR__.'/../callcrm/lib/Controller/TelephonyController.php';
 class CacheFactory implements \OCP\ICacheFactory {public array $rows=[];public function createDistributed($name){return $this;}public function get($k){return $this->rows[$k]??null;}public function set($k,$v,$ttl){$this->rows[$k]=$v;}}
-class Locks implements \OCP\Lock\ILockingProvider {public int $held=0;public function acquireLock($r,$type){$this->held++;}public function releaseLock($r,$type){$this->held--;}}
+class Locks implements \OCP\Lock\ILockingProvider {public int $held=0;public bool $busy=false;public array $resources=[];public function acquireLock($r,$type){if(strlen($r)>64)throw new \OCP\Lock\LockedException('SQL key too long');if($this->busy)throw new \OCP\Lock\LockedException('busy');$this->resources[]=$r;$this->held++;}public function releaseLock($r,$type){$this->held--;}}
 class HttpClient implements \OCP\Http\Client\IClientService {public array $requests=[];public bool $fail=false;public function newClient(){return $this;}public function post($url,$options){$this->requests[]=[$url,$options];if($this->fail)throw new RuntimeException('SECRET_MUST_NOT_LEAK');$data=str_contains($url,'get_token')?['errcode'=>0,'access_token'=>'test-token','access_token_expire_time'=>1800]:['errcode'=>0,'call_id'=>'call-1'];return new class($data){public function __construct(private $data){}public function getStatusCode(){return 200;}public function getBody(){return json_encode($this->data);}};}}
 $settings->save(['enabled'=>true,'client_id'=>'test','secret'=>'dummy','allow_self_signed'=>false,'extensions'=>[['uid'=>'alice','extension'=>'1029']]]);
 $http=new HttpClient();$cache=new CacheFactory();$locks=new Locks();$pbx=new \OCA\CallCrm\Service\YeastarClient($settings,$http,$cache,new Crypto(),$locks);
 $pbx->test();$pbx->test();check(count($http->requests)===1,'shared encrypted token reused instead of exhausting PBX token quota');check(!str_contains(json_encode($cache->rows),'test-token'),'cached token encrypted');check($locks->held===0,'token lock released');
 $cache->rows=[];$pbx->test();check(count($http->requests)===1,'persistent encrypted token fallback prevents quota exhaustion without cache');
+check(strlen($locks->resources[0])===64,'lock key fits Nextcloud SQL file_locks limit');
+$locks->busy=true;$pbx->test();check($locks->held===0,'cached token works without acquiring a busy lock');
+$settings->save(['client_id'=>'new-identity']);
+try{$pbx->test();throw new LogicException('Expected lock contention');}catch(RuntimeException $e){check(str_contains($e->getMessage(),'déjà en cours'),'lock contention becomes a safe retry message instead of HTTP 500');}
+check($locks->held===0,'failed acquisition never releases another request lock');
+$locks->busy=false;$settings->save(['client_id'=>'test','secret'=>'dummy']);
 $options=$http->requests[0][1];check($options['verify']===true&&$options['allow_redirects']===false,'TLS verification enabled and redirects refused');check(isset($options['headers']['User-Agent']),'required Yeastar User-Agent supplied');
 check($pbx->dial('1029','0770322647')==='call-1','valid call is sent to PBX');$payload=json_decode(end($http->requests)[1]['body'],true);check($payload['caller']==='1029'&&$payload['auto_answer']==='no'&&!isset($payload['dial_permission']),'call never overrides extension permissions');
 $settings->save(['allow_self_signed'=>true]);$pbx->test();check(end($http->requests)[1]['verify']===false,'explicit TLS exception applies to Yeastar request');$http->fail=true;try{$pbx->dial('1029','0770322647');throw new LogicException('Expected error');}catch(RuntimeException $e){check(!str_contains($e->getMessage(),'SECRET_MUST_NOT_LEAK'),'network errors redact internal request details');}

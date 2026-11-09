@@ -1,5 +1,19 @@
 # AI / maintainer handoff — announcements, presence and statistics
 
+## Correctif verrou SQL Yeastar — 2026-11-10
+
+Call CRM 0.30.1 : le journal de production montre LockedException dans
+DBLockingProvider.acquireLock. La clé précédente préfixe + SHA256 dépassait les
+64 caractères de file_locks.key. La ressource est désormais le SHA256 complet
+du namespace et de la clé (64 caractères). Lecture du jeton en cache avant
+verrou, puis double vérification sous verrou. Une vraie contention retourne un
+message de nouvel essai au lieu d’un 500. Aucun verrou de fichiers n’est supprimé,
+aucune table Nextcloud purgée. Régression testée avec la limite SQL de 64 caractères
+et contention simulée, y compris absence de libération d’un verrou non acquis.
+Suite complète `tools/test-nextcloud.sh` réussie localement.
+Pas de nouvelle migration. Recette P550 réelle à refaire par l’utilisateur.
+
+
 ## Raccordement Yeastar complet — 2026-11-10
 
 Call CRM 0.30.0 remplace la configuration seule par un connecteur actif : test API,

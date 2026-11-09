@@ -1,4 +1,4 @@
-# Yeastar P550 — Call CRM 0.30.0
+# Yeastar P550 — Call CRM 0.30.1
 
 ## Installation et configuration
 
@@ -7,7 +7,7 @@ la réception signée des appels entrants, les notifications CRM et un journal
 technique par client. Linkus Web assure le son : garder son onglet connecté à
 l’extension associée au commercial (poste de test utilisateur : 1029).
 
-1. Sauvegarder code et base Nextcloud puis installer le paquet `callcrm-0.30.0.zip`
+1. Sauvegarder code et base Nextcloud puis installer le paquet `callcrm-0.30.1.zip`
    dans le dossier `custom_apps/callcrm` (pas de sous-dossier callcrm/callcrm).
 2. Depuis la racine Nextcloud, lancer `occ upgrade` avec le PHP et l’utilisateur
    habituels, par exemple :
@@ -121,3 +121,10 @@ Références Yeastar consultées :
 - https://help.yeastar.com/en/p-series-appliance-edition/developer-guide/make-a-call.html
 - https://help.yeastar.com/en/p-series-appliance-edition/developer-guide/event-call-status-changed.html
 - https://help.yeastar.com/en/p-series-appliance-edition/developer-guide/monitor-events-via-webhook.html
+
+## Correctif 0.30.1
+
+La clé de verrou d’obtention du jeton est limitée à 64 caractères pour le
+fournisseur SQL Nextcloud. Cache consulté avant le verrou, puis revérifié sous
+verrou. Une contention réelle invite à réessayer sans produire un 500.
+Aucun nettoyage de file_locks n’est requis : ne pas purger cette table.

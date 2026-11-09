@@ -5,6 +5,7 @@ use OCP\Http\Client\IClientService;
 use OCP\ICacheFactory;
 use OCP\Security\ICrypto;
 use OCP\Lock\ILockingProvider;
+use OCP\Lock\LockedException;
 
 /** P-Series OpenAPI v1.0. No credentials or PBX responses are exposed to browsers. */
 class YeastarClient {
@@ -40,8 +41,18 @@ class YeastarClient {
         $s=$this->settings->credentials();
         $key=hash('sha256',json_encode([$s['url'],$s['client_id'],$s['secret'],$s['allow_self_signed']]));
         $cache=$this->caches->createDistributed('callcrm-yeastar');
-        $resource='callcrm-yeastar-token-'.$key;
-        $this->locks->acquireLock($resource, ILockingProvider::LOCK_EXCLUSIVE);
+        // file_locks.key is limited to 64 characters with the SQL locking provider.
+        // Hash the namespace as well; prefix + a full SHA256 exceeds that limit.
+        $resource=hash('sha256','callcrm-yeastar-token|'.$key);
+        $cached=$cache->get($key);
+        if (is_string($cached) && $cached!=='') return $this->crypto->decrypt($cached);
+        $persistent=$this->settings->cachedToken($key);
+        if ($persistent!==null) return $persistent;
+        try {
+            $this->locks->acquireLock($resource, ILockingProvider::LOCK_EXCLUSIVE);
+        } catch (LockedException $e) {
+            throw new \RuntimeException('Une connexion Yeastar est déjà en cours. Réessayez dans quelques secondes.');
+        }
         try {
             $cached=$cache->get($key);
             if (is_string($cached) && $cached!=='') return $this->crypto->decrypt($cached);
