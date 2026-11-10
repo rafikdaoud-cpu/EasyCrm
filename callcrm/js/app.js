@@ -262,7 +262,7 @@ root.addEventListener('click',async e=>{
   if(!config.enabled){window.location.href=a.href;return;}
   if(!config.extension)throw new Error('Aucune extension Yeastar associée à votre compte.');
   if(a.dataset.dialing)return;a.dataset.dialing='1';
-  const r=await api('/yeastar/dial',{method:'POST',body:{phone:decodeURIComponent(a.getAttribute('href').slice(4))}});alert(r.message);
+  const r=await api('/yeastar/dial',{method:'POST',body:{phone:decodeURIComponent(a.getAttribute('href').slice(4))}});const notice=h('div',{class:'crm-yeastar-toast',role:'status'},r.message||'Appel demandé. Répondez dans Linkus Web.');document.querySelector('.crm-yeastar-toast')?.remove();document.body.append(notice);setTimeout(()=>notice.remove(),4500);
  }catch(error){alert(error.message);}finally{delete a.dataset.dialing;}
 });
 async function pollYeastar(){

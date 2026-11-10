@@ -1,5 +1,15 @@
 # AI / maintainer handoff — announcements, presence and statistics
 
+## Message après composition — Call CRM 0.30.2
+
+À la demande utilisateur, le succès call/dial affiche un message role=status non
+bloquant, retiré après 4,5 secondes, au lieu de window.alert/OK. Le focus et les
+saisies sont conservés. Les erreurs restent explicitement affichées. Linkus Web
+continue de nécessiter le décroché via son bouton vert. Le test jsdom existant
+vérifie l’absence d’alerte et la disparition du message. Suite complète locale
+`tools/test-nextcloud.sh` réussie. Pas de migration nouvelle.
+
+
 ## Correctif verrou SQL Yeastar — 2026-11-10
 
 Call CRM 0.30.1 : le journal de production montre LockedException dans

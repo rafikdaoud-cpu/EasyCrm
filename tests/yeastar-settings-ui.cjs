@@ -22,11 +22,11 @@ test('Yeastar settings preserve credentials, associations and unsaved-edit prote
 });
 test('Yeastar intercepts calls and displays signed-event notifications without duplicate popups',async()=>{
  const source=fs.readFileSync('callcrm/js/app.js','utf8'),dom=new JSDOM('<main><a href="tel:0770322647">Appeler</a></main>',{url:'https://cloud.example.test'}),document=dom.window.document,root=document.querySelector('main');
- const requests=[],alerts=[],opened=[];let rows=[{id:1,call_id:'c1',phone:'0770322647',direction:'inbound',state:'RING',prospect_id:42,name:'<script>client</script>'}];
- const ctx=vm.createContext({document,window:dom.window,Node:dom.window.Node,root,fmt:String,detail:id=>opened.push(id),alert:text=>alerts.push(text),api:async(path,opt)=>{requests.push([path,opt]);if(path==='/yeastar/runtime')return{enabled:true,extension:'1029',linkus_url:''};if(path==='/yeastar/dial')return{message:'Appel demandé'};if(path.startsWith('/yeastar/incoming'))return{rows};throw Error(path);}});
+ const requests=[],alerts=[],opened=[],timers=[];let rows=[{id:1,call_id:'c1',phone:'0770322647',direction:'inbound',state:'RING',prospect_id:42,name:'<script>client</script>'}];
+ const ctx=vm.createContext({document,window:dom.window,Node:dom.window.Node,root,setTimeout:(fn,ms)=>timers.push({fn,ms}),fmt:String,detail:id=>opened.push(id),alert:text=>alerts.push(text),api:async(path,opt)=>{requests.push([path,opt]);if(path==='/yeastar/runtime')return{enabled:true,extension:'1029',linkus_url:''};if(path==='/yeastar/dial')return{message:'Appel demandé'};if(path.startsWith('/yeastar/incoming'))return{rows};throw Error(path);}});
  vm.runInContext(source.slice(source.indexOf('const h ='),source.indexOf('async function api('))+source.slice(source.indexOf('let yeastarRuntime='),source.indexOf('function yeastarSettingsCard()')),ctx);
  root.querySelector('a').click();await new Promise(r=>setTimeout(r,20));
- assert.equal(requests.find(([path])=>path==='/yeastar/dial')[1].body.phone,'0770322647');assert.deepEqual(alerts,['Appel demandé']);
+ assert.equal(requests.find(([path])=>path==='/yeastar/dial')[1].body.phone,'0770322647');assert.deepEqual(alerts,[]);assert.equal(document.querySelector('.crm-yeastar-toast').textContent,'Appel demandé');assert.equal(timers[0].ms,4500);timers[0].fn();assert.equal(document.querySelector('.crm-yeastar-toast'),null);
  await vm.runInContext('pollYeastar()',ctx);assert.equal(document.querySelectorAll('.crm-yeastar-popup').length,1);assert.equal(document.querySelector('.crm-yeastar-popup script'),null);
  document.querySelector('.crm-yeastar-popup button').click();assert.deepEqual(opened,[42]);
  rows=[{...rows[0],id:2,state:'ANSWER'}];await vm.runInContext('pollYeastar()',ctx);assert.equal(document.querySelectorAll('.crm-yeastar-popup').length,1);assert.match(document.querySelector('.crm-yeastar-popup').textContent,/Décroché/);
