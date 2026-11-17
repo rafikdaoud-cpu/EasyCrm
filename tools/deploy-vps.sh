@@ -78,7 +78,8 @@ deploy_callcrm() { # $1 commit, $2 dossier extrait, $3 dry-run, $4 force
   [ -n "$new" ] || die "version introuvable dans callcrm/appinfo/info.xml du commit"
   local changed; changed=$( [ -n "$prev" ] && git -C "$REPO" diff --name-only "$prev" "$c" -- callcrm | grep -v '^callcrm/tests/' || true)
   [ -z "$prev" ] && changed=all
-  if [ -z "$changed" ]; then say "callcrm : rien à déployer (déjà au commit $(echo "$c" | cut -c1-9))"; return 0; fi
+  if [ -z "$changed" ]; then [ "$3" = 1 ] || { echo "$c" > "$STATE/callcrm.commit"; occ config:app:set callcrm deployed_commit --value "$c" >/dev/null; }
+    say "callcrm : rien à déployer (code identique au commit $(echo "$c" | cut -c1-9))"; return 0; fi
   if [ "$new" = "$live" ] && [ "$4" != 1 ]; then die "le code change mais la version reste $new : augmentez <version> dans callcrm/appinfo/info.xml (les navigateurs garderaient l'ancien JavaScript)"; fi
   local upgrade=0
   if [ "$changed" = all ] || echo "$changed" | grep -q '^callcrm/lib/Migration/'; then upgrade=1; fi
@@ -99,7 +100,7 @@ deploy_callcrm() { # $1 commit, $2 dossier extrait, $3 dry-run, $4 force
 
 deploy_wa() { # $1 commit, $2 dossier extrait, $3 dry-run, $4 force
   local c=$1 f=$2/wa-nextcloud/app.py prev; prev=$(deployed wa)
-  if cmp -s "$f" <(tr -d '\r' < "$WA/app.py"); then echo "$c" > "$STATE/wa.commit"; say "wa-nextcloud : rien à déployer"; return 0; fi
+  if cmp -s "$f" <(tr -d '\r' < "$WA/app.py"); then [ "$3" = 1 ] || echo "$c" > "$STATE/wa.commit"; say "wa-nextcloud : rien à déployer"; return 0; fi
   if [ -n "$prev" ] && ! git -C "$REPO" show "$prev:wa-nextcloud/app.py" | cmp -s - <(tr -d '\r' < "$WA/app.py"); then
     say "wa-nextcloud : app.py a été modifié à la main sur le VPS"; [ "$4" = 1 ] || die "reportez-le dans GitHub ou relancez avec --force"; fi
   say "wa-nextcloud : nouvelle version de app.py"; [ "$3" = 1 ] && return 0
@@ -118,7 +119,7 @@ cmd_deploy() {
   git -C "$REPO" fetch -q origin
   local c; c=$(git -C "$REPO" rev-parse --verify "$ref^{commit}") || die "référence inconnue : $ref"
   git -C "$REPO" merge-base --is-ancestor "$c" origin/main || [ $force = 1 ] || die "$ref n'est pas dans main sur GitHub (--force pour déployer quand même)"
-  local tmp; tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+  local tmp; tmp=$(mktemp -d); trap "rm -rf '$tmp'" EXIT
   git -C "$REPO" archive "$c" callcrm wa-nextcloud | tar -x -C "$tmp"
   lint "$tmp" || die "vérification de syntaxe en échec : rien n'a été déployé"
   if [ $tests = 1 ]; then git -C "$REPO" worktree add -f -q "$tmp/wt" "$c"; (cd "$tmp/wt" && PHP_BIN="$PHP" bash tools/test-nextcloud.sh >"$tmp/tests.log" 2>&1) || { git -C "$REPO" worktree remove -f "$tmp/wt"; tail -20 "$tmp/tests.log"; die "tests en échec : rien n'a été déployé"; }
