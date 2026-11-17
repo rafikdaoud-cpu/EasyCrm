@@ -146,7 +146,7 @@ function chronology(pid){
  const more=h('button',{onclick:()=>load(true)},'Afficher les événements précédents');
  const title={call:'Appel',note:'Commentaire modifié',sim:'Simulation enregistrée',assign:'Affectation modifiée',appointment:'Rendez-vous',documents:'Documents client'};
  const render=e=>{const b=e.body||{};let body;
-  if(e.kind==='call')body=[h('strong',{},ST[b.result]||b.result),b.reason?h('p',{},'Motif : '+b.reason):'',b.note?h('p',{},b.note):'',b.callback_at?h('small',{},'Rappel : '+fmt(b.callback_at)):''];
+  if(e.kind==='call')body=[h('strong',{},ST[b.result]||b.result),b.reason?h('p',{},'Motif : '+b.reason):'',b.note?h('p',{},b.note):'',b.callback_at?h('small',{},'Rappel : '+fmt(b.callback_at)):'',e.recording?h('div',{class:'crm-event-audio'},h('audio',{controls:true,preload:'none',src:API+'/yeastar/recordings/'+e.recording.id+'/audio','aria-label':'Écouter l’appel'}),h('small',{class:'muted'},'Enregistrement · '+e.recording.talk+' s de conversation')):''];
   else if(e.kind==='assign')body=[b.from+' → '+b.to];
   else if(e.kind==='sim')body=[h('strong',{},Math.round(b.total||0).toLocaleString('fr-FR')+' DA'),h('p',{},[b.in?.model,b.in?.w&&b.in?.l?b.in.w+' × '+b.in.l+' m':''].filter(Boolean).join(' · '))];
   else if(e.kind==='appointment')body=[h('strong',{},b.title),h('p',{},fmt(b.starts_at)+' · '+({open:'Prévu',done:'Terminé',cancelled:'Annulé'}[b.state]||'')),b.notes||''];
@@ -449,7 +449,7 @@ function documentSettingsCard(){
  }catch(e){message.textContent=e.message;}}setTimeout(load,0);return box;
 }
 
-const show = (...n) => { dirtyChecks.clear(); root.classList.add('crm-workspace'); root.replaceChildren(nav(), h('div', {class:'crm-main'}, workspaceHeader(), h('div', {class:'crm-page'}, ...n.flat()))); paintCounters(); paintWa(); };
+const show = (...n) => { dirtyChecks.clear(); root.classList.add('crm-workspace'); root.replaceChildren(nav(), h('div', {class:'crm-main'}, workspaceHeader(), h('div', {class:'crm-page'}, ...n.flat()))); paintCounters(); paintWa(); if (typeof paintMissedBadge === 'function') paintMissedBadge(); };
 let CNT = {overdue:0, today:null, goal:0};
 /** Badge des rappels en retard + progression de l'objectif quotidien (commerciaux). */
 async function paintCounters() {
@@ -485,6 +485,7 @@ function nav() {
       admin:['M12 8a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z','M9 3h6l.5 3 2.5 1 2.5-1 2 5-2.5 1v2l2.5 1-2 5-2.5-1-2.5 1-.5 3H9l-.5-3L6 19l-2.5 1-2-5L4 14v-2L1.5 11l2-5L6 7l2.5-1L9 3Z'],
       annonce:['M3 10v5h5l11 5V5L8 10H3Z','m8 15 2 6h3l-2-5M22 9v7'],
       enregistrements:['M12 3a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3Z','M5 11a7 7 0 0 0 14 0','M12 18v3'],
+      manques:['M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z','m16 2 6 6m0-6-6 6'],
       commerciaux:['M9 3a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z','M2 21v-3a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v3','M17 4a4 4 0 0 1 0 7m2 3a5 5 0 0 1 3 4v3']
     };
     const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
@@ -500,8 +501,8 @@ function nav() {
   t.push(['sim','Simulateur']);
   t.push(['stats',me.can.all ? 'Statistiques' : 'Mes statistiques']);
   if (me.can.import) t.push(['admin','Administration']);
-  if (['admin','superviseur'].includes(me.role)) t.push(['documents','Pièces reçues'],['enregistrements','Enregistrements'],['annonce','Annonce'],['commerciaux','Commerciaux']);
-  const SEC = {journee:'Travail', agenda:'Travail', neglected:'Travail', search:'Clients', dossiers:'Clients', wa:'Clients', sim:'Outils', stats:'Outils', admin:'Gestion', documents:'Gestion', enregistrements:'Gestion', annonce:'Gestion', commerciaux:'Gestion'};
+  if (['admin','superviseur'].includes(me.role)) t.push(['manques','Appels manqués'],['commerciaux','Commerciaux'],['documents','Pièces reçues'],['enregistrements','Enregistrements'],['annonce','Annonce']);
+  const SEC = {journee:'Travail', agenda:'Travail', neglected:'Travail', manques:'Pilotage', commerciaux:'Pilotage', search:'Clients', dossiers:'Clients', wa:'Clients', sim:'Outils', stats:'Outils', admin:'Gestion', documents:'Gestion', enregistrements:'Gestion', annonce:'Gestion'};
   const items = []; let last = '';
   for (const [key, label] of t) { const sec = SEC[key] || 'Outils'; if (sec !== last) { items.push(h('div', {class:'crm-nav-sec'}, sec)); last = sec; }
     items.push(h('button', {class:(key === 'dossiers' ? inDossiers : tab === key) ? 'on' : '', 'data-k':key,
@@ -515,7 +516,7 @@ function nav() {
       h('span', {}, h('strong', {}, who), h('small', {class:'muted'}, role))),
     h('div', {class:'crm-credit muted'}, 'Créé par Rafik DAOUD'));
 }
-function go(k) { if(typeof canLeave==='function'&&!canLeave(()=>go(k)))return; if (k === 'dossiers') k = 'nouveaux'; if (k === 'sim') { openSim(null); return; } tab = k; if(k==='documents'){show(h('h2',{},'Pièces reçues'),documentsCard());return;} if(k==='search'||k==='neglected'){discovery(k);return;} if(k==='enregistrements'){recordingsPage();return;} if(k==='agenda'){agenda();return;} if (k === 'journee' && me.role === 'commercial') myDay(); else if (k === 'wa') waList(); else if (k === 'stats') stats(); else if (k === 'admin') admin(); else if (k === 'annonce') show(h('h2', {}, 'Annonce'), announcementCard()); else if (k === 'commerciaux') presenceBoard(); else list(k); }
+function go(k) { if(typeof canLeave==='function'&&!canLeave(()=>go(k)))return; if (k === 'dossiers') k = 'nouveaux'; if (k === 'sim') { openSim(null); return; } tab = k; if(k==='documents'){show(h('h2',{},'Pièces reçues'),documentsCard());return;} if(k==='search'||k==='neglected'){discovery(k);return;} if(k==='enregistrements'){recordingsPage();return;} if(k==='manques'){missedPage();return;} if(k==='agenda'){agenda();return;} if (k === 'journee' && me.role === 'commercial') myDay(); else if (k === 'wa') waList(); else if (k === 'stats') stats(); else if (k === 'admin') admin(); else if (k === 'annonce') show(h('h2', {}, 'Annonce'), announcementCard()); else if (k === 'commerciaux') presenceBoard(); else list(k); }
 /** Onglets des états de dossiers (au-dessus de la liste). */
 function dossierTabs() {
   const states = TABS.slice(); if (me.can.all) states.push(['tous','Tous']);
@@ -750,6 +751,7 @@ async function detail(id) {
     form.style.display = '';
   };
   const next = async () => {
+    if (sessionNext(true)) return;
     tab = 'nouveaux';
     try {
       const rows = await api('/prospects?' + new URLSearchParams({status:'nouveau', asc:1}));
@@ -827,7 +829,7 @@ async function detail(id) {
       form)
     : h('p', {class:'muted'}, 'Consultation seule.');
   ficheKeys = me.can.call ? {pid: String(id), res: RES, pick} : null;
-  show(crumb, hero,
+  show(sessionBar(id), crumb, hero,
     h('div', {class:'cols', 'data-pid': String(id)},
       h('div', {class:'crm-col-main'},
         outcome,
@@ -838,6 +840,139 @@ async function detail(id) {
       h('div', {class:'crm-col-side'}, asg ? h('label', {class:'card crm-assign'}, h('span', {class:'muted'}, 'Commercial'), asg) : '', info,
         me.can.delete ? h('button', {class:'crm-danger-link', onclick: async () => { if (confirm('Supprimer ce prospect ? Ses pièces jointes seront conservées dans Pièces reçues.')) { await api('/prospects/' + id + '/delete', {method:'POST'}); go('tous'); } }}, 'Supprimer ce client') : '')));
   clientWorkspace(p,info,form,note,reason,cb,()=>sel,save);
+}
+
+/* ───────── Appels manqués, session d'appels, objectifs (0.36) ───────── */
+const agoTxt = t => { const m = Math.max(0, Math.round((Date.now() / 1000 - t) / 60)); return m < 1 ? 'à l’instant' : m < 60 ? 'il y a ' + m + ' min' : m < 1440 ? 'il y a ' + Math.round(m / 60) + ' h' : fmt(t); };
+const delayTxt = s => s == null ? '—' : s < 3600 ? Math.max(1, Math.round(s / 60)) + ' min' : (s / 3600).toFixed(1).replace('.', ',') + ' h';
+let missedCache = null;
+/** Rappeler : le lien ☎ garde son comportement (Yeastar ou tel:), puis la fiche s'ouvre, ou le formulaire de création. */
+function missedCallLink(r) {
+  return h('a', {class:'crm-btn crm-btn-primary', href:'tel:' + r.phone, onclick: () => setTimeout(() => r.prospect_id ? detail(r.prospect_id)
+    : addForm({phone:r.phone}, 'Appel manqué du ' + fmt(r.last_at) + ' : complétez la fiche pendant ou après l’appel.'), 0)}, '☎ Rappeler');
+}
+function missedRow(r, opt) {
+  const mine = r.assigned_to === me.uid, pool = !r.assigned_to;
+  const msg = h('span', {class:'err', role:'status'});
+  const how = h('select', {'aria-label':'Motif de clôture'}, h('option', {value:''}, 'Clore…'), h('option', {value:'manual_called'}, 'Déjà rappelé'),
+    h('option', {value:'manual_wrong'}, 'Faux numéro / spam'), h('option', {value:'manual_other'}, 'Autre raison'));
+  how.addEventListener('change', async () => { if (!how.value) return; try { await api('/missed/' + r.id + '/close', {method:'POST', body:{how:how.value}}); opt.reload(); } catch (e) { msg.textContent = e.message; how.value = ''; } });
+  const actions = h('div', {class:'crm-missed-actions'});
+  if (me.role === 'commercial' && pool) actions.append(h('button', {onclick: async e => { e.currentTarget.disabled = true; try { await api('/missed/' + r.id + '/take', {method:'POST'}); opt.reload(); } catch (x) { msg.textContent = x.message; opt.reload(); } }}, 'Je le prends'));
+  if (mine || (opt.manager && me.can.call)) actions.append(missedCallLink(r));
+  if (opt.manager) {
+    const sel = h('select', {'aria-label':'Commercial'}, h('option', {value:''}, 'À prendre'), Object.entries(opt.commercials || {}).map(([uid, name]) => h('option', {value:uid, selected: uid === r.assigned_to}, name)));
+    sel.addEventListener('change', async () => { try { await api('/missed/' + r.id + '/assign', {method:'POST', body:{uid:sel.value}}); opt.reload(); } catch (e) { msg.textContent = e.message; } });
+    actions.append(sel);
+  }
+  if (mine || opt.manager) actions.append(how);
+  return h('div', {class:'crm-missed-row' + (r.count > 1 ? ' is-repeat' : '')},
+    h('div', {class:'crm-missed-who'}, h('strong', {}, r.name || r.phone), h('div', {class:'muted'}, (r.name ? r.phone + ' · ' : '') + (r.count > 1 ? r.count + ' appels manqués · ' : '') + 'dernier ' + agoTxt(r.last_at)
+      + (r.attempts ? ' · ' + r.attempts + ' tentative' + (r.attempts > 1 ? 's' : '') : '') + (opt.manager && r.assigned_name ? ' · ' + r.assigned_name : ''))),
+    actions, msg);
+}
+/** Carte « Appels manqués à rappeler » : les miens et ceux à prendre (commercial), ou tous (responsables). */
+function missedCard({manager = false, filter = 'all', period = 'day', onStats = null} = {}) {
+  const box = h('section', {class:'card crm-missed'}), body = h('div'), head = h('div', {class:'crm-card-head'});
+  let busy = false;
+  const reload = async () => {
+    if (busy || !box.isConnected) return; busy = true;
+    try {
+      const r = await api('/missed?period=' + period); if (!Array.isArray(r?.rows)) throw new Error('Appels manqués indisponibles.'); missedCache = r; paintMissedBadge();
+      if (onStats) onStats(r);
+      let rows = r.rows;
+      if (manager && filter === 'pool') rows = rows.filter(x => !x.assigned_to);
+      else if (manager && filter !== 'all') rows = rows.filter(x => x.assigned_to === filter);
+      const mine = rows.filter(x => x.assigned_to === me.uid), pool = rows.filter(x => !x.assigned_to);
+      const opt = {manager, commercials: r.commercials, reload};
+      head.replaceChildren(h('h3', {}, manager ? 'Appels manqués en attente' : 'Appels manqués à rappeler'), h('span', {class:'crm-count' + ((manager ? rows : mine).length ? ' hot' : '')}, String((manager ? rows : mine).length)));
+      if (manager) body.replaceChildren(...(rows.length ? rows.map(x => missedRow(x, opt)) : [h('p', {class:'muted'}, 'Aucun appel manqué en attente.')]));
+      else body.replaceChildren(...(mine.length ? mine.map(x => missedRow(x, opt)) : [h('p', {class:'muted'}, 'Aucun appel manqué à rappeler. 👍')]),
+        pool.length ? h('details', {class:'crm-missed-pool'}, h('summary', {}, pool.length + ' appel' + (pool.length > 1 ? 's' : '') + ' manqué' + (pool.length > 1 ? 's' : '') + ' à prendre (sans commercial)'), pool.slice(0, 50).map(x => missedRow(x, opt))) : '');
+    } catch (e) { body.replaceChildren(h('p', {class:'err'}, e.message)); }
+    finally { busy = false; }
+  };
+  box.append(head, h('p', {class:'muted crm-missed-help'}, 'Appels entrants restés sans réponse d’une personne. Ils se ferment seuls quand le client est rappelé et répond, quand il rappelle et obtient une réponse, ou quand un résultat est saisi sur sa fiche.'), body);
+  box.reload = reload; setTimeout(reload, 0);
+  return box;
+}
+function paintMissedBadge() {
+  if (!Array.isArray(missedCache?.rows)) return;
+  const n = me.role === 'commercial' ? missedCache.rows.filter(x => x.assigned_to === me.uid).length : missedCache.rows.filter(x => !x.assigned_to).length;
+  const b = root.querySelector('.crm-sidebar [data-k="' + (me.role === 'commercial' ? 'journee' : 'manques') + '"]');
+  if (!b) return; b.querySelector('.ovd')?.remove(); if (n) b.append(h('span', {class:'ovd', title:'Appels manqués'}, String(n)));
+}
+/** Onglet responsables : indicateurs + liste à répartir. */
+function missedPage() {
+  let period = 'day', filter = 'all', card;
+  const kpis = h('div', {class:'crm-kpis'});
+  const paint = r => { const s = r.stats, by = s.by || {};
+    kpis.replaceChildren(kpi('Numéros en appel manqué', s.missed, 'sur la période'), kpi('En attente', s.open, 'à rappeler', s.open ? 'warn' : ''),
+      kpi('Clos', s.done, (by.callback || 0) + ' rappelés · ' + (by.client_recalled || 0) + ' ont rappelé · ' + (by.crm_result || 0) + ' résultat saisi'),
+      kpi('Délai moyen avant rappel', delayTxt(s.avg_delay), 'médiane ' + delayTxt(s.median_delay) + ' · ' + s.attempted + ' rappel(s) mesuré(s)')); };
+  const per = h('select', {'aria-label':'Période'}, [['day','Aujourd’hui'],['week','Cette semaine'],['month','Ce mois']].map(([v, l]) => h('option', {value:v}, l)));
+  const who = h('select', {'aria-label':'Filtre'}, h('option', {value:'all'}, 'Tous les appels en attente'), h('option', {value:'pool'}, 'À prendre (sans commercial)'), (me.commerciaux || []).map(u => h('option', {value:u.uid}, u.name)));
+  const rebuild = () => { const c = missedCard({manager:true, filter, period, onStats:paint}); card?.replaceWith(c); card = c; };
+  per.addEventListener('change', () => { period = per.value; rebuild(); }); who.addEventListener('change', () => { filter = who.value; rebuild(); });
+  card = missedCard({manager:true, filter, period, onStats:paint});
+  show(h('div', {class:'crm-page-head'}, h('div', {}, h('h2', {}, 'Appels manqués'), h('p', {class:'muted'}, 'Appels entrants sans réponse d’une personne, regroupés par numéro. Les appels récents (4 h) sont confiés automatiquement au commercial du client ou au commercial en poste le moins chargé ; les autres sont à répartir.'))),
+    h('div', {class:'bar crm-filters'}, per, who), kpis, card);
+}
+function kpi(label, value, hint = '', tone = '') { return h('div', {class:'crm-kpi' + (tone ? ' ' + tone : '')}, h('span', {class:'crm-kpi-label'}, label), h('strong', {}, String(value ?? '—')), hint ? h('small', {class:'muted'}, hint) : ''); }
+function progress(n, goal) { const pc = goal ? Math.min(100, Math.round(100 * n / goal)) : 0; return h('span', {class:'crm-progress' + (goal && n >= goal ? ' done' : '')}, h('span', {style:'width:' + pc + '%'})); }
+
+/** Session d'appels : enchaîne appels manqués (avec fiche), rappels en retard puis nouveaux dossiers. */
+let callSession = null;
+async function startSession() {
+  const ids = [], add = id => { id = String(id); if (!ids.includes(id)) ids.push(id); };
+  try { const m = missedCache || await api('/missed'); m.rows.filter(r => r.assigned_to === me.uid && r.prospect_id).forEach(r => add(r.prospect_id)); } catch (e) {}
+  try { const now = Date.now() / 1000; (await api('/prospects?' + new URLSearchParams({rappels:1}))).filter(r => r.assigned_to === me.uid && Number(r.callback_at) && Number(r.callback_at) <= now).sort((a, b) => a.callback_at - b.callback_at).forEach(r => add(r.id)); } catch (e) {}
+  try { (await api('/prospects?' + new URLSearchParams({status:'nouveau', asc:1}))).forEach(r => add(r.id)); } catch (e) {}
+  if (!ids.length) { alert('Rien à appeler pour le moment : aucun rappel en retard ni nouveau dossier.'); return; }
+  callSession = {ids, pos:0, done:0, started:Date.now()};
+  detail(ids[0]);
+}
+function sessionBar(id) {
+  if (!callSession) return '';
+  const i = callSession.ids.indexOf(String(id)); if (i >= 0) callSession.pos = i;
+  const left = callSession.ids.length - callSession.pos - 1, min = Math.round((Date.now() - callSession.started) / 60000);
+  return h('div', {class:'crm-session-bar', role:'status'}, h('strong', {}, '▶ Session d’appels'),
+    h('span', {}, callSession.done + ' traité' + (callSession.done > 1 ? 's' : '') + ' · ' + left + ' restant' + (left > 1 ? 's' : '') + ' · ' + min + ' min'),
+    h('button', {onclick: () => sessionNext(false)}, 'Passer ce dossier'), h('button', {onclick: () => endSession()}, 'Terminer la session'));
+}
+function sessionNext(saved) {
+  if (!callSession) return false;
+  if (saved) callSession.done++;
+  const nid = callSession.ids[callSession.pos + 1];
+  if (!nid) { endSession(); return true; }
+  callSession.pos++; detail(nid); return true;
+}
+function endSession() {
+  if (!callSession) return;
+  const s = callSession; callSession = null;
+  go('journee');
+  setTimeout(() => root.querySelector('.crm-page')?.prepend(h('div', {class:'card crm-session-end', role:'status'}, h('strong', {}, 'Session terminée : '),
+    s.done + ' dossier' + (s.done > 1 ? 's' : '') + ' traité' + (s.done > 1 ? 's' : '') + ' en ' + Math.max(1, Math.round((Date.now() - s.started) / 60000)) + ' min.')), 300);
+}
+
+/** Objectifs par commercial (responsables). */
+function goalsCard() {
+  const box = h('section', {class:'card crm-goals'}), body = h('div'), msg = h('p', {class:'muted', role:'status'});
+  const load = async () => {
+    try {
+      const r = await api('/goals');
+      body.replaceChildren(h('div', {class:'crm-table-wrap'}, h('table', {class:'t crm-goals-table'}, h('thead', {}, h('tr', {}, ['Commercial', 'Aujourd’hui', 'Cette semaine', 'Objectif / jour', 'Objectif / semaine', ''].map(x => h('th', {}, x)))),
+        h('tbody', {}, r.rows.map(g => {
+          const day = h('input', {type:'number', min:0, max:1000, value: g.personal ? g.day : '', placeholder: String(r.default || 0), 'aria-label':'Objectif du jour de ' + g.name});
+          const week = h('input', {type:'number', min:0, max:5000, value: g.week || '', placeholder:'—', 'aria-label':'Objectif de la semaine de ' + g.name});
+          const save = h('button', {onclick: async () => { save.disabled = true; try { await api('/goals', {method:'POST', body:{uid:g.uid, day:Number(day.value) || 0, week:Number(week.value) || 0}}); msg.textContent = 'Objectifs de ' + g.name + ' enregistrés.'; load(); } catch (e) { msg.textContent = e.message; save.disabled = false; } }}, 'Enregistrer');
+          return h('tr', {}, h('td', {}, g.name), h('td', {}, g.today + (g.day ? ' / ' + g.day : ''), g.day ? progress(g.today, g.day) : ''),
+            h('td', {}, g.this_week + (g.week ? ' / ' + g.week : ''), g.week ? progress(g.this_week, g.week) : ''), h('td', {}, day), h('td', {}, week), h('td', {}, save));
+        })))));
+    } catch (e) { body.replaceChildren(h('p', {class:'err'}, e.message)); }
+  };
+  box.append(h('h3', {}, 'Objectifs d’appels'), h('p', {class:'muted'}, 'Laisser vide l’objectif du jour = objectif général (' + ((me.prefs || {}).goal || 0) + ' appels). Les appels comptés sont les résultats saisis dans le CRM.'), body, msg);
+  setTimeout(load, 0); return box;
 }
 
 /* ───────── Simulateur de devis « cuisine équipée » ───────── */
@@ -1415,6 +1550,7 @@ function settingsCard() {
   const from = h('input', {type:'time', value:P.cb_from || ''}), to = h('input', {type:'time', value:P.cb_to || ''});
   const tz = h('input', {value:P.tz || 'Africa/Algiers', style:'width:160px'});
   const rs = h('textarea', {rows:6, style:'width:100%;box-sizing:border-box'}, (P.reasons || []).join('\n'));
+  const wq = h('textarea', {rows:6, style:'width:100%;box-sizing:border-box', 'aria-label':'Réponses WhatsApp rapides'}, (P.wa_quick || []).join('\n\n'));
   const out = h('span', {class:'muted'});
   return h('div', {class:'card'}, h('h3', {}, 'Réglages des appels'),
     h('p', {class:'muted'}, 'Limite de tentatives : après ce nombre de tentatives sans succès (réponses avec date de rappel : « Ne répond pas », « À rappeler »…), le prospect passe automatiquement en « Injoignable / faux numéro ». Avec 3, la 3e tentative sans succès clôture le prospect. 0 = illimité.'),
@@ -1424,10 +1560,11 @@ function settingsCard() {
     h('p', {class:'muted'}, 'Objectif quotidien : nombre d’appels attendus par commercial et par jour (0 = pas d’objectif).'),
     h('div', {class:'bar'}, h('label', {}, 'Appels par jour ', goal)),
     h('p', {class:'muted'}, 'Motifs de refus proposés pour les réponses « Motif obligatoire » (un par ligne).'), rs,
+    h('p', {class:'muted'}, 'Réponses WhatsApp rapides proposées aux commerciaux (séparées par une ligne vide ; {nom} est remplacé par le nom du client).'), wq,
     h('div', {class:'bar'}, h('button', {class:'primary', onclick: async () => {
       out.textContent = '…';
       try {
-        const r = await api('/callprefs', {method:'POST', body:{max_callbacks:Number(max.value) || 0, cb_gap:Number(gap.value) || 0, goal:Number(goal.value) || 0, cb_from:from.value, cb_to:to.value, tz:tz.value, reasons:rs.value}});
+        const r = await api('/callprefs', {method:'POST', body:{max_callbacks:Number(max.value) || 0, cb_gap:Number(gap.value) || 0, goal:Number(goal.value) || 0, cb_from:from.value, cb_to:to.value, tz:tz.value, reasons:rs.value, wa_quick:wq.value}});
         me.prefs = r.prefs; me.max_callbacks = r.max_callbacks; out.textContent = '✔ Réglages enregistrés.';
       } catch (e) { out.textContent = e.message; }
     }}, 'Enregistrer'), out));
@@ -1471,11 +1608,13 @@ const presenceLabel = p => {
 const presenceTone = p => p.status === 'pause' && p.pause_alert === 'overdue' ? ' pause-overdue' : p.status === 'pause' && p.pause_alert === 'tolerance' ? ' pause-tolerance' : '';
 
 let dayBox = null, dayBusy = false;
+let dayMissed = null;
 function myDay() {
   if (me.role !== 'commercial') return;
   dayBox = h('div', {class:'day-content'}, 'Chargement de votre journée…');
-  show(h('div', {class:'crm-page-heading'}, h('div', {}, h('p', {class:'crm-eyebrow'}, 'Mon espace commercial'),
-    h('h2', {}, 'Ma journée'), h('p', {class:'muted'}, 'Vos priorités et vos résultats, au même endroit.'))), dayBox);
+  dayMissed = typeof missedCard === 'function' ? missedCard() : null;
+  show(h('div', {class:'crm-page-head'}, h('div', {}, h('h2', {}, 'Ma journée'), h('p', {class:'muted'}, 'Vos priorités et vos résultats, au même endroit.')),
+    h('div', {class:'crm-page-actions'}, h('button', {class:'primary crm-session-start', onclick:() => startSession()}, '▶ Démarrer une session d’appels'))), dayBox);
   refreshMyDay();
 }
 async function refreshMyDay() {
@@ -1485,19 +1624,23 @@ async function refreshMyDay() {
   try {
     const [report, counters] = await Promise.all([api('/presence/mine?period=day'),api('/counters')]);
     if (box !== dayBox || !box.isConnected || tab !== 'journee') return;
-    const totals = report.totals.selected;
-    box.replaceChildren(h('div', {class:'day-grid'},
-      h('section', {class:'card day-session'}, h('p', {class:'crm-eyebrow'}, 'Aujourd’hui'),
-        h('h3', {}, 'Votre journée de travail'), h('div', {class:'day-work-time'}, duration(totals.online)),
-        h('p', {class:'muted'}, 'Temps en poste · ' + duration(totals.pause) + ' de pause classique · ' + duration(totals.lunch) + ' de déjeuner'),
-        h('button', {class:'primary day-start', onclick:() => go('dossiers')}, 'Ouvrir mes dossiers à traiter'),
-        h('div', {class:'day-priority'}, h('span', {}, 'Rappels en retard'), h('strong', {}, String(counters.overdue || 0)),
-          h('button', {onclick:() => go(KINDS.rappels ? 'rappels' : 'dossiers')}, 'Consulter')),
-        h('div', {class:'day-priority'}, h('span', {}, 'Dossiers traités aujourd’hui'), h('strong', {}, String(report.processed))),
-        h('div', {class:'day-priority'}, h('span', {}, 'Appels saisis aujourd’hui'), h('strong', {}, String(counters.today || 0)))),
-      h('section', {class:'card day-results'}, h('h3', {}, 'Mes résultats du jour'), dossierResults(report.by_result,true),
-        h('button', {onclick:() => go('stats')}, 'Voir mes statistiques'))),
+    const totals = report.totals.selected, goal = counters.goal || 0, wgoal = counters.week_goal || 0;
+    const tile = (cls, label, value, extra = '') => h('div', {class:'crm-kpi ' + cls}, h('span', {class:'crm-kpi-label'}, label), h('strong', {}, value), extra);
+    box.replaceChildren(
+      h('div', {class:'crm-kpis day-kpis'},
+        h('div', {class:'crm-kpi day-session'}, h('span', {class:'crm-kpi-label'}, 'Temps en poste'), h('strong', {class:'day-work-time'}, duration(totals.online)),
+          h('small', {class:'muted'}, duration(totals.pause) + ' de pause · ' + duration(totals.lunch) + ' de déjeuner')),
+        tile('day-calls', 'Appels saisis aujourd’hui', String(counters.today || 0) + (goal ? ' / ' + goal : ''), goal ? progress(counters.today || 0, goal) : h('small', {class:'muted'}, 'Pas d’objectif du jour')),
+        counters.week !== undefined ? tile('day-week', 'Cette semaine', String(counters.week || 0) + (wgoal ? ' / ' + wgoal : ''), wgoal ? progress(counters.week || 0, wgoal) : h('small', {class:'muted'}, 'Appels saisis depuis lundi')) : '',
+        h('div', {class:'crm-kpi day-priority' + (counters.overdue ? ' warn' : '')}, h('span', {class:'crm-kpi-label'}, 'Rappels en retard'), h('strong', {}, String(counters.overdue || 0)),
+          h('button', {class:'crm-link', onclick:() => go(KINDS.rappels ? 'rappels' : 'dossiers')}, 'Consulter')),
+        h('div', {class:'crm-kpi day-priority'}, h('span', {class:'crm-kpi-label'}, 'Dossiers traités aujourd’hui'), h('strong', {}, String(report.processed)),
+          h('button', {class:'crm-link day-start', onclick:() => go('dossiers')}, 'Ouvrir mes dossiers à traiter'))),
+      h('div', {class:'day-grid'}, dayMissed || '',
+        h('section', {class:'card day-results'}, h('h3', {}, 'Mes résultats du jour'), dossierResults(report.by_result,true),
+          h('button', {onclick:() => go('stats')}, 'Voir mes statistiques'))),
       h('p', {class:'muted'}, 'Actualisé : ' + new Date(report.server_now * 1000).toLocaleTimeString('fr-FR') + ' · ' + report.timezone));
+    dayMissed?.reload?.();
   } catch (e) {
     if (box === dayBox && box.isConnected) box.replaceChildren(h('div', {class:'card'}, h('p', {class:'err', role:'status'}, 'Impossible de charger votre journée.'), h('button', {onclick:refreshMyDay}, 'Réessayer')));
   } finally { dayBusy = false; }
@@ -1778,7 +1921,7 @@ function presenceBoard() {
   rosterBox = h('div', {}, 'Chargement…');
   show(h('h2', {}, 'Commerciaux'),
     h('p', {class:'muted'}, 'État actuel actualisé toutes les 15 secondes. Temps et dossiers traités sur la période sélectionnée, hors absences. Un dossier est compté une fois par commercial, selon son dernier résultat saisi sur cette période. La présence ne mesure pas l’activité devant le PC.'),
-    presencePeriodFilter(rosterPeriod, filter => { rosterPeriod = filter; lastRosterReport = null; rosterBox.replaceChildren('Chargement…'); refreshPresenceBoard(); }), rosterBox);
+    presencePeriodFilter(rosterPeriod, filter => { rosterPeriod = filter; lastRosterReport = null; rosterBox.replaceChildren('Chargement…'); refreshPresenceBoard(); }), rosterBox, typeof goalsCard === 'function' ? goalsCard() : '');
   refreshPresenceBoard();
 }
 
@@ -2155,7 +2298,8 @@ function waComposer({windowOpen, clientName, send, done}) {
     txt.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) button.click(); });
     const more = h('details', {}, h('summary', {}, 'Utiliser plutôt un modèle'));
     more.addEventListener('toggle', () => { if (more.open && more.childElementCount === 1) more.append(tplPart()); }, {once:false});
-    box.append(h('p', {class:'muted'}, 'Le client a écrit depuis moins de 24 h : message libre possible.'), txt, h('div', {class:'bar'}, button), more);
+    const quick = ((me.prefs || {}).wa_quick || []).map(q => h('button', {type:'button', class:'crm-chip', title:q, onclick: () => { const t = q.replace(/\{nom\}/g, clientName || ''); txt.value = txt.value.trim() ? txt.value.trimEnd() + '\n' + t : t; txt.focus(); }}, q.length > 40 ? q.slice(0, 40) + '…' : q));
+    box.append(h('p', {class:'muted'}, 'Le client a écrit depuis moins de 24 h : message libre possible.'), quick.length ? h('div', {class:'crm-chips', 'aria-label':'Réponses rapides'}, quick) : '', txt, h('div', {class:'bar'}, button), more);
   } else box.append(tplPart());
   box.append(msg);
   return box;
@@ -2211,6 +2355,7 @@ async function checkReminders() {
   setInterval(refreshPresenceBoard, 15000);
   setInterval(refreshPersonalTimes, 15000);
   setInterval(refreshMyDay, 15000);
+  if (['commercial','admin','superviseur'].includes(me.role)) { const pm = async () => { try { const r = await api('/missed'); if (Array.isArray(r?.rows)) { missedCache = r; paintMissedBadge(); } } catch (e) {} }; pm(); setInterval(pm, 60000); }
   window.addEventListener('online', () => { updateMyPresence(); refreshPresenceBoard(); refreshPersonalTimes(); refreshMyDay(); });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { updateMyPresence(); refreshPresenceBoard(); refreshPersonalTimes(); refreshMyDay(); } });
   if (window.Notification && Notification.permission === 'default') Notification.requestPermission();

@@ -1,5 +1,12 @@
 # AI / maintainer handoff — announcements, presence and statistics
 
+## Appels manqués, session d'appels, objectifs — Call CRM 0.36
+
+Voir `callcrm/APPELS_MANQUES.md`. Migration 1019 (`callcrm_missed`), tâche `SyncMissedCalls`,
+`MissedCalls` / `MissedController`, objectifs dans `Prefs::goals()` + `DashboardController::goals`.
+Règle « répondu par une personne » : poste de commercial ou conversation ≥ `missed_min_talk` (25 s).
+Déployé sur le VPS (0.36.2). Tests : `tests/callcrm-missed-ui.cjs` + contrôle réel en transaction.
+
 ## Envoi WhatsApp depuis la fiche et modèles approuvés — Call CRM 0.34.0
 
 Détails : `callcrm/WHATSAPP_ENVOI.md`. Bouton « Envoyer un message WhatsApp » sur la fiche

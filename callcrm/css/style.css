@@ -507,3 +507,50 @@ body[data-themes*="dark"] #callcrm.crm-workspace,body[data-theme-dark] #callcrm.
 #callcrm .crm-list .crm-row-head .sort-heading.on{color:var(--ui-accent)!important}
 #callcrm .crm-credit{font-size:11px;padding:8px 6px 0;opacity:.75}
 @media(max-width:760px){#callcrm .crm-credit{display:none}}
+/* ───────── 0.36 : indicateurs, appels manqués, session, objectifs ───────── */
+#callcrm .crm-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:0 0 18px}
+#callcrm .crm-kpi{background:var(--ui-panel);border:1px solid var(--ui-line);border-radius:var(--ui-r);padding:14px 16px;display:flex;flex-direction:column;gap:4px;min-width:0}
+#callcrm .crm-kpi .crm-kpi-label{font-size:12px;font-weight:600;color:var(--ui-muted)}
+#callcrm .crm-kpi strong{font-size:24px;line-height:1.2;font-variant-numeric:tabular-nums}
+#callcrm .crm-kpi.warn{border-color:color-mix(in srgb,var(--bad) 35%,var(--ui-line));background:color-mix(in srgb,var(--bad) 4%,var(--ui-panel))}
+#callcrm .crm-kpi.warn strong{color:var(--bad)}
+#callcrm .crm-kpi .day-work-time{font-size:24px!important;margin:0!important}
+#callcrm .crm-link{border:0!important;background:transparent!important;color:var(--ui-accent)!important;padding:0!important;min-height:0!important;justify-content:flex-start;text-align:left;font-weight:600;font-size:13px!important;width:auto}
+#callcrm .crm-progress{display:block;height:6px;border-radius:6px;background:color-mix(in srgb,var(--ui-line) 60%,var(--ui-panel));overflow:hidden;margin-top:4px;min-width:60px}
+#callcrm .crm-progress>span{display:block;height:100%;background:var(--ui-accent);border-radius:6px}
+#callcrm .crm-progress.done>span{background:#1f9d55}
+#callcrm .day-grid{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(280px,1fr);gap:18px;align-items:start}
+#callcrm .day-grid>.card{margin:0!important}
+#callcrm .crm-count{min-width:24px;height:22px;border-radius:12px;display:inline-grid;place-items:center;padding:0 7px;font-size:12px;font-weight:700;background:var(--ui-soft);color:var(--ui-accent)}
+#callcrm .crm-count.hot{background:color-mix(in srgb,var(--bad) 14%,var(--ui-panel));color:var(--bad)}
+#callcrm .crm-missed-help{font-size:12px;margin:-6px 0 10px}
+#callcrm .crm-missed-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--ui-line);flex-wrap:wrap}
+#callcrm .crm-missed-row.is-repeat .crm-missed-who strong:after{content:" ↻";color:var(--bad)}
+#callcrm .crm-missed-who{flex:1;min-width:180px}
+#callcrm .crm-missed-who .muted{font-size:12px}
+#callcrm .crm-missed-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+#callcrm .crm-missed-actions .crm-btn{min-height:34px;padding:5px 12px}
+#callcrm .crm-missed-actions select,#callcrm .crm-missed-actions button{min-height:34px!important;font-size:13px!important}
+#callcrm .crm-missed-pool{margin-top:10px}#callcrm .crm-missed-pool>summary{cursor:pointer;font-weight:600;color:var(--ui-accent);padding:6px 0}
+#callcrm .crm-session-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 14px;margin:0 0 14px;border-radius:var(--ui-r);background:var(--ui-soft);border:1px solid color-mix(in srgb,var(--ui-accent) 30%,var(--ui-panel))}
+#callcrm .crm-session-bar strong{color:var(--ui-accent)}#callcrm .crm-session-bar span{flex:1;color:var(--ui-muted)}
+#callcrm .crm-session-bar button{min-height:32px!important;font-size:13px!important}
+#callcrm .crm-session-end{border-color:#1f9d55!important}
+#callcrm .crm-chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+#callcrm .crm-chip{min-height:30px!important;padding:3px 10px!important;border-radius:16px!important;font-size:12px!important;font-weight:500!important;background:var(--ui-soft)!important;border-color:transparent!important}
+#callcrm .crm-event-audio{display:flex;flex-direction:column;gap:2px;margin-top:6px}#callcrm .crm-event-audio audio{width:100%;max-width:380px;height:34px}
+#callcrm .crm-table-wrap{overflow-x:auto}
+#callcrm .crm-goals-table input{width:90px;min-height:34px!important}
+#callcrm .crm-goals-table td{vertical-align:middle}
+#callcrm .crm-goals-table .crm-progress{max-width:140px}
+/* Tableaux (Statistiques, Commerciaux) */
+#callcrm.crm-workspace .crm-page table.t{border-collapse:separate;border-spacing:0;width:100%;border:1px solid var(--ui-line);border-radius:var(--ui-r);overflow:hidden}
+#callcrm.crm-workspace .crm-page table.t th{background:color-mix(in srgb,var(--ui-line) 25%,var(--ui-panel));font-size:12px;font-weight:600;color:var(--ui-muted);text-align:left;padding:10px 12px;border-bottom:1px solid var(--ui-line)}
+#callcrm.crm-workspace .crm-page table.t td{padding:10px 12px;border-bottom:1px solid var(--ui-line);font-variant-numeric:tabular-nums}
+#callcrm.crm-workspace .crm-page table.t tr:last-child td{border-bottom:0}
+#callcrm.crm-workspace .crm-page table.t tbody tr:hover td{background:var(--ui-hover)}
+#callcrm.crm-workspace .crm-page .crm-page-heading h2,#callcrm.crm-workspace .crm-page>h2{font-size:24px;margin:4px 0 14px}
+@media(max-width:900px){#callcrm .day-grid{grid-template-columns:1fr}}
+#callcrm .crm-kpis .crm-kpi.day-priority{display:flex!important;flex-direction:column!important;align-items:flex-start!important;justify-content:flex-start!important;text-align:left!important;gap:4px!important;padding:14px 16px!important;margin:0!important;border-top:1px solid var(--ui-line)}
+#callcrm .crm-kpis .crm-kpi.day-priority strong{font-size:24px!important;margin:0!important}
+#callcrm .crm-kpis .crm-kpi.day-priority.warn{border-color:color-mix(in srgb,var(--bad) 35%,var(--ui-line))}

@@ -133,8 +133,23 @@ class ClientActivity {
    }
   }
   usort($events,fn($a,$b)=>$b['sort']<=>$a['sort']);$more=count($events)>$limit;$events=array_slice($events,0,$limit);$last=$events?end($events)['sort']:null;
+  $this->attachRecordings($pid,$events);
   foreach ($events as &$event) unset($event['sort']);unset($event);
   return ['rows'=>$events,'has_more'=>$more,'cursor'=>$more&&$last?base64_encode(json_encode($last)):''];
+ }
+ /** Associe à chaque résultat d'appel l'audio Yeastar le plus proche (2 h avant à 10 min après la saisie), chacun une seule fois. */
+ private function attachRecordings(int $pid,array &$events): void {
+  $calls=array_filter(array_keys($events),fn($i)=>$events[$i]['kind']==='call');
+  if (!$calls) return;
+  $q=$this->db->getQueryBuilder();
+  $recs=$q->select('id','created_at','talk_duration','direction')->from('callcrm_pbx_recordings')->where($q->expr()->eq('prospect_id',$q->createNamedParameter($pid)))
+   ->andWhere($q->expr()->eq('state',$q->createNamedParameter('ready')))->orderBy('created_at','DESC')->setMaxResults(200)->executeQuery()->fetchAll();
+  $used=[];
+  foreach ($calls as $i) {
+   $t=$events[$i]['created_at'];$best=null;
+   foreach ($recs as $r) { $d=$t-(int)$r['created_at']; if (isset($used[$r['id']]) || $d<-600 || $d>7200) continue; if ($best===null || abs($d)<abs($t-(int)$best['created_at'])) $best=$r; }
+   if ($best) { $used[$best['id']]=true; $events[$i]['recording']=['id'=>(int)$best['id'],'talk'=>(int)$best['talk_duration'],'direction'=>$best['direction']]; }
+  }
  }
  /** Search all visible client fields, with an optional commercial-name match. */
  public function globalSearch(?string $scope, string $search, int $offset=0): array {
