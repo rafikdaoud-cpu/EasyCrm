@@ -24,6 +24,9 @@ class YeastarSettings {
             'has_webhook_secret' => !empty($s['webhook_secret']),
             'allow_self_signed' => ($s['allow_self_signed'] ?? false) === true,
             'extensions' => $s['extensions'] ?? [],
+            'recordings_enabled' => ($s['recordings_enabled'] ?? false) === true,
+            'recordings_folder' => $s['recordings_folder'] ?? 'yeastar-recordings',
+            'recordings_max_mb' => (int)($s['recordings_max_mb'] ?? 64),
         ];
     }
 
@@ -48,7 +51,7 @@ class YeastarSettings {
     private function url(string $value, bool $base): string {
         $value = trim($value);
         $p = parse_url($value);
-        if (!$p || ($p['scheme'] ?? '') !== 'https' || empty($p['host'])
+        if (strlen($value)>2048 || !$p || ($p['scheme'] ?? '') !== 'https' || empty($p['host'])
             || isset($p['user']) || isset($p['pass']) || isset($p['query']) || isset($p['fragment'])
             || preg_match('/[\s\x00-\x1f\\\\]/', $value)
             || ($base && !in_array($p['path'] ?? '', ['', '/'], true))) {
@@ -65,6 +68,13 @@ class YeastarSettings {
         $enabled = $input['enabled'] ?? ($cur['enabled'] ?? false);
         if (!is_bool($enabled)) throw new \InvalidArgumentException('Activation Yeastar invalide.');
         $s['enabled'] = $enabled;
+        $recordingsEnabled=$input['recordings_enabled']??$cur['recordings_enabled'];
+        $recordingsFolder=$input['recordings_folder']??$cur['recordings_folder'];
+        $recordingsMax=$input['recordings_max_mb']??$cur['recordings_max_mb'];
+        if(!is_bool($recordingsEnabled))throw new \InvalidArgumentException('Activation de récupération audio invalide.');
+        if(!is_string($recordingsFolder)||!preg_match('/^[A-Za-z0-9_-]{1,64}$/D',$recordingsFolder))throw new \InvalidArgumentException('Dossier audio : 1 à 64 lettres, chiffres, tirets ou traits de soulignement.');
+        if(!is_int($recordingsMax)||$recordingsMax<1||$recordingsMax>64)throw new \InvalidArgumentException('Taille audio : un entier entre 1 et 64 Mio.');
+        $s['recordings_enabled']=$recordingsEnabled;$s['recordings_folder']=$recordingsFolder;$s['recordings_max_mb']=$recordingsMax;
         $webhook = (string)($input['webhook_secret'] ?? '');
         if ($webhook !== '') {
             if (strlen($webhook) < 24 || strlen($webhook) > 256) throw new \InvalidArgumentException('Secret Webhook invalide (24 à 256 caractères).');

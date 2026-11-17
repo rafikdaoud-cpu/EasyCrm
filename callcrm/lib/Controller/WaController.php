@@ -182,7 +182,70 @@ class WaController extends Controller {
 		$c = $this->visible($id);
 		if (!$c) { return $this->err('Introuvable', Http::STATUS_NOT_FOUND); }
 		if ($this->a->role() === 'commercial' && $c['owner'] !== $this->a->uid()) { return $this->deny(); }
-		if (!$c['window_open']) { return $this->err('Plus de 24 h depuis le dernier message du client : WhatsApp n’autorise plus de réponse libre. Utilisez un modèle approuvé ou appelez le client.'); }
+		return $this->deliver($c);
+	}
+	/** Modèles de messages approuvés par Meta (premier message ou relance après 24 h) */
+	#[NoAdminRequired]
+	public function templates(): JSONResponse {
+		if (!$this->canReply()) { return $this->deny(); }
+		try {
+			$res = $this->http->newClient()->get(rtrim($this->wa->conf('wa_service', 'http://127.0.0.1:8085'), '/') . '/templates', [
+				'headers' => ['X-CRM-Secret' => $this->wa->conf('wa_secret')], 'timeout' => 40, 'http_errors' => false, 'nextcloud' => ['allow_local_address' => true]]);
+			$j = json_decode((string)$res->getBody(), true) ?: [];
+			if ($res->getStatusCode() >= 300) { return $this->err('Modèles indisponibles : ' . ($j['error'] ?? ('erreur ' . $res->getStatusCode())), Http::STATUS_BAD_GATEWAY); }
+		} catch (\Throwable $e) { return $this->err('Service WhatsApp injoignable : ' . $e->getMessage(), Http::STATUS_BAD_GATEWAY); }
+		return new JSONResponse(['templates' => array_values($j['templates'] ?? [])]);
+	}
+	/** Écrire à un client depuis sa fiche, même s'il n'a jamais écrit : conversation créée et rattachée à la fiche. */
+	#[NoAdminRequired]
+	public function sendProspect(int $pid): JSONResponse {
+		if (!$this->canReply()) { return $this->deny(); }
+		$p = $this->s->get($pid);
+		if (!$p || ($this->scope() !== null && $p['assigned_to'] !== $this->a->uid())) { return $this->err('Introuvable', Http::STATUS_NOT_FOUND); }
+		if ($this->a->role() === 'commercial' && $p['assigned_to'] !== $this->a->uid()) { return $this->deny(); }
+		$phone = Wa::localPhone((string)($p['phone'] ?? ''));
+		if (!$phone) { return $this->err('Numéro de téléphone absent ou non algérien : envoi WhatsApp impossible.'); }
+		$c = $this->wa->convForProspect($pid, $phone);
+		if (!$c) {
+			$raw = $this->wa->ensureConv(Wa::waId($phone), trim(($p['lastname'] ?? '') . ' ' . ($p['firstname'] ?? '')));
+			if (empty($raw['id'])) { return $this->err('Conversation WhatsApp impossible à créer', Http::STATUS_INTERNAL_SERVER_ERROR); }
+			if (empty($raw['prospect_id'])) { $this->wa->updateConv((int)$raw['id'], ['prospect_id' => $pid]); }
+			$c = $this->wa->conv((int)$raw['id']);
+		} elseif (!$c['linked']) { $this->wa->relinkPhone($phone, $pid); $c = $this->wa->conv((int)$c['id']); }
+		if (!$c) { return $this->err('Conversation WhatsApp introuvable', Http::STATUS_INTERNAL_SERVER_ERROR); }
+		$r = $this->deliver($c);
+		if ($r->getStatus() < 300) { $d = $r->getData(); $d['conv'] = (int)$c['id']; $r->setData($d); }
+		return $r;
+	}
+	/** Envoi effectif : modèle approuvé (toujours possible) ou message libre (fenêtre de 24 h ouverte). */
+	private function deliver(array $c): JSONResponse {
+		$id = (int)$c['id'];
+		$tpl = trim((string)$this->request->getParam('template', ''));
+		if ($tpl !== '') {
+			$lang = trim((string)$this->request->getParam('language', ''));
+			$values = $this->request->getParam('values', []);
+			if (!is_array($values) || !preg_match('/^[a-z0-9_]{1,512}$/', $tpl) || !preg_match('/^[A-Za-z_]{2,10}$/', $lang)) { return $this->err('Modèle invalide'); }
+			$clean = [];
+			foreach (['header', 'body'] as $part) {
+				foreach ((array)($values[$part] ?? []) as $k => $v) {
+					if (!preg_match('/^[A-Za-z0-9_]{1,64}$/', (string)$k) || !is_scalar($v)) { return $this->err('Variable de modèle invalide'); }
+					$clean[$part][(string)$k] = mb_substr(trim((string)$v), 0, 1000);
+				}
+			}
+			$me = $this->a->uid();
+			$payload = ['to' => $c['wa_id'], 'template' => ['name' => $tpl, 'language' => $lang], 'values' => $clean, 'user' => $me, 'user_name' => $this->name($me)];
+			try {
+				$res = $this->http->newClient()->post(rtrim($this->wa->conf('wa_service', 'http://127.0.0.1:8085'), '/') . '/send', [
+					'headers' => ['X-CRM-Secret' => $this->wa->conf('wa_secret'), 'Content-Type' => 'application/json'], 'body' => json_encode($payload), 'timeout' => 60, 'http_errors' => false, 'nextcloud' => ['allow_local_address' => true]]);
+				$j = json_decode((string)$res->getBody(), true) ?: [];
+				if ($res->getStatusCode() >= 300 || empty($j['wamid'])) { return $this->err('Envoi refusé : ' . ($j['error'] ?? ('erreur ' . $res->getStatusCode())), $res->getStatusCode() === 400 ? Http::STATUS_BAD_REQUEST : Http::STATUS_BAD_GATEWAY); }
+			} catch (\Throwable $e) { return $this->err('Service WhatsApp injoignable : ' . $e->getMessage(), Http::STATUS_BAD_GATEWAY); }
+			$this->wa->record(['wa_id' => $c['wa_id'], 'wamid' => $j['wamid'], 'direction' => 'out', 'type' => 'text', 'text' => '📋 Modèle « ' . $tpl . ' »' . "\n" . (string)($j['text'] ?? ''),
+				'user' => $me, 'ts' => time(), 'status' => 'sent']);
+			$this->wa->updateConv($id, ['status' => 'ouvert']);
+			return new JSONResponse(['ok' => true, 'wamid' => $j['wamid']]);
+		}
+		if (!$c['window_open']) { return $this->err('Plus de 24 h depuis le dernier message du client (ou il n’a jamais écrit) : WhatsApp n’autorise qu’un modèle approuvé. Choisissez un modèle ou appelez le client.'); }
 		$text = trim((string)$this->request->getParam('text', ''));
 		$f = $this->request->getUploadedFile('file');
 		$file = null;

@@ -18,6 +18,14 @@ class YeastarEvents {
   $q=$this->db->getQueryBuilder();$q->select('*')->from('callcrm_prospects')->where($q->expr()->in('phone',$q->createNamedParameter(array_unique($variants),IQueryBuilder::PARAM_STR_ARRAY)))->setMaxResults(2);
   $rows=$q->executeQuery()->fetchAll();return count($rows)===1?$rows[0]:null;
  }
+ /** Vrai si au moins une fiche porte ce numéro, quel que soit son commercial (évite de proposer un doublon). */
+ public function known(string $number):bool {
+  $n=self::number($number);$variants=[$n];
+  if(preg_match('/^0\d{9}$/D',$n))$variants=array_merge($variants,['+213'.substr($n,1),'213'.substr($n,1),'00213'.substr($n,1)]);
+  if(preg_match('/^\+213\d{9}$/D',$n))$variants=array_merge($variants,['0'.substr($n,4),substr($n,1),'00'.substr($n,1)]);
+  $q=$this->db->getQueryBuilder();$q->select('id')->from('callcrm_prospects')->where($q->expr()->in('phone',$q->createNamedParameter(array_unique($variants),IQueryBuilder::PARAM_STR_ARRAY)))->setMaxResults(1);
+  return (bool)$q->executeQuery()->fetchOne();
+ }
  public function record(string $hash,string $call,string $uid,string $phone,string $direction,string $state,?int $pid):void {
   if(strlen($call)>128||strlen($phone)>40||strlen($state)>24)return;
   $q=$this->db->getQueryBuilder();$q->insert('callcrm_pbx_events');
@@ -45,11 +53,27 @@ class YeastarEvents {
   $event=json_decode($raw,true,32,JSON_THROW_ON_ERROR);
   if(!is_array($event))throw new \InvalidArgumentException('Événement invalide.');
   if(($event['event']??'')==='test')return;
+  if((int)($event['type']??0)===30012){$this->receiveCdr($event);return;}
   foreach(self::parse($event) as $row){
    foreach($s['extensions'] as $mapping)if($mapping['extension']===$row['extension']){
     $p=$this->match($row['phone']);
     $this->record(hash('sha256',$raw.'|'.$mapping['uid']),$row['call_id'],$mapping['uid'],$row['phone'],$row['direction'],$row['state'],$p?(int)$p['id']:null);
    }
+  }
+ }
+ private function receiveCdr(array $event):void {
+  $row=YeastarRecordings::parse($event);if($row===null)return;
+  $q=$this->db->getQueryBuilder();$q->select('id')->from('callcrm_pbx_recordings')->where($q->expr()->eq('source_key',$q->createNamedParameter($row['source_key'])));
+  if($q->executeQuery()->fetchOne())return;
+  $p=$this->match($row['phone']);$uid='';
+  foreach($this->settings->settings()['extensions'] as $mapping)if($mapping['extension']===$row['extension'])$uid=$mapping['uid'];
+  $config=$this->settings->settings();
+  $row+=['storage_folder'=>$config['recordings_folder'],'pbx_url'=>$config['url'],'prospect_id'=>$p?(int)$p['id']:null,'user_id'=>$uid,'state'=>$row['recording']===''?'no_recording':'queued',
+   'error'=>'','mime'=>'','size'=>0,'attempts'=>0,'next_attempt'=>0,'lease_until'=>0,'created_at'=>time()];
+  $q=$this->db->getQueryBuilder();$q->insert('callcrm_pbx_recordings');foreach($row as $k=>$v)$q->setValue($k,$q->createNamedParameter($v));
+  try{$q->executeStatement();}catch(\Throwable $e){
+   $check=$this->db->getQueryBuilder();$check->select('id')->from('callcrm_pbx_recordings')->where($check->expr()->eq('source_key',$check->createNamedParameter($row['source_key'])));
+   if(!$check->executeQuery()->fetchOne())throw $e;
   }
  }
  public function recent(string $uid,int $after):array {

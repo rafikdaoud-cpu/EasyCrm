@@ -1,5 +1,33 @@
 # AI / maintainer handoff — announcements, presence and statistics
 
+## Envoi WhatsApp depuis la fiche et modèles approuvés — Call CRM 0.34.0
+
+Détails : `callcrm/WHATSAPP_ENVOI.md`. Bouton « Envoyer un message WhatsApp » sur la fiche
+(commercial de la fiche, superviseurs, admin), même sans conversation ; texte libre dans la
+fenêtre de 24 h, sinon modèle approuvé Meta avec variables et aperçu ; conversation fermée :
+modèle proposé. CRM `GET /api/wa/templates`, `POST /api/wa/prospect/{pid}/send`, `template`
+accepté par `/api/wa/{id}/send`. Service `wa-nextcloud` : `GET /templates`, `/send` modèle,
+WABA mémorisé depuis le webhook. Au 17/11/2026 le compte n'a **aucun modèle** : à créer dans
+le Gestionnaire WhatsApp. Déployé sur le VPS (service redémarré, version sans maintenance).
+Tests : `tests/callcrm-whatsapp-ui.cjs` + contrôle du contrôleur réel (rollback).
+
+## Appels en cours, fiche à la prise d'appel, onglet Enregistrements — Call CRM 0.33.0
+
+Détails : `callcrm/APPELS.md`. Le popup de rappel attend la fin d'un appel
+(appel lancé depuis la fiche ouverte jusqu'au résultat, 20 min max ; saisie non
+enregistrée ; notification Yeastar non terminée ; création de fiche ; autre
+fenêtre). Appel entrant décroché (30011 ANSWER/ANSWERED) : fiche accessible
+ouverte une fois, numéro inconnu → « Nouveau client » pré-rempli, jamais de
+doublon ni de navigation pendant une saisie. `incoming` renvoie `known`.
+Onglet « Enregistrements » admin/superviseur : `GET /api/yeastar/recordings/all`
+(filtres, 50 par page). Aucune migration. Tests : `tests/callcrm-calls-ui.cjs`.
+Constat VPS du 17/11/2026 : le P550 n'envoie que 30012 ; il faut ajouter 30011
+au Webhook pour la notification et l'ouverture automatique. Déployé sur le VPS
+en 0.33.0 (occ upgrade). Pas de portage dans l'édition EasyCrm.
+
+Attention déploiement : changer `<version>` met tout Nextcloud en « mise à jour
+requise » (503, Webhook compris) jusqu'à `occ upgrade` ; le lancer aussitôt.
+
 ## Message après composition — Call CRM 0.30.2
 
 À la demande utilisateur, le succès call/dial affiche un message role=status non
