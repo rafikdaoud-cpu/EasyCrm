@@ -58,23 +58,56 @@ class YeastarRecordings {
         $rows=$q->orderBy('id','DESC')->setFirstResult(max(0,$offset))->setMaxResults(51)->executeQuery()->fetchAll();
         return ['rows'=>array_map(fn($r)=>array_intersect_key($r,array_flip(['id','phone','extension','user_id','direction','call_status','started_at','talk_duration','state','error','size','created_at'])),array_slice($rows,0,50)), 'has_more'=>count($rows)>50];
     }
+    /** Filtres communs à la liste détaillée et à la liste groupée par numéro. */
+    private function filters(IQueryBuilder $q, array $f): void {
+        if (($f['q'] ?? '') !== '') { $like = '%' . $this->db->escapeLikeParameter($f['q']) . '%'; $q->andWhere($q->expr()->orX($q->expr()->like('r.phone', $q->createNamedParameter($like)), $q->expr()->like('p.lastname', $q->createNamedParameter($like)), $q->expr()->like('p.firstname', $q->createNamedParameter($like)), $q->expr()->like('r.extension', $q->createNamedParameter($like)))); }
+        if (($f['phone'] ?? '') !== '') $q->andWhere($q->expr()->eq('r.phone', $q->createNamedParameter($f['phone'])));
+        if (($f['direction'] ?? '') !== '') $q->andWhere($q->expr()->eq('r.direction', $q->createNamedParameter($f['direction'])));
+        if (($f['user'] ?? '') !== '') $q->andWhere($q->expr()->eq('r.user_id', $q->createNamedParameter($f['user'])));
+        if (($f['from'] ?? '') !== '') $q->andWhere($q->expr()->gte('r.started_at', $q->createNamedParameter($f['from'] . ' 00:00:00')));
+        if (($f['to'] ?? '') !== '') $q->andWhere($q->expr()->lte('r.started_at', $q->createNamedParameter($f['to'] . ' 23:59:59')));
+        if (!empty($f['audio'])) $q->andWhere($q->expr()->eq('r.state', $q->createNamedParameter('ready')));
+        if (($f['link'] ?? '') === 'linked') $q->andWhere($q->expr()->isNotNull('r.prospect_id'));
+        if (($f['link'] ?? '') === 'unlinked') $q->andWhere($q->expr()->isNull('r.prospect_id'));
+    }
     /** Liste filtrée de tous les appels (50 par page), avec le nom du client rattaché. */
     public function search(array $f, int $offset=0): array {
         $q=$this->db->getQueryBuilder();
         $q->select('r.id','r.phone','r.extension','r.user_id','r.direction','r.call_status','r.started_at','r.talk_duration','r.state','r.error','r.size','r.created_at','r.prospect_id','p.lastname','p.firstname')
           ->from('callcrm_pbx_recordings','r')->leftJoin('r','callcrm_prospects','p',$q->expr()->eq('p.id','r.prospect_id'));
-        $w=[];
-        if($f['q']!==''){$like='%'.$this->db->escapeLikeParameter($f['q']).'%';$w[]=$q->expr()->orX($q->expr()->like('r.phone',$q->createNamedParameter($like)),$q->expr()->like('p.lastname',$q->createNamedParameter($like)),$q->expr()->like('p.firstname',$q->createNamedParameter($like)),$q->expr()->like('r.extension',$q->createNamedParameter($like)));}
-        if($f['direction']!=='')$w[]=$q->expr()->eq('r.direction',$q->createNamedParameter($f['direction']));
-        if($f['user']!=='')$w[]=$q->expr()->eq('r.user_id',$q->createNamedParameter($f['user']));
-        if($f['from']!=='')$w[]=$q->expr()->gte('r.started_at',$q->createNamedParameter($f['from'].' 00:00:00'));
-        if($f['to']!=='')$w[]=$q->expr()->lte('r.started_at',$q->createNamedParameter($f['to'].' 23:59:59'));
-        if($f['audio'])$w[]=$q->expr()->eq('r.state',$q->createNamedParameter('ready'));
-        if($f['link']==='linked')$w[]=$q->expr()->isNotNull('r.prospect_id');
-        if($f['link']==='unlinked')$w[]=$q->expr()->isNull('r.prospect_id');
-        foreach($w as $c)$q->andWhere($c);
+        $this->filters($q, $f);
         $rows=$q->orderBy('r.id','DESC')->setFirstResult(max(0,$offset))->setMaxResults(51)->executeQuery()->fetchAll();
         return ['rows'=>array_map(function($r){$r['client']=$r['prospect_id']?trim(($r['lastname']??'').' '.($r['firstname']??'')):'';unset($r['lastname'],$r['firstname']);return $r;},array_slice($rows,0,50)),'has_more'=>count($rows)>50];
+    }
+    /**
+     * Même sélection, regroupée par numéro (50 numéros par page) : appels distincts (identifiant PBX), entrants,
+     * sortants, appels répondus par une personne (poste d'un commercial ou conversation ≥ $minTalk s), audios, dernier appel.
+     */
+    public function searchGrouped(array $f, int $minTalk, int $offset=0): array {
+        $q=$this->db->getQueryBuilder();$t=max(0,$minTalk);
+        $q->select('r.phone')
+          ->selectAlias($q->createFunction('COUNT(DISTINCT r.call_id)'),'calls')
+          ->selectAlias($q->createFunction("COUNT(DISTINCT CASE WHEN r.direction = 'inbound' THEN r.call_id END)"),'inbound')
+          ->selectAlias($q->createFunction("COUNT(DISTINCT CASE WHEN r.direction = 'outbound' THEN r.call_id END)"),'outbound')
+          ->selectAlias($q->createFunction("COUNT(DISTINCT CASE WHEN r.call_status = 'ANSWERED' AND (r.direction = 'outbound' OR r.user_id <> '' OR r.talk_duration >= $t) THEN r.call_id END)"),'answered')
+          ->selectAlias($q->createFunction("SUM(CASE WHEN r.state = 'ready' THEN 1 ELSE 0 END)"),'audios')
+          ->selectAlias($q->createFunction('MAX(r.created_at)'),'last_at')
+          ->selectAlias($q->createFunction('MIN(r.created_at)'),'first_at')
+          ->selectAlias($q->createFunction('MAX(r.prospect_id)'),'prospect_id')
+          ->from('callcrm_pbx_recordings','r')->leftJoin('r','callcrm_prospects','p',$q->expr()->eq('p.id','r.prospect_id'));
+        $this->filters($q, $f);
+        $rows=$q->groupBy('r.phone')->orderBy($q->createFunction('MAX(r.created_at)'),'DESC')->setFirstResult(max(0,$offset))->setMaxResults(51)->executeQuery()->fetchAll();
+        $rows=array_slice($rows,0,50);$names=[];
+        $ids=array_values(array_unique(array_filter(array_map(fn($r)=>(int)$r['prospect_id'],$rows))));
+        if ($ids) { $q=$this->db->getQueryBuilder(); foreach ($q->select('id','lastname','firstname')->from('callcrm_prospects')->where($q->expr()->in('id',$q->createNamedParameter($ids,IQueryBuilder::PARAM_INT_ARRAY)))->executeQuery()->fetchAll() as $p) $names[(int)$p['id']]=trim(($p['lastname']??'').' '.($p['firstname']??'')); }
+        return ['rows'=>array_map(fn($r)=>['phone'=>$r['phone'],'calls'=>(int)$r['calls'],'inbound'=>(int)$r['inbound'],'outbound'=>(int)$r['outbound'],'answered'=>(int)$r['answered'],
+            'audios'=>(int)$r['audios'],'last_at'=>(int)$r['last_at'],'first_at'=>(int)$r['first_at'],'prospect_id'=>$r['prospect_id']?(int)$r['prospect_id']:null,'client'=>$names[(int)$r['prospect_id']]??''],$rows),
+            'has_more'=>count($rows)===50 && $this->moreGroups($f,$offset)];
+    }
+    private function moreGroups(array $f, int $offset): bool {
+        $q=$this->db->getQueryBuilder();$q->select('r.phone')->from('callcrm_pbx_recordings','r')->leftJoin('r','callcrm_prospects','p',$q->expr()->eq('p.id','r.prospect_id'));
+        $this->filters($q,$f);
+        return (bool)$q->groupBy('r.phone')->setFirstResult($offset+50)->setMaxResults(1)->executeQuery()->fetchOne();
     }
     public function attach(int $id, int $pid): void { $this->update($id,['prospect_id'=>$pid]); }
     public function retry(int $id): void {

@@ -47,26 +47,35 @@ test('callback reminder waits while a call is being handled and appears once it 
  assert.equal(await check(),1,'shown once the call is finished');
 });
 
-test('recordings tab lists every call with filters, client link, audio and attachment for managers',async()=>{
+test('recordings tab groups calls by number, opens a number, and still offers the detailed list',async()=>{
  const dom=new JSDOM('<main></main>',{url:'https://cloud.example.test'}),document=dom.window.document,root=document.querySelector('main');
- const requests=[],opened=[];
+ const requests=[],opened=[];const ev=n=>new dom.window.Event(n);
  const rows=[{id:1,phone:'0770000001',extension:'1007',user_id:'alice',direction:'inbound',call_status:'ANSWERED',started_at:'2026-11-17 10:00:00',talk_duration:'42',state:'ready',prospect_id:42,client:'<b>Dupont</b>',created_at:1},
   {id:2,phone:'0770000002',extension:'6200',user_id:'',direction:'inbound',call_status:'NO ANSWER',started_at:'2026-11-17 10:05:00',talk_duration:'0',state:'no_recording',prospect_id:null,client:'',created_at:2}];
+ const groups=[{phone:'0770000001',calls:3,inbound:2,outbound:1,answered:1,audios:1,last_at:Math.floor(Date.now()/1000)-600,first_at:1,prospect_id:42,client:'<b>Dupont</b>'},
+  {phone:'0770000002',calls:1,inbound:1,outbound:0,answered:0,audios:0,last_at:Math.floor(Date.now()/1000)-60,first_at:1,prospect_id:null,client:''}];
  const ctx=vm.createContext({document,window:dom.window,Node:dom.window.Node,root,setTimeout,clearTimeout,URLSearchParams,API:'/apps/callcrm/api',fmt:String,confirm:()=>true,
+  agoTxt:t=>'il y a '+Math.round((Date.now()/1000-t)/60)+' min',
   me:{commerciaux:[{uid:'alice',name:'Alice'}]},detail:id=>opened.push(id),show:(...n)=>root.replaceChildren(...n.flat()),
-  api:async(path,opt)=>{requests.push([path,opt]);return path.startsWith('/yeastar/recordings/all')?{rows,has_more:true}:{ok:true};}});
+  api:async(path,opt)=>{requests.push([path,opt]);if(!path.startsWith('/yeastar/recordings/all'))return{ok:true};const q=new URLSearchParams(path.split('?')[1]);
+   if(q.get('group')==='1')return{rows:groups,has_more:true};if(q.get('phone'))return{rows:rows.filter(r=>r.phone===q.get('phone')),has_more:false};return{rows,has_more:true};}});
  vm.runInContext(part('const h =','async function api(')+part('function recordingsPage()','function yeastarSettingsCard()'),ctx);
  vm.runInContext('recordingsPage()',ctx);await tick();
- const q=new URLSearchParams(requests[0][0].split('?')[1]);assert.equal(q.get('audio'),'1');assert.match(q.get('from'),/^\d{4}-\d{2}-\d{2}$/);
- assert.equal(document.querySelectorAll('.crm-recording').length,2);assert.equal(document.querySelector('.crm-recording b'),null,'client name is text');
- assert.match(document.querySelector('.crm-recording').textContent,/Alice/);
- assert.equal(document.querySelector('audio').getAttribute('src'),'/apps/callcrm/api/yeastar/recordings/1/audio');
+ let q=new URLSearchParams(requests[0][0].split('?')[1]);assert.equal(q.get('group'),'1');assert.equal(q.get('audio'),'');assert.match(q.get('from'),/^\d{4}-\d{2}-\d{2}$/);
+ const g=document.querySelectorAll('.crm-group');assert.equal(g.length,2);
+ assert.match(g[0].querySelector('summary').textContent,/3appels.*2 entrants.*1 sortant.*1 sans réponse.*🎧 1/);
+ assert.equal(document.querySelector('.crm-group b'),null,'client name is text');
+ g[0].open=true;g[0].dispatchEvent(ev('toggle'));await tick();
+ assert.equal(new URLSearchParams(requests.at(-1)[0].split('?')[1]).get('phone'),'0770000001');
+ assert.equal(g[0].querySelectorAll('.crm-recording').length,1);assert.equal(g[0].querySelector('audio').getAttribute('src'),'/apps/callcrm/api/yeastar/recordings/1/audio');
+ const n=requests.length;g[0].open=false;g[0].dispatchEvent(ev('toggle'));g[0].open=true;g[0].dispatchEvent(ev('toggle'));await tick();assert.equal(requests.length,n,'loaded once');
+ [...document.querySelectorAll('button')].find(b=>b.textContent==='Afficher les numéros suivants').click();await tick();
+ assert.equal(new URLSearchParams(requests.at(-1)[0].split('?')[1]).get('offset'),'50');
+ const grp=[...document.querySelectorAll('label')].find(l=>/Regrouper par numéro/.test(l.textContent)).querySelector('input');grp.checked=false;grp.dispatchEvent(ev('change'));await tick();
+ q=new URLSearchParams(requests.at(-1)[0].split('?')[1]);assert.equal(q.get('group'),'');
+ assert.equal(document.querySelectorAll('.crm-recording').length,2);
  document.querySelector('.crm-recording a[href="#"]').click();assert.deepEqual(opened,[42]);
  const second=document.querySelectorAll('.crm-recording')[1];second.querySelector('input').value='42';
  [...second.querySelectorAll('button')].find(b=>b.textContent==='Rattacher au dossier').click();await tick();
  assert.equal(JSON.stringify(requests.find(([p])=>p==='/yeastar/recordings/2/attach')[1].body),'{"prospect_id":42}');
- const dir=document.querySelector('select[aria-label="Sens"]');dir.value='outbound';dir.dispatchEvent(new dom.window.Event('change'));await tick();
- assert.equal(new URLSearchParams(requests.at(-1)[0].split('?')[1]).get('direction'),'outbound');
- [...document.querySelectorAll('button')].find(b=>b.textContent==='Afficher les appels précédents').click();await tick();
- assert.equal(new URLSearchParams(requests.at(-1)[0].split('?')[1]).get('offset'),'50');
 });

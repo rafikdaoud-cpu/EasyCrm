@@ -42,3 +42,12 @@ Passer, Terminer) ; « Enregistrer et client suivant » avance dans la file ; bi
 `tests/callcrm-missed-ui.cjs` (jsdom) ; contrôle réel sur le VPS en transaction annulée : visibilité
 commercial / superviseur, prise unique, clôture, répartition, objectifs. Synchronisation exécutée sur les
 données réelles du 17/11/2026.
+
+## Regroupement par numéro (0.36.3)
+
+- Onglet Enregistrements : « Regrouper par numéro » activé par défaut (`group=1`) — une ligne par numéro
+  avec appels distincts (identifiant PBX), entrants, sortants, sans réponse d'une personne, audios et
+  dernier appel ; un numéro s'ouvre pour charger ses appels (`phone=` exact) avec écoute et rattachement.
+  Décocher revient à la liste détaillée appel par appel.
+- Statistiques, « Appels entrants : suivi » : une ligne par numéro (nombre d'appels, dernier, liste
+  dépliable) ; « Marquer traité » s'applique à tous les appels ouverts du numéro.
