@@ -55,6 +55,7 @@ WA_TOKEN = env("WA_ACCESS_TOKEN", required=True)          # jeton permanent (uti
 GRAPH_VERSION = env("WA_GRAPH_VERSION", "v25.0")
 GRAPH = f"https://graph.facebook.com/{GRAPH_VERSION}"
 WA_PHONE_NUMBER_ID = env("WA_PHONE_NUMBER_ID", "")        # ID du numéro (envoi des réponses du CRM)
+WA_WABA_ID = env("WA_WABA_ID", "")                        # compte WhatsApp Business (modèles) ; sinon appris du webhook
 
 NC_URL = env("NC_URL", required=True).rstrip("/")         # https://cloud.csmtaksit.dz
 NC_LOGIN = env("NC_LOGIN", required=True)                 # login AD du compte de service
@@ -530,7 +531,121 @@ def save_failed(msg, value, err, direction="in"):
         json.dump({"error": str(err), "msg": msg, "value": value, "direction": direction}, f, ensure_ascii=False, indent=2)
 
 
+# --------------------------------------------------------------------------- #
+# Modèles de messages approuvés (premier message / relance hors fenêtre de 24 h)
+# --------------------------------------------------------------------------- #
+WABA_FILE = os.path.join(DATA_DIR, "waba_id")
+_tpl_cache = {"at": 0.0, "data": None}
+
+
+def waba_id():
+    if WA_WABA_ID:
+        return WA_WABA_ID
+    try:
+        with open(WABA_FILE, encoding="utf-8") as f:
+            return f.read().strip()
+    except OSError:
+        return ""
+
+
+def remember_waba(payload):
+    """L'identifiant du compte WhatsApp Business est l'« entry.id » des webhooks Meta."""
+    for entry in payload.get("entry", []):
+        wid = str(entry.get("id", ""))
+        if re.fullmatch(r"\d{5,30}", wid) and wid != waba_id():
+            with open(WABA_FILE, "w", encoding="utf-8") as f:
+                f.write(wid)
+            log.info("Compte WhatsApp Business mémorisé pour les modèles")
+        return
+
+
+def template_params(text):
+    """Variables d'un texte de modèle : {{1}}, {{2}}… ou {{nom}}."""
+    seen = []
+    for v in re.findall(r"\{\{\s*([A-Za-z0-9_]+)\s*\}\}", text or ""):
+        if v not in seen:
+            seen.append(v)
+    return seen
+
+
+def list_templates():
+    if _tpl_cache["data"] is not None and time.time() - _tpl_cache["at"] < 600:
+        return _tpl_cache["data"]
+    wid = waba_id()
+    if not wid:
+        raise RuntimeError("Compte WhatsApp Business inconnu : renseignez WA_WABA_ID dans .env ou attendez le prochain message reçu.")
+    out, url, params = [], f"{GRAPH}/{wid}/message_templates", {"limit": 100, "fields": "name,status,language,category,components,parameter_format"}
+    while url:
+        r = wa.get(url, params=params, timeout=30)
+        j = r.json() if r.content else {}
+        if r.status_code >= 300:
+            raise RuntimeError((j.get("error") or {}).get("message") or f"HTTP {r.status_code}")
+        for t in j.get("data", []):
+            if t.get("status") != "APPROVED":
+                continue
+            comps = {c.get("type"): c for c in t.get("components", [])}
+            header, body = comps.get("HEADER") or {}, comps.get("BODY") or {}
+            buttons = (comps.get("BUTTONS") or {}).get("buttons", [])
+            # Pris en charge : en-tête texte (ou aucun), corps à variables, boutons sans variable
+            unsupported = ""
+            if header and header.get("format") not in (None, "TEXT"):
+                unsupported = "en-tête " + str(header.get("format")).lower()
+            elif any(template_params(b.get("url", "")) for b in buttons):
+                unsupported = "bouton à variable"
+            out.append({"name": t["name"], "language": t.get("language", ""), "category": t.get("category", ""),
+                        "named": t.get("parameter_format") == "NAMED",
+                        "header": header.get("text", "") if header.get("format") == "TEXT" else "",
+                        "header_params": template_params(header.get("text", "")) if header.get("format") == "TEXT" else [],
+                        "body": body.get("text", ""), "body_params": template_params(body.get("text", "")),
+                        "footer": (comps.get("FOOTER") or {}).get("text", ""),
+                        "buttons": [b.get("text", "") for b in buttons], "unsupported": unsupported})
+        url, params = (j.get("paging") or {}).get("next"), None
+    out.sort(key=lambda t: (t["name"], t["language"]))
+    _tpl_cache.update(at=time.time(), data=out)
+    return out
+
+
+def template_payload(to, tpl, values):
+    """Construit le message « template » ; renvoie (payload, texte lisible)."""
+    found = next((t for t in list_templates() if t["name"] == tpl.get("name") and t["language"] == tpl.get("language")), None)
+    if not found:
+        raise ValueError("Modèle introuvable ou non approuvé")
+    if found["unsupported"]:
+        raise ValueError(f"Modèle non pris en charge par le CRM ({found['unsupported']})")
+    comps, text = [], found["body"]
+
+    def params(names, part):
+        ps = []
+        for n in names:
+            v = str(values.get(part, {}).get(n, "")).strip()
+            if not v:
+                raise ValueError(f"Variable {{{{{n}}}}} du modèle à remplir")
+            if len(v) > 1000 or "\n" in v or "\t" in v or "    " in v:
+                raise ValueError(f"Variable {{{{{n}}}}} : une seule ligne, 1000 caractères maximum")
+            p = {"type": "text", "text": v}
+            if found["named"]:
+                p["parameter_name"] = n
+            ps.append(p)
+        return ps
+    if found["header_params"]:
+        comps.append({"type": "header", "parameters": params(found["header_params"], "header")})
+    if found["body_params"]:
+        comps.append({"type": "body", "parameters": params(found["body_params"], "body")})
+    for n in found["body_params"]:
+        text = re.sub(r"\{\{\s*" + re.escape(n) + r"\s*\}\}", lambda _m: values["body"][n].strip(), text)
+    head = found["header"]
+    for n in found["header_params"]:
+        head = re.sub(r"\{\{\s*" + re.escape(n) + r"\s*\}\}", lambda _m: values["header"][n].strip(), head)
+    readable = "\n".join(x for x in (head and "*" + head + "*", text, found["footer"]) if x)
+    payload = {"to": to, "type": "template", "template": {"name": found["name"], "language": {"code": found["language"]}, **({"components": comps} if comps else {})}}
+    return payload, readable
+
+
 def process_payload(payload):
+    try:
+        remember_waba(payload)
+    except Exception as e:  # noqa: BLE001
+        log.warning("Compte WhatsApp Business non mémorisé : %s", e)
     for entry in payload.get("entry", []):
         for change in entry.get("changes", []):
             field = change.get("field")
@@ -622,6 +737,19 @@ def receive():
     return "OK", 200
 
 
+@app.get("/templates")
+def templates():
+    """Modèles approuvés, pour callcrm uniquement (127.0.0.1 + secret)."""
+    if request.headers.get("X-Forwarded-For") or request.headers.get("X-Forwarded-Host"):
+        abort(404)
+    if not CRM_SECRET or not hmac.compare_digest(request.headers.get("X-CRM-Secret", ""), CRM_SECRET):
+        abort(403)
+    try:
+        return jsonify(templates=list_templates())
+    except Exception as e:  # noqa: BLE001
+        return jsonify(error=str(e)), 502
+
+
 @app.post("/send")
 def send():
     """Appelé uniquement par callcrm sur 127.0.0.1 (refusé s'il arrive par Apache)."""
@@ -637,7 +765,32 @@ def send():
     fkey = folder_key("" if BSUID_RE.match(to) else to, to if BSUID_RE.match(to) else "")
     text = str(j.get("text", "")).strip()
     f = j.get("file") or None
+    tpl = j.get("template") or None
     who = str(j.get("user_name") or j.get("user") or "CRM")
+    if tpl:
+        if not to or not isinstance(tpl, dict):
+            return jsonify(error="Destinataire ou modèle manquant"), 400
+        try:
+            payload, readable = template_payload(to, tpl, j.get("values") or {})
+        except ValueError as e:
+            return jsonify(error=str(e)), 400
+        except Exception as e:  # noqa: BLE001
+            return jsonify(error=str(e)), 502
+        try:
+            wamid = wa_send(WA_PHONE_NUMBER_ID, payload)
+        except Exception as e:  # noqa: BLE001
+            log.warning("Modèle vers %s refusé : %s", to, e)
+            return jsonify(error=str(e)), 502
+        try:
+            ts = datetime.now(TZ)
+            nc.ensure_dir(NC_ROOT)
+            nc.ensure_dir(f"{NC_ROOT}/{fkey}")
+            with phone_lock(fkey):
+                hist_append(f"{NC_ROOT}/{fkey}/historique.txt", f"[{ts:%Y-%m-%d %H:%M:%S}] → {to} | envoyé par {who} | modèle {tpl.get('name')} | {readable}")
+        except Exception as e:  # noqa: BLE001
+            log.warning("Historique non mis à jour pour %s : %s", to, e)
+        log.info("Modèle %s envoyé à %s par %s (%s)", tpl.get("name"), to, who, wamid)
+        return jsonify(wamid=wamid, text=readable)
     if not to or (not text and not f):
         return jsonify(error="Destinataire ou contenu manquant"), 400
     saved = ""

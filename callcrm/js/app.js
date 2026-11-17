@@ -746,7 +746,7 @@ async function detail(id) {
         p.phone && !me.can.call ? h('p', {}, '📞 ' + p.phone) : '',
         p.phone && me.can.call ? h('a', {class:'big call', href:'tel:' + p.phone}, '📞 Appeler ' + p.phone) : (p.phone ? '' : h('p', {class:'muted'}, 'Aucun numéro de téléphone renseigné.')),
         p.phone && me.can.call ? h('a', {class:'big', style:'background:#25D366;color:#fff', target:'_blank', rel:'noopener noreferrer', href:'https://wa.me/' + waNum(p.phone)}, '💬 WhatsApp ' + p.phone) : '',
-        p.phone ? waOnProspect(id) : '',
+        p.phone ? waOnProspect(id, p) : '',
         h('button', {type:'button', class:'sim-open', onclick: () => openSim(p)}, '🧮 Simulateur de cuisine'),
         me.can.call ? h('div', {class:'res'}, RES.map(r => h('button', {'data-r': r, style:'--sc:' + (STC[r] || '#888') + ';--si:' + inkOn(STC[r] || '#888'), onclick: () => pick(r)}, ST[r]))) : h('p', {class:'muted'}, 'Consultation seule.'),
         form, asg,
@@ -1969,7 +1969,8 @@ async function waConv(id, back) {
   const reply = !d.can.reply ? h('p', {class:'muted'}, 'Consultation seule.')
     : (me.role === 'commercial' && c0.owner !== me.uid) ? h('p', {class:'muted'}, 'Conversation d’un autre commercial.')
     : c0.window_open ? h('div', {class:'card'}, txt, h('div', {class:'bar', style:'margin-top:6px;align-items:center'}, file, sendBtn), h('div', {class:'muted'}, 'Ctrl+Entrée pour envoyer · photos JPG/PNG et documents (PDF, Word, Excel) · 50 Mo max.'), msg)
-    : h('div', {class:'card'}, h('p', {}, 'Le client n’a pas écrit depuis plus de 24 h : WhatsApp n’autorise plus de réponse libre depuis le CRM.'),
+    : h('div', {class:'card'}, h('p', {}, 'Le client n’a pas écrit depuis plus de 24 h : réponse libre impossible, mais vous pouvez envoyer un modèle approuvé.'),
+        waComposer({windowOpen:false, clientName: c0.prospect_name || c0.name || '', send: body => api('/wa/' + id + '/send', {method:'POST', body}), done: async () => { paint(await api('/wa/' + id)); }}),
         c0.phone ? h('a', {class:'big', href:'tel:' + c0.phone}, '📞 Appeler ' + c0.phone) : '',
         c0.username ? '' : h('a', {class:'big', style:'background:#25D366;color:#fff', target:'_blank', rel:'noopener noreferrer', href:'https://wa.me/' + c0.wa_id}, '💬 Écrire depuis mon WhatsApp'));
   // ---- actions superviseur ----
@@ -2001,16 +2002,80 @@ async function waConv(id, back) {
   }, 10000);
 }
 /** Bloc WhatsApp de la fiche prospect */
-function waOnProspect(pid) {
+const waCanSend = () => ['admin', 'superviseur', 'commercial'].includes(me.role);
+function waOnProspect(pid, p = {}) {
   const el = h('div');
+  const canSend = waCanSend() && (me.role !== 'commercial' || p.assigned_to === me.uid);
+  const write = c => h('button', {class:'primary', style:'margin-top:6px', onclick: () => waSendDialog(pid, p, c)}, '✉ Envoyer un message WhatsApp');
   api('/wa/prospect/' + pid).then(r => {
     const c = r.conv;
-    if (!c) return;
+    if (!c) { if (canSend) el.replaceChildren(h('div', {class:'card'}, h('strong', {}, '💬 WhatsApp'), h('div', {class:'muted'}, 'Aucune conversation avec ce client. Le premier message utilise un modèle approuvé par WhatsApp.'), write(null))); return; }
     el.replaceChildren(h('div', {class:'card'}, h('strong', {}, '💬 Conversation WhatsApp'), c.unread ? h('span', {class:'ovd'}, String(c.unread)) : '',
       h('div', {class:'muted wa-prev'}, fmt(c.last_msg_at) + ' — ' + (c.preview || '')), h('div', {class:'muted'}, waWin(c)),
-      h('button', {style:'margin-top:6px', onclick: () => waConv(c.id, () => detail(pid))}, 'Ouvrir la conversation')));
+      h('div', {class:'bar'}, h('button', {style:'margin-top:6px', onclick: () => waConv(c.id, () => detail(pid))}, 'Ouvrir la conversation'), canSend ? write(c) : '')));
   }).catch(() => {});
   return el;
+}
+/** Fenêtre d'envoi depuis la fiche : message libre si le client a écrit depuis moins de 24 h, sinon modèle approuvé. */
+function waSendDialog(pid, p, c) {
+  const close = () => overlay.remove();
+  const composer = waComposer({windowOpen: !!(c && c.window_open), clientName: [p.firstname, p.lastname].filter(Boolean).join(' ') || p.lastname || '',
+    send: body => api('/wa/prospect/' + pid + '/send', {method:'POST', body}),
+    done: r => { close(); waConv(r.conv || c.id, () => detail(pid)); }});
+  const overlay = h('div', {class:'crm-dialog-bg'}, h('section', {class:'crm-dialog', role:'dialog', 'aria-modal':'true', 'aria-label':'Envoyer un message WhatsApp'},
+    h('div', {class:'bar'}, h('h2', {}, '💬 WhatsApp · ' + (p.phone || '')), h('button', {'aria-label':'Fermer', onclick: close}, '×')), composer));
+  root.append(overlay);
+  overlay.querySelector('textarea, select')?.focus();
+}
+/** Composeur : texte libre (fenêtre de 24 h ouverte) ou modèle approuvé avec ses variables. */
+function waComposer({windowOpen, clientName, send, done}) {
+  const msg = h('div', {class:'err', role:'status'}), box = h('div', {class:'wa-composer'});
+  const run = async (button, body) => {
+    msg.className = 'err'; msg.textContent = ''; button.disabled = true;
+    try { const r = await send(body); done(r || {}); } catch (e) { msg.textContent = e.message; } finally { button.disabled = false; }
+  };
+  const tplPart = () => {
+    const part = h('div'), sel = h('select', {'aria-label':'Modèle WhatsApp'}, h('option', {value:''}, 'Chargement des modèles…')), fields = h('div'), preview = h('div', {class:'wa-b out wa-tpl-preview'});
+    let list = [];
+    const fill = (txt, part, vals) => (txt || '').replace(/\{\{\s*([A-Za-z0-9_]+)\s*\}\}/g, (m, k) => (vals[part][k] || '').trim() || m);
+    const values = () => { const v = {header:{}, body:{}}; fields.querySelectorAll('input[data-part]').forEach(i => { v[i.dataset.part][i.dataset.k] = i.value; }); return v; };
+    const paint = () => { const t = list[sel.value]; if (!t) { preview.replaceChildren(); return; } const v = values();
+      preview.replaceChildren(t.header ? h('strong', {}, fill(t.header, 'header', v)) : '', h('div', {class:'wa-t'}, fill(t.body, 'body', v)), t.footer ? h('div', {class:'muted'}, t.footer) : '', ...(t.buttons || []).map(b => h('div', {class:'muted'}, '▸ ' + b))); };
+    const pick = () => {
+      const t = list[sel.value]; fields.replaceChildren();
+      if (t) for (const [partName, names] of [['header', t.header_params], ['body', t.body_params]]) names.forEach((k, i) => {
+        const guess = partName === 'body' && i === 0 && /^(1|nom|name|prenom|client|first_?name)$/i.test(k) ? clientName : '';
+        const input = h('input', {type:'text', maxlength:1000, value:guess, 'data-part':partName, 'data-k':k, 'aria-label':'Variable ' + k});
+        input.addEventListener('input', paint);
+        fields.append(h('label', {}, (partName === 'header' ? 'En-tête · ' : '') + 'Variable {{' + k + '}}', input));
+      });
+      paint();
+    };
+    sel.addEventListener('change', pick);
+    const button = h('button', {class:'primary', onclick: () => {
+      const t = list[sel.value]; if (!t) { msg.textContent = 'Choisissez un modèle.'; return; }
+      const v = values(); const empty = Object.entries(v).flatMap(([pp, o]) => Object.entries(o).filter(([, x]) => !x.trim()).map(([k]) => k));
+      if (empty.length) { msg.textContent = 'Remplissez la variable {{' + empty[0] + '}}.'; return; }
+      run(button, {template:t.name, language:t.language, values:v});
+    }}, 'Envoyer le modèle');
+    api('/wa/templates').then(r => {
+      list = r.templates || [];
+      sel.replaceChildren(h('option', {value:''}, list.length ? '— Choisir un modèle approuvé —' : 'Aucun modèle approuvé sur le compte WhatsApp'),
+        ...list.map((t, i) => h('option', {value:String(i), disabled: !!t.unsupported}, t.name + ' · ' + t.language + (t.unsupported ? ' (non pris en charge : ' + t.unsupported + ')' : ''))));
+    }).catch(e => { sel.replaceChildren(h('option', {value:''}, 'Modèles indisponibles')); msg.textContent = e.message; });
+    part.append(h('p', {class:'muted'}, 'Hors fenêtre de 24 h, WhatsApp n’accepte qu’un modèle approuvé dans le gestionnaire WhatsApp de Meta.'), sel, fields, preview, h('div', {class:'bar'}, button));
+    return part;
+  };
+  if (windowOpen) {
+    const txt = h('textarea', {rows:4, maxlength:4000, placeholder:'Votre message…', 'aria-label':'Message WhatsApp'});
+    const button = h('button', {class:'primary', onclick: () => { if (!txt.value.trim()) { msg.textContent = 'Écrivez un message.'; return; } run(button, {text: txt.value.trim()}); }}, 'Envoyer');
+    txt.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) button.click(); });
+    const more = h('details', {}, h('summary', {}, 'Utiliser plutôt un modèle'));
+    more.addEventListener('toggle', () => { if (more.open && more.childElementCount === 1) more.append(tplPart()); }, {once:false});
+    box.append(h('p', {class:'muted'}, 'Le client a écrit depuis moins de 24 h : message libre possible.'), txt, h('div', {class:'bar'}, button), more);
+  } else box.append(tplPart());
+  box.append(msg);
+  return box;
 }
 
 function callDone() { callBusy = {pid:null, until:0}; setTimeout(checkReminders, 1500); }

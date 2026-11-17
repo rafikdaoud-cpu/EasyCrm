@@ -72,6 +72,19 @@ DNS : l'enregistrement `wa` se crée chez Octenium (la zone WHM locale n'est pas
    ```
 8. Passe l'app en mode **Live** (en mode développement, seuls les numéros de test déclenchent le webhook).
 
+## 3 bis. Envoi depuis le CRM : modèles de messages
+
+Le CRM (Call CRM 0.34.0) écrit au client via `/send` : texte libre si le client a écrit depuis
+moins de 24 h, sinon **modèle approuvé** (`template`, `language`, `values`). `GET /templates`
+renvoie les modèles APPROVED du compte (cache 10 min). Les deux routes n'acceptent que
+127.0.0.1 avec le secret partagé `CRM_SECRET`.
+
+- Identifiant du compte WhatsApp Business : `WA_WABA_ID` dans `.env` (facultatif). Sinon il
+  est mémorisé dans `data/waba_id` au premier webhook reçu (`entry.id`).
+- Les modèles se créent dans le Gestionnaire WhatsApp (business.facebook.com → WhatsApp
+  Manager → Modèles de message) et doivent être approuvés par Meta. Pris en charge : en-tête
+  texte (ou aucun), variables `{{1}}` ou nommées, boutons sans variable.
+
 ## 4. Test
 
 Envoie une photo avec une légende à ton numéro Business depuis un autre téléphone :

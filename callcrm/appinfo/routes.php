@@ -87,6 +87,8 @@ return ['routes' => [
 	['name' => 'wa#list', 'url' => '/api/wa', 'verb' => 'GET'],
 	['name' => 'wa#counters', 'url' => '/api/wa/counters', 'verb' => 'GET'],
 	['name' => 'wa#forProspect', 'url' => '/api/wa/prospect/{pid}', 'verb' => 'GET'],
+	['name' => 'wa#sendProspect', 'url' => '/api/wa/prospect/{pid}/send', 'verb' => 'POST'],
+	['name' => 'wa#templates', 'url' => '/api/wa/templates', 'verb' => 'GET'],
 	['name' => 'wa#file', 'url' => '/api/wa/file/{mid}', 'verb' => 'GET'],
 	['name' => 'wa#show', 'url' => '/api/wa/{id}', 'verb' => 'GET'],
 	['name' => 'wa#send', 'url' => '/api/wa/{id}/send', 'verb' => 'POST'],

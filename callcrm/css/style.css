@@ -363,3 +363,4 @@ body[data-themes*="dark"] #callcrm,body[data-theme-dark] #callcrm{--brand:var(--
  #callcrm .dashboard-table td::before{content:attr(data-label);display:block;font-weight:600;margin-bottom:6px}
 }
 @media(max-width:480px){#callcrm .dashboard-table tbody tr{grid-template-columns:1fr}}
+#callcrm .wa-composer select,#callcrm .wa-composer textarea{width:100%;box-sizing:border-box;margin:6px 0}#callcrm .wa-composer label{display:block;margin:8px 0}#callcrm .wa-composer input{width:100%;box-sizing:border-box}#callcrm .wa-tpl-preview:not(:empty){margin:10px 0 10px auto;max-width:100%}

@@ -1,5 +1,16 @@
 # AI / maintainer handoff — announcements, presence and statistics
 
+## Envoi WhatsApp depuis la fiche et modèles approuvés — Call CRM 0.34.0
+
+Détails : `callcrm/WHATSAPP_ENVOI.md`. Bouton « Envoyer un message WhatsApp » sur la fiche
+(commercial de la fiche, superviseurs, admin), même sans conversation ; texte libre dans la
+fenêtre de 24 h, sinon modèle approuvé Meta avec variables et aperçu ; conversation fermée :
+modèle proposé. CRM `GET /api/wa/templates`, `POST /api/wa/prospect/{pid}/send`, `template`
+accepté par `/api/wa/{id}/send`. Service `wa-nextcloud` : `GET /templates`, `/send` modèle,
+WABA mémorisé depuis le webhook. Au 17/11/2026 le compte n'a **aucun modèle** : à créer dans
+le Gestionnaire WhatsApp. Déployé sur le VPS (service redémarré, version sans maintenance).
+Tests : `tests/callcrm-whatsapp-ui.cjs` + contrôle du contrôleur réel (rollback).
+
 ## Appels en cours, fiche à la prise d'appel, onglet Enregistrements — Call CRM 0.33.0
 
 Détails : `callcrm/APPELS.md`. Le popup de rappel attend la fin d'un appel
