@@ -18,3 +18,5 @@ This repository has independent Nextcloud applications and Odoo editions. Read [
 - Document reception: preserve originals, never expose storage tokens or mailbox credentials. Respect current client assignment on every download. Mailbox credentials use Nextcloud ICrypto; collection is disabled by default. Read docs/DOCUMENTS.md for IMAP, WhatsApp and conversion requirements.
 
 - Client document links (Call CRM only, `callcrm/COLLECTE.md`): public token pages must keep hashed tokens, brute-force protection, content checks and owner-folder delivery. The EasyCrm edition does not have this feature yet; port it deliberately if requested.
+
+- VPS CSM Taksit : déployer Call CRM et wa-nextcloud uniquement avec `tools/deploy-vps.sh` (commande `crm-deploy` sur le VPS) depuis `main` ; ne jamais modifier les fichiers en ligne à la main. Voir docs/DEPLOY_NEXTCLOUD.md.

@@ -7,6 +7,32 @@ P550 et saisir les paramètres. Activer l’intégration, tester l’API et conf
 
 Versions de ce lot : **Call CRM 0.25.1** et **EasyCrm 1.6.1**. Les deux applications sont indépendantes : ni les tables, ni les rôles, ni les préférences ne sont partagés.
 
+## Déploiement sur le VPS CSM Taksit : uniquement depuis GitHub
+
+Ne plus modifier `custom_apps/callcrm` ni `wa-nextcloud/app.py` à la main. Le chemin unique est :
+commit et push sur `main` (en augmentant `<version>` de `callcrm/appinfo/info.xml` si Call CRM change),
+puis sur le VPS :
+
+```sh
+crm-deploy check                 # commit déployé, écarts du VPS, commits en attente sur GitHub
+crm-deploy deploy --dry-run      # ce qui serait fait
+crm-deploy deploy                # déploie origin/main (callcrm puis wa-nextcloud)
+crm-deploy deploy --tests        # idem après la suite complète de tests
+crm-deploy deploy <commit|tag>   # une version précise (doit être dans main, sauf --force)
+crm-deploy rollback              # remet la dernière sauvegarde de callcrm (code seulement)
+```
+
+`crm-deploy` appelle `tools/deploy-vps.sh` du clone `/root/easycrm` (clé de déploiement GitHub en
+écriture). Garde-fous : refus si le VPS a été modifié à la main depuis le dernier déploiement (liste
+des fichiers ; `--force` pour écraser), si le code change sans nouvelle version, si la syntaxe PHP /
+JavaScript / Python est invalide, si `occ` ne répond pas, si le clone a des modifications locales, ou
+si un autre déploiement est en cours. Sauvegarde avant chaque déploiement dans `/root/archives/deploy`
+(5 dernières). `occ upgrade` seulement en cas de migration ou de changement d'`info.xml` autre que la
+version ; sinon la version est enregistrée avant la copie, sans fenêtre de maintenance. wa-nextcloud :
+copie d'`app.py`, redémarrage du service, contrôle de santé, ancienne version remise si échec. Journal :
+`/var/log/callcrm-deploy.log` ; commit déployé dans `/root/archives/deploy/state` et dans l'appconfig
+`callcrm/deployed_commit`. Le retour en arrière n'annule pas une migration déjà passée.
+
 ## Préparer et vérifier
 
 1. Lire `AI_HANDOFF.md`, relever la version actuellement installée et comparer le code du serveur aux modifications locales éventuelles. Conserver ces personnalisations ; ne pas écraser un serveur sans les vérifier.
