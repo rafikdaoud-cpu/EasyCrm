@@ -27,8 +27,29 @@ class Prefs {
 			'cb_from' => self::hm($from) !== null ? $from : '', 'cb_to' => self::hm($to) !== null ? $to : '',
 			'cb_gap' => max(0, min(1440, (int)$c->getAppValue('callcrm', 'cb_gap', '60'))),
 			'goal' => max(0, min(1000, (int)$c->getAppValue('callcrm', 'goal', '0'))),
-			'tz' => $tz, 'reasons' => array_values($reasons),
+			'tz' => $tz, 'reasons' => array_values($reasons), 'wa_quick' => self::waQuick(),
 		];
+	}
+	/** Objectifs d'appels par commercial : [uid => ['day' => n, 'week' => n]] ; 0 = objectif général (jour) ou aucun (semaine). */
+	/** Réponses WhatsApp rapides proposées aux commerciaux ({nom} = nom du client). */
+	public static function waQuick(): array {
+		$l = json_decode((string)self::cfg()->getAppValue('callcrm', 'wa_quick', ''), true);
+		return is_array($l) ? array_values(array_filter($l, 'is_string')) : [];
+	}
+	public static function goals(): array {
+		$g = json_decode((string)self::cfg()->getAppValue('callcrm', 'goals', ''), true);
+		return is_array($g) ? $g : [];
+	}
+	public static function goalFor(string $uid): array {
+		$g = self::goals()[$uid] ?? [];
+		$day = (int)($g['day'] ?? 0);
+		return ['day' => $day > 0 ? $day : self::all()['goal'], 'week' => (int)($g['week'] ?? 0), 'personal' => $day > 0];
+	}
+	public static function setGoal(string $uid, int $day, int $week): void {
+		$g = self::goals();
+		$day = max(0, min(1000, $day)); $week = max(0, min(5000, $week));
+		if ($day === 0 && $week === 0) unset($g[$uid]); else $g[$uid] = ['day' => $day, 'week' => $week];
+		self::cfg()->setAppValue('callcrm', 'goals', json_encode($g));
 	}
 	public static function save(array $in): array {
 		$c = self::cfg(); $cur = self::all(); $err = null;
@@ -46,6 +67,11 @@ class Prefs {
 		if (isset($in['tz'])) {
 			$tz = trim((string)$in['tz']);
 			try { new \DateTimeZone($tz); $c->setAppValue('callcrm', 'tz', $tz); } catch (\Throwable $e) { throw new \InvalidArgumentException('Fuseau horaire invalide : ' . $tz); }
+		}
+		if (isset($in['wa_quick'])) {
+			$l = is_array($in['wa_quick']) ? $in['wa_quick'] : preg_split('/\R{2,}/u', (string)$in['wa_quick']);
+			$l = array_values(array_unique(array_filter(array_map(fn($x) => mb_substr(trim((string)$x), 0, 700), $l), fn($x) => $x !== '')));
+			$c->setAppValue('callcrm', 'wa_quick', json_encode(array_slice($l, 0, 20), JSON_UNESCAPED_UNICODE));
 		}
 		if (isset($in['reasons'])) {
 			$l = is_array($in['reasons']) ? $in['reasons'] : preg_split('/\R/u', (string)$in['reasons']);

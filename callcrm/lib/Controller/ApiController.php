@@ -274,7 +274,7 @@ class ApiController extends Controller {
 	public function saveCallPrefs(): JSONResponse {
 		if (!$this->a->can('fields')) { return $this->deny(); }
 		$in = [];
-		foreach (['max_callbacks', 'cb_from', 'cb_to', 'cb_gap', 'goal', 'tz', 'reasons'] as $k) { $v = $this->request->getParam($k); if ($v !== null) { $in[$k] = $v; } }
+		foreach (['max_callbacks', 'cb_from', 'cb_to', 'cb_gap', 'goal', 'tz', 'reasons', 'wa_quick'] as $k) { $v = $this->request->getParam($k); if ($v !== null) { $in[$k] = $v; } }
 		try { $r = Prefs::save($in); } catch (\InvalidArgumentException $e) { return $this->err($e->getMessage()); }
 		$this->s->audit($this->a->uid(), 'settings', null, 'Réglages des appels modifiés');
 		return new JSONResponse($r + ['prefs' => $r]);
@@ -287,7 +287,14 @@ class ApiController extends Controller {
 		$p = Prefs::all();
 		$sc = $this->a->role() === 'commercial' ? $this->a->uid() : $this->scope();
 		$d = (new \DateTime('now', new \DateTimeZone($p['tz'])))->setTime(0, 0, 0);
-		return new JSONResponse(['overdue' => $this->s->overdueCount($sc, time()), 'today' => $this->a->role() === 'commercial' ? ($this->s->callsSince($this->a->uid(), $d->getTimestamp())[$this->a->uid()] ?? 0) : null, 'goal' => $p['goal']]);
+		$out = ['overdue' => $this->s->overdueCount($sc, time()), 'today' => null, 'goal' => $p['goal']];
+		if ($this->a->role() === 'commercial') {
+			$uid = $this->a->uid(); $g = Prefs::goalFor($uid);
+			$w = (clone $d)->modify('monday this week');
+			$out = ['overdue' => $out['overdue'], 'today' => $this->s->callsSince($uid, $d->getTimestamp())[$uid] ?? 0, 'goal' => $g['day'],
+				'week' => $this->s->callsSince($uid, $w->getTimestamp())[$uid] ?? 0, 'week_goal' => $g['week']];
+		}
+		return new JSONResponse($out);
 	}
 
 	/** Alerte doublon à la saisie : le numéro existe-t-il déjà ? */

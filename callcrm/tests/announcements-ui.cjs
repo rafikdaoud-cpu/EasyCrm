@@ -21,7 +21,7 @@ function setup(role = 'admin') {
     ${source.slice(source.indexOf('function nav()'), source.indexOf('const modeOpts'))}
     ${source.slice(source.indexOf('const PRESENCE_LABELS'), source.indexOf('function announcementCard()'))}
     ${source.slice(source.indexOf('function announcementCard()'), source.indexOf('function admin()'))}
-    globalThis.ui = {announcementCard, checkAnnouncements, nav, go, presenceControl, updateMyPresence, presenceBoard, refreshPresenceBoard, personalTimesCard, refreshPersonalTimes, myDay, refreshMyDay, callResponsesTable, openCommercialMessage, sortedCommercials, presencePeriodFilter, configure:(statuses, can) => { me.statuses = statuses; me.can = can; applyStatuses(); }, getPopup:() => popup};`, context);
+    globalThis.ui = {announcementCard, checkAnnouncements, nav, dossierTabs, go, presenceControl, updateMyPresence, presenceBoard, refreshPresenceBoard, personalTimesCard, refreshPersonalTimes, myDay, refreshMyDay, callResponsesTable, openCommercialMessage, sortedCommercials, presencePeriodFilter, configure:(statuses, can) => { me.statuses = statuses; me.can = can; applyStatuses(); }, getPopup:() => popup};`, context);
   return {dom, document:dom.window.document, calls, context, ui:context.ui};
 }
 const tick = () => new Promise(resolve => setImmediate(resolve));
@@ -91,7 +91,7 @@ test('poll failure retries and concurrent polls do not create duplicate popups',
   assert.equal(document.querySelectorAll('[role=dialog]').length,1);
 });
 
-test('client states grouped under Dossiers Clients and reopen on À traiter', () => {
+test('client states are tabs above the list; Dossiers Clients reopens on À traiter', () => {
   const {ui, context} = setup('admin');
   ui.configure([{key:'rappel', label:'Rappel', result:true, active:true, callback:true},
     {key:'interesse', label:'Intéressé', result:true, active:true},
@@ -100,22 +100,24 @@ test('client states grouped under Dossiers Clients and reopen on À traiter', ()
   let navigation = ui.nav();
   assert.equal(context.lastList,'nouveaux');
   assert.equal(navigation.querySelector('.nav button.on').textContent,'Dossiers Clients');
-  assert.equal(navigation.querySelector('.dossier-states button.on').textContent,'À traiter');
-  assert.deepEqual(Array.from(navigation.querySelectorAll('.dossier-states button'), b => b.textContent),
-    ['À traiter','À rappeler','Intéressé','Tous']);
+  assert.equal(navigation.querySelector('.dossier-states'),null,'states are no longer in the sidebar');
+  assert.ok(Array.from(navigation.querySelectorAll('.crm-nav-sec'), s => s.textContent).includes('Clients'),'sidebar is grouped in sections');
+  let tabs = ui.dossierTabs();
+  assert.equal(tabs.querySelector('button.on').textContent,'À traiter');
+  assert.equal(tabs.querySelector('button.on').getAttribute('aria-pressed'),'true');
+  assert.deepEqual(Array.from(tabs.querySelectorAll('button'), b => b.textContent), ['À traiter','À rappeler','Intéressé','Tous']);
   assert.equal(navigation.querySelector('.nav button[data-k="rappels"]'),null);
-  navigation.querySelector('.dossier-states button[data-k="st_interesse"]').click();
+  tabs.querySelector('button[data-k="st_interesse"]').click();
   assert.equal(context.lastList,'st_interesse');
-  assert.equal(ui.nav().querySelector('.dossier-states button.on').textContent,'Intéressé');
+  assert.equal(ui.dossierTabs().querySelector('button.on').textContent,'Intéressé');
   ui.go('stats'); navigation = ui.nav();
-  assert.equal(navigation.querySelector('.dossier-states'),null);
   navigation.querySelector('.nav button[data-k="dossiers"]').click();
   assert.equal(context.lastList,'nouveaux');
 });
 test('commercial keeps permitted states without the all-clients shortcut', () => {
   const {ui} = setup('commercial');
   ui.configure([], {all:false}); ui.go('dossiers');
-  assert.deepEqual(Array.from(ui.nav().querySelectorAll('.dossier-states button'), b => b.textContent), ['À traiter']);
+  assert.deepEqual(Array.from(ui.dossierTabs().querySelectorAll('button'), b => b.textContent), ['À traiter']);
 });
 
 test('commercial heartbeat and pause button use server state; failed pause does not claim success', async () => {

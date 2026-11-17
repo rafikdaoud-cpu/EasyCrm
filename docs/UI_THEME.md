@@ -1,5 +1,28 @@
 # Thème appliqué — Call CRM 0.25.1 / EasyCrm 1.6.1
 
+## Interface 0.35 (Call CRM seulement) — 17/11/2026
+
+Refonte « claire et aérée, pensée pour l'ordinateur » validée sur maquettes par l'utilisateur.
+Styles en fin de `callcrm/css/style.css` (bloc « Interface 0.35 »), accent `#2f5ec4`
+(`#7f9ef0` en thème sombre), surfaces et bordures issues des variables Nextcloud.
+
+- Navigation : barre latérale en sections (Travail, Clients, Outils, Gestion), utilisateur en bas,
+  recherche globale dans la barre du haut avec Ctrl K.
+- Liste des dossiers : en-tête de page + « Nouveau client », états en onglets au-dessus de la liste
+  (`dossierTabs()`, classe `.dossier-states` conservée), filtres sur une ligne, dates dans
+  « Dates d'inscription et de traitement », tableau à colonnes (`row()` + `rowHead()`) avec
+  boutons ☎ (ouvre aussi la fiche) et WhatsApp, pagination en bas. Titres de colonnes
+  cliquables pour trier (0.35.1), synchronisés avec le menu Tri ; mention « Créé par Rafik DAOUD »
+  en bas de la barre latérale.
+- Fiche client : fil d'Ariane + dossier précédent/suivant (`ficheList`), en-tête client avec
+  Appeler / WhatsApp / Simulateur, « Résultat de l'appel » en premier avec touches 1 à 9,
+  « Enregistrer et client suivant », informations en lecture avec « Modifier », documents à droite.
+- États en pastilles douces (`--bc` sur `.badge`).
+
+EasyCrm n'est pas modifié. Tests : suite complète, tests de navigation mis à jour, tests navigateur
+`activity-browser` / `documents-browser` (chemin Chromium via `CHROMIUM_BIN`).
+
+
 Le thème est implémenté, ce n’est plus uniquement une maquette.
 
 ## Responsables : tableau clair
