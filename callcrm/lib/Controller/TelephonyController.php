@@ -44,7 +44,7 @@ class TelephonyController extends Controller {
   foreach($this->events->recent($this->access->uid(),(int)$this->request->getParam('after',0)) as $r){
    $p=$r['prospect_id']?$this->store->get((int)$r['prospect_id']):null;
    $allowed=$this->visible($p);
-   $rows[]=['id'=>(int)$r['id'],'call_id'=>$r['call_id'],'phone'=>$r['phone'],'direction'=>$r['direction'],'state'=>$r['state'],'prospect_id'=>$allowed?(int)$p['id']:null,'name'=>$allowed?trim($p['lastname'].' '.($p['firstname']??'')):null];
+   $rows[]=['id'=>(int)$r['id'],'call_id'=>$r['call_id'],'phone'=>$r['phone'],'direction'=>$r['direction'],'state'=>$r['state'],'prospect_id'=>$allowed?(int)$p['id']:null,'name'=>$allowed?trim($p['lastname'].' '.($p['firstname']??'')):null,'known'=>$p!==null||$this->events->known((string)$r['phone'])];
   }return new JSONResponse(['rows'=>$rows]);
  }
  #[NoAdminRequired]

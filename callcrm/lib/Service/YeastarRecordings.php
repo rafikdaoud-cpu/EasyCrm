@@ -58,6 +58,24 @@ class YeastarRecordings {
         $rows=$q->orderBy('id','DESC')->setFirstResult(max(0,$offset))->setMaxResults(51)->executeQuery()->fetchAll();
         return ['rows'=>array_map(fn($r)=>array_intersect_key($r,array_flip(['id','phone','extension','user_id','direction','call_status','started_at','talk_duration','state','error','size','created_at'])),array_slice($rows,0,50)), 'has_more'=>count($rows)>50];
     }
+    /** Liste filtrée de tous les appels (50 par page), avec le nom du client rattaché. */
+    public function search(array $f, int $offset=0): array {
+        $q=$this->db->getQueryBuilder();
+        $q->select('r.id','r.phone','r.extension','r.user_id','r.direction','r.call_status','r.started_at','r.talk_duration','r.state','r.error','r.size','r.created_at','r.prospect_id','p.lastname','p.firstname')
+          ->from('callcrm_pbx_recordings','r')->leftJoin('r','callcrm_prospects','p',$q->expr()->eq('p.id','r.prospect_id'));
+        $w=[];
+        if($f['q']!==''){$like='%'.$this->db->escapeLikeParameter($f['q']).'%';$w[]=$q->expr()->orX($q->expr()->like('r.phone',$q->createNamedParameter($like)),$q->expr()->like('p.lastname',$q->createNamedParameter($like)),$q->expr()->like('p.firstname',$q->createNamedParameter($like)),$q->expr()->like('r.extension',$q->createNamedParameter($like)));}
+        if($f['direction']!=='')$w[]=$q->expr()->eq('r.direction',$q->createNamedParameter($f['direction']));
+        if($f['user']!=='')$w[]=$q->expr()->eq('r.user_id',$q->createNamedParameter($f['user']));
+        if($f['from']!=='')$w[]=$q->expr()->gte('r.started_at',$q->createNamedParameter($f['from'].' 00:00:00'));
+        if($f['to']!=='')$w[]=$q->expr()->lte('r.started_at',$q->createNamedParameter($f['to'].' 23:59:59'));
+        if($f['audio'])$w[]=$q->expr()->eq('r.state',$q->createNamedParameter('ready'));
+        if($f['link']==='linked')$w[]=$q->expr()->isNotNull('r.prospect_id');
+        if($f['link']==='unlinked')$w[]=$q->expr()->isNull('r.prospect_id');
+        foreach($w as $c)$q->andWhere($c);
+        $rows=$q->orderBy('r.id','DESC')->setFirstResult(max(0,$offset))->setMaxResults(51)->executeQuery()->fetchAll();
+        return ['rows'=>array_map(function($r){$r['client']=$r['prospect_id']?trim(($r['lastname']??'').' '.($r['firstname']??'')):'';unset($r['lastname'],$r['firstname']);return $r;},array_slice($rows,0,50)),'has_more'=>count($rows)>50];
+    }
     public function attach(int $id, int $pid): void { $this->update($id,['prospect_id'=>$pid]); }
     public function retry(int $id): void {
         $r=$this->find($id);

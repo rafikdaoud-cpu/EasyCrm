@@ -13,6 +13,7 @@ done
 node tests/transfers-ui.cjs
 node tests/admin-panels-ui.cjs
 node tests/yeastar-settings-ui.cjs
+node tests/callcrm-calls-ui.cjs
 "$PHP_BIN" tests/yeastar-settings.php
 "$PHP_BIN" tests/yeastar-telephony.php
 node tests/simulator-history-ui.cjs

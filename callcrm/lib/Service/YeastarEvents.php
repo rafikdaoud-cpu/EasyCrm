@@ -18,6 +18,14 @@ class YeastarEvents {
   $q=$this->db->getQueryBuilder();$q->select('*')->from('callcrm_prospects')->where($q->expr()->in('phone',$q->createNamedParameter(array_unique($variants),IQueryBuilder::PARAM_STR_ARRAY)))->setMaxResults(2);
   $rows=$q->executeQuery()->fetchAll();return count($rows)===1?$rows[0]:null;
  }
+ /** Vrai si au moins une fiche porte ce numéro, quel que soit son commercial (évite de proposer un doublon). */
+ public function known(string $number):bool {
+  $n=self::number($number);$variants=[$n];
+  if(preg_match('/^0\d{9}$/D',$n))$variants=array_merge($variants,['+213'.substr($n,1),'213'.substr($n,1),'00213'.substr($n,1)]);
+  if(preg_match('/^\+213\d{9}$/D',$n))$variants=array_merge($variants,['0'.substr($n,4),substr($n,1),'00'.substr($n,1)]);
+  $q=$this->db->getQueryBuilder();$q->select('id')->from('callcrm_prospects')->where($q->expr()->in('phone',$q->createNamedParameter(array_unique($variants),IQueryBuilder::PARAM_STR_ARRAY)))->setMaxResults(1);
+  return (bool)$q->executeQuery()->fetchOne();
+ }
  public function record(string $hash,string $call,string $uid,string $phone,string $direction,string $state,?int $pid):void {
   if(strlen($call)>128||strlen($phone)>40||strlen($state)>24)return;
   $q=$this->db->getQueryBuilder();$q->insert('callcrm_pbx_events');

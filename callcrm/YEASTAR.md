@@ -52,6 +52,9 @@ Dans le P550, Intégrations → API :
    **POST**, événement **30011 — Call State Changed**. Timeout 10 s et reprises
    selon le besoin. La documentation indique firmware ≥ 37.20.0.21 pour Webhook ;
    la présence de cette fonction est déjà visible sur les captures utilisateur.
+   **Cocher aussi 30012 — Call End Details** (enregistrements). Sans 30011, ni la
+   notification de sonnerie ni l'ouverture automatique de la fiche ne fonctionnent
+   (constaté le 17/11/2026 : seul 30012 arrivait). Voir APPELS.md.
 3. Copier le **Secret généré par Yeastar pour ce Webhook** dans le champ Call CRM
    « Secret du Webhook Yeastar », puis enregistrer. Il est distinct de la clé API
    et n’est jamais affiché de nouveau. Garder l’intégration activée.

@@ -2,6 +2,7 @@
 return ['routes' => [
 	['name'=>'yeastar_recording#list','url'=>'/api/prospects/{id}/yeastar-recordings','verb'=>'GET'],
 	['name'=>'yeastar_recording#inbox','url'=>'/api/yeastar/recordings','verb'=>'GET'],
+	['name'=>'yeastar_recording#all','url'=>'/api/yeastar/recordings/all','verb'=>'GET'],
 	['name'=>'yeastar_recording#audio','url'=>'/api/yeastar/recordings/{id}/audio','verb'=>'GET'],
 	['name'=>'yeastar_recording#retry','url'=>'/api/yeastar/recordings/{id}/retry','verb'=>'POST'],
 	['name'=>'yeastar_recording#attach','url'=>'/api/yeastar/recordings/{id}/attach','verb'=>'POST'],

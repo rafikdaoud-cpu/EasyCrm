@@ -30,6 +30,18 @@ class YeastarRecordingController extends Controller {
         if(!$this->manager())return new JSONResponse(['error'=>'Accès refusé'],403);
         return new JSONResponse($this->recordings->list(null,max(0,(int)$this->request->getParam('offset',0))));
     }
+    /** Onglet « Enregistrements » : tous les appels, réservé à l'administrateur et aux superviseurs. */
+    #[NoAdminRequired]
+    public function all(): JSONResponse {
+        if(!$this->manager())return new JSONResponse(['error'=>'Accès refusé'],403);
+        $p=fn($k)=>trim((string)$this->request->getParam($k,''));
+        foreach(['from','to'] as $k)if($p($k)!==''&&!preg_match('/^\d{4}-\d{2}-\d{2}$/D',$p($k)))return new JSONResponse(['error'=>'Date invalide'],400);
+        return new JSONResponse($this->recordings->search([
+            'q'=>mb_substr($p('q'),0,80),'direction'=>in_array($p('direction'),['inbound','outbound'],true)?$p('direction'):'',
+            'user'=>mb_substr($p('user'),0,64),'from'=>$p('from'),'to'=>$p('to'),'audio'=>$p('audio')==='1',
+            'link'=>in_array($p('link'),['linked','unlinked'],true)?$p('link'):'',
+        ],max(0,(int)$this->request->getParam('offset',0))));
+    }
     #[NoAdminRequired]
     public function attach(int $id): JSONResponse {
         if(!$this->manager())return new JSONResponse(['error'=>'Accès refusé'],403);
