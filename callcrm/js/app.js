@@ -512,7 +512,8 @@ function nav() {
     h('div', {class:'crm-brand'}, h('span', {class:'crm-brand-mark', 'aria-hidden':'true'}, window.OC&&OC.imagePath ? h('img', {src:OC.imagePath('callcrm','app.svg'), alt:'', width:22, height:22}) : 'C'), h('strong', {}, 'Call CRM')),
     h('div', {class:'nav', role:'navigation'}, items),
     h('div', {class:'crm-sidebar-note crm-sidebar-user'}, h('span', {class:'crm-avatar', 'aria-hidden':'true'}, (who.match(/[\p{L}\p{N}]+/gu) || ['?']).slice(0, 2).map(w => w[0]).join('').toUpperCase()),
-      h('span', {}, h('strong', {}, who), h('small', {class:'muted'}, role))));
+      h('span', {}, h('strong', {}, who), h('small', {class:'muted'}, role))),
+    h('div', {class:'crm-credit muted'}, 'Créé par Rafik DAOUD'));
 }
 function go(k) { if(typeof canLeave==='function'&&!canLeave(()=>go(k)))return; if (k === 'dossiers') k = 'nouveaux'; if (k === 'sim') { openSim(null); return; } tab = k; if(k==='documents'){show(h('h2',{},'Pièces reçues'),documentsCard());return;} if(k==='search'||k==='neglected'){discovery(k);return;} if(k==='enregistrements'){recordingsPage();return;} if(k==='agenda'){agenda();return;} if (k === 'journee' && me.role === 'commercial') myDay(); else if (k === 'wa') waList(); else if (k === 'stats') stats(); else if (k === 'admin') admin(); else if (k === 'annonce') show(h('h2', {}, 'Annonce'), announcementCard()); else if (k === 'commerciaux') presenceBoard(); else list(k); }
 /** Onglets des états de dossiers (au-dessus de la liste). */
@@ -554,8 +555,11 @@ async function list(k) {
   let page = 1;
   const SORTS = [['', 'Tri par défaut'], ['nom', 'Nom'], ['date', 'Date d’enregistrement'], ['statut', 'Statut'], ['wilaya', 'Wilaya'], ['categorie', 'Catégorie'], ['appel', 'Dernier appel'], ['rappel', 'Date de rappel']];
   const so = h('select', {title:'Trier par'}, SORTS.map(([v, l]) => h('option', {value:v, selected: sortBy.k === v}, l)));
-  const sd = h('button', {title:'Sens du tri', onclick: () => { sortBy.d = sortBy.d === 'asc' ? 'desc' : 'asc'; sd.textContent = sortBy.d === 'asc' ? '↑ Croissant' : '↓ Décroissant'; load(); }}, sortBy.d === 'asc' ? '↑ Croissant' : '↓ Décroissant');
-  so.addEventListener('change', () => { sortBy.k = so.value; load(); });
+  const sd = h('button', {title:'Sens du tri', onclick: () => { sortBy.d = sortBy.d === 'asc' ? 'desc' : 'asc'; syncSort(); load(); }}, sortBy.d === 'asc' ? '↑ Croissant' : '↓ Décroissant');
+  const syncSort = () => { so.value = sortBy.k; sd.textContent = sortBy.d === 'asc' ? '↑ Croissant' : '↓ Décroissant'; const nh = rowHead(!!me.can.assign, sortCol); head0?.replaceWith(nh); head0 = nh; };
+  const sortCol = key => { sortBy.d = sortBy.k === key && sortBy.d === 'asc' ? 'desc' : 'asc'; sortBy.k = key; syncSort(); load(); };
+  let head0 = null;
+  so.addEventListener('change', () => { sortBy.k = so.value; syncSort(); load(); });
   bar.append(so, sd);
   const rf = h('input', {type:'date'}), rt = h('input', {type:'date'}), pf = h('input', {type:'date'}), pt = h('input', {type:'date'});
   const dbar = h('div', {class:'bar'}, h('label', {}, 'Inscrit du ', rf), h('label', {}, 'au ', rt), h('label', {}, 'Traité du ', pf), h('label', {}, 'au ', pt),
@@ -614,7 +618,8 @@ async function list(k) {
   bar.classList.add('crm-filters');
   const head = h('div', {class:'crm-page-head'}, h('div', {}, h('h2', {}, K.t), h('p', {class:'muted'}, K.asc ? 'Du plus ancien au plus récent.' : 'Cliquez sur un client pour ouvrir sa fiche.')),
     me.can.create ? h('div', {class:'crm-page-actions'}, h('button', {class:'primary', onclick: () => addForm()}, '+ Nouveau client')) : '');
-  const listCard = h('div', {class:'card crm-list'}, rowHead(!!me.can.assign), box, pagerB);
+  head0 = rowHead(!!me.can.assign, sortCol);
+  const listCard = h('div', {class:'card crm-list'}, head0, box, pagerB);
   show(head, dossierTabs(), me.can.assign && K.all ? distButtons() : '', bar, moreFilters, selBar, listCard); load();
 }
 async function addForm(preset = {}, note = '') {
@@ -664,10 +669,17 @@ function row(r, onSel) {
       tel ? h('a', {class:'crm-row-btn call', href:'tel:' + r.phone, title:'Appeler ' + r.phone, 'aria-label':'Appeler ' + nm(r)}, '☎') : '',
       tel ? h('a', {class:'crm-row-btn wa', href:'https://wa.me/' + waNum(r.phone), target:'_blank', rel:'noopener noreferrer', title:'WhatsApp', 'aria-label':'WhatsApp ' + nm(r)}, '💬') : ''));
 }
-function rowHead(withCk) {
-  return h('div', {class:'row crm-row-head', 'aria-hidden':'true'}, withCk ? h('div', {class:'cell-ck'}) : '', h('div', {class:'cell-who'}, 'Client'),
-    h('div', {class:'cell cell-w'}, fieldLabel('c5', 'Wilaya')), h('div', {class:'cell cell-c'}, fieldLabel('c2', 'Produit')), h('div', {class:'cell cell-s'}, 'État'),
-    h('div', {class:'cell cell-cb'}, 'Rappel'), h('div', {class:'cell cell-d'}, 'Inscrit le'), h('div', {class:'cell cell-act'}));
+/** En-tête du tableau ; avec onSort, les titres trient la liste (2e clic : ordre inverse). */
+function rowHead(withCk, onSort) {
+  const col = (cls, label, key) => {
+    if (!onSort || !key) return h('div', {class:cls}, label);
+    const on = sortBy.k === key, arrow = on ? (sortBy.d === 'asc' ? ' ↑' : ' ↓') : '';
+    return h('div', {class:cls, 'aria-sort': on ? (sortBy.d === 'asc' ? 'ascending' : 'descending') : 'none'},
+      h('button', {type:'button', class:'sort-heading' + (on ? ' on' : ''), title:'Trier par ' + label.toLowerCase(), onclick: () => onSort(key)}, label + arrow));
+  };
+  return h('div', {class:'row crm-row-head'}, withCk ? h('div', {class:'cell-ck'}) : '', col('cell-who', 'Client', 'nom'),
+    col('cell cell-w', fieldLabel('c5', 'Wilaya'), 'wilaya'), col('cell cell-c', fieldLabel('c2', 'Produit'), 'categorie'), col('cell cell-s', 'État', 'statut'),
+    col('cell cell-cb', 'Rappel', 'rappel'), col('cell cell-d', 'Inscrit le', 'date'), h('div', {class:'cell cell-act'}));
 }
 
 /** Note non modifiable : tentatives sans succès (réponses « avec date de rappel »), avec date et heure exactes. */

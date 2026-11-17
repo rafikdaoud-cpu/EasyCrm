@@ -11,7 +11,9 @@ Styles en fin de `callcrm/css/style.css` (bloc « Interface 0.35 »), accent `#2
 - Liste des dossiers : en-tête de page + « Nouveau client », états en onglets au-dessus de la liste
   (`dossierTabs()`, classe `.dossier-states` conservée), filtres sur une ligne, dates dans
   « Dates d'inscription et de traitement », tableau à colonnes (`row()` + `rowHead()`) avec
-  boutons ☎ (ouvre aussi la fiche) et WhatsApp, pagination en bas.
+  boutons ☎ (ouvre aussi la fiche) et WhatsApp, pagination en bas. Titres de colonnes
+  cliquables pour trier (0.35.1), synchronisés avec le menu Tri ; mention « Créé par Rafik DAOUD »
+  en bas de la barre latérale.
 - Fiche client : fil d'Ariane + dossier précédent/suivant (`ficheList`), en-tête client avec
   Appeler / WhatsApp / Simulateur, « Résultat de l'appel » en premier avec touches 1 à 9,
   « Enregistrer et client suivant », informations en lecture avec « Modifier », documents à droite.

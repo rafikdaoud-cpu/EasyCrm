@@ -500,5 +500,10 @@ body[data-themes*="dark"] #callcrm.crm-workspace,body[data-theme-dark] #callcrm.
 #callcrm .crm-global-search:hover{border-color:var(--ui-line)!important}
 #callcrm .crm-session-header .crm-session-actions,#callcrm .crm-session-header .crm-role{margin-left:auto}
 #callcrm .crm-filters select{max-width:220px}
-#callcrm .crm-filters>button:not(.primary){background:transparent;border-color:transparent;color:var(--ui-muted)}
+#callcrm .crm-filters>button:not(.primary){background:var(--ui-panel);border-color:var(--ui-line);font-weight:500}
 #callcrm .crm-outcome-form p{margin:4px 0 0}
+#callcrm .crm-list .crm-row-head .sort-heading{border:0!important;background:transparent!important;padding:0!important;min-height:0!important;font:inherit!important;color:inherit!important;cursor:pointer;text-decoration:none}
+#callcrm .crm-list .crm-row-head .sort-heading:hover{color:var(--ui-accent)!important}
+#callcrm .crm-list .crm-row-head .sort-heading.on{color:var(--ui-accent)!important}
+#callcrm .crm-credit{font-size:11px;padding:8px 6px 0;opacity:.75}
+@media(max-width:760px){#callcrm .crm-credit{display:none}}
