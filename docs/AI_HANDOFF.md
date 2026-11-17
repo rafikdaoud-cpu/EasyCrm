@@ -1,5 +1,12 @@
 # AI / maintainer handoff — announcements, presence and statistics
 
+## Portage EasyCrm 1.9.0
+
+Voir `nextcloud/APPELS_MANQUES.md` : interface 0.35, appels manqués (via le webhook PBX générique,
+migration 1011), session, objectifs (`GoalsController`), Ma journée, réponses WhatsApp rapides. Non
+portés : fonctions liées à Yeastar 30011/30012 et au service wa-nextcloud. EasyCrm n'est pas installé
+sur le VPS CSM Taksit : aucun déploiement, seulement le dépôt.
+
 ## Appels manqués, session d'appels, objectifs — Call CRM 0.36
 
 Voir `callcrm/APPELS_MANQUES.md`. Migration 1019 (`callcrm_missed`), tâche `SyncMissedCalls`,

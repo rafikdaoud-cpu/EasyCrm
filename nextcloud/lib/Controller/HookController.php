@@ -20,7 +20,7 @@ use OCP\IRequest;
 
 /** Webhooks entrants (fin d'appel du standard, messages WhatsApp reçus). Protégés par un jeton secret. */
 class HookController extends Controller {
-	public function __construct(IRequest $r, private Store $s, private IConfig $cfg, private Wa $wa, private IAppData $appData) { parent::__construct(Application::APP_ID, $r); }
+	public function __construct(IRequest $r, private Store $s, private IConfig $cfg, private Wa $wa, private \OCA\EasyCrm\Service\MissedCalls $missed, private IAppData $appData) { parent::__construct(Application::APP_ID, $r); }
 
 	private function authorized(): bool {
 		$secret = Telephony::get()['secret'];
@@ -45,6 +45,9 @@ class HookController extends Controller {
 		if (!$this->authorized()) { return new JSONResponse(['error' => 'Jeton invalide'], Http::STATUS_FORBIDDEN); }
 		$e = Telephony::parsePbxEvent($this->payload());
 		$p = $e['number'] !== '' ? $this->s->prospectByTail($e['number']) : null;
+		// Appels manqués à rappeler : chaque fin d'appel compte, client connu ou non. Une erreur ici ne doit pas faire échouer le webhook.
+		try { $this->missed->event(['number' => $e['number'], 'inbound' => $e['inbound'], 'answered' => $e['answered'], 'pid' => $p ? (int)$p['id'] : null]); }
+		catch (\Throwable $x) { \OC::$server->get(\Psr\Log\LoggerInterface::class)->warning('EasyCrm : appel manqué non enregistré', ['exception' => $x]); }
 		if (!$p) { return new JSONResponse(['ok' => true, 'matched' => false]); }
 		$uids = $e['ext'] !== '' ? $this->cfg->getUsersForUserValue('easycrm', 'ext', $e['ext']) : [];
 		$uid = $uids[0] ?? ($p['assigned_to'] ?: 'pbx');

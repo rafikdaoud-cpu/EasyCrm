@@ -568,3 +568,4 @@ body[data-themes*="dark"] #callcrm.crm-workspace,body[data-theme-dark] #callcrm.
 #callcrm .crm-group-calls .card{margin:0!important}
 #callcrm.crm-workspace .badge.crm-badge-bad{--bc:#c0392b}
 #callcrm .crm-incoming-group details{margin:4px 0}#callcrm .crm-incoming-group ul{margin:4px 0;padding-left:18px;font-size:13px}
+#callcrm .crm-col-main>*,#callcrm .crm-col-side>*{max-width:100%;min-width:0;box-sizing:border-box}
