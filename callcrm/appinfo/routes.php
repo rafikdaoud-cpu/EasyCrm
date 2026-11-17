@@ -1,5 +1,10 @@
 <?php
 return ['routes' => [
+	['name'=>'yeastar_recording#list','url'=>'/api/prospects/{id}/yeastar-recordings','verb'=>'GET'],
+	['name'=>'yeastar_recording#inbox','url'=>'/api/yeastar/recordings','verb'=>'GET'],
+	['name'=>'yeastar_recording#audio','url'=>'/api/yeastar/recordings/{id}/audio','verb'=>'GET'],
+	['name'=>'yeastar_recording#retry','url'=>'/api/yeastar/recordings/{id}/retry','verb'=>'POST'],
+	['name'=>'yeastar_recording#attach','url'=>'/api/yeastar/recordings/{id}/attach','verb'=>'POST'],
 	['name'=>'telephony#test','url'=>'/api/yeastar/test','verb'=>'POST'],
 	['name'=>'telephony#runtime','url'=>'/api/yeastar/runtime','verb'=>'GET'],
 	['name'=>'telephony#dial','url'=>'/api/yeastar/dial','verb'=>'POST'],
@@ -53,6 +58,8 @@ return ['routes' => [
 	['name' => 'api#import', 'url' => '/api/import', 'verb' => 'POST'],
 	['name' => 'api#labels', 'url' => '/api/labels', 'verb' => 'POST'],
 	['name' => 'api#stats', 'url' => '/api/stats', 'verb' => 'GET'],
+	['name' => 'dashboard#report', 'url' => '/api/dashboard', 'verb' => 'GET'],
+	['name' => 'dashboard#followup', 'url' => '/api/dashboard/followup', 'verb' => 'POST'],
 	['name' => 'api#distribute', 'url' => '/api/distribute', 'verb' => 'POST'],
 	['name' => 'api#export', 'url' => '/api/export', 'verb' => 'GET'],
 	['name' => 'api#uploadRecording', 'url' => '/api/recordings', 'verb' => 'POST'],

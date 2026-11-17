@@ -1,3 +1,5 @@
+> **Version 0.31.0 :** récupération automatique des audios, CDR 30012 et réglages de collecte. Voir [YEASTAR_RECORDINGS.md](YEASTAR_RECORDINGS.md). Les limites CDR/audio ci-dessous décrivent la version 0.30.2.
+
 # Yeastar P550 — Call CRM 0.30.2
 
 ## Installation et configuration

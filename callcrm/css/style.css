@@ -335,3 +335,31 @@ body[data-themes*="dark"] #callcrm,body[data-theme-dark] #callcrm{--brand:var(--
 .crm-yeastar-popup{position:fixed;right:20px;bottom:24px;z-index:10010;background:var(--color-main-background,#fff);color:var(--color-main-text,#222);border:2px solid #006b95;border-radius:14px;box-shadow:0 8px 30px #0003;padding:18px;width:min(390px,calc(100vw - 40px));max-height:65vh;overflow:auto}.crm-yeastar-popup p{margin:10px 0}
 
 .crm-yeastar-toast{position:fixed;top:65px;right:20px;z-index:10011;max-width:min(420px,calc(100vw - 40px));padding:12px 18px;border-radius:10px;background:#006b95;color:#fff;box-shadow:0 4px 16px #0003;pointer-events:none}
+
+/* Dashboard: bounded columns, inline outcomes and explicit date controls. */
+#callcrm .dashboard-period{margin:16px 0;padding:12px;background:var(--color-background-hover,#f5f5f5);border-radius:10px}
+#callcrm .dashboard-period .bar{display:flex;flex-wrap:wrap;gap:8px}
+#callcrm .dashboard-period button[aria-pressed="true"]{background:#006b95;color:#fff;border-color:#006b95}
+#callcrm .dashboard-dates:not([hidden]){display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-top:12px}
+#callcrm .dashboard-dates[hidden]{display:none}
+#callcrm .dashboard-dates small{flex-basis:100%}
+#callcrm .dashboard-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:12px}
+#callcrm .dashboard-kpis .card{margin:0;min-width:0}
+#callcrm .dashboard-table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:14px;line-height:1.5}
+#callcrm .dashboard-table th,#callcrm .dashboard-table td{white-space:normal;overflow-wrap:anywhere;vertical-align:top;padding:10px 8px}
+#callcrm .dashboard-table th:nth-child(1){width:18%}
+#callcrm .dashboard-table th:nth-child(2){width:9%}
+#callcrm .dashboard-table th:nth-child(3){width:21%}
+#callcrm .dashboard-table th:nth-child(4){width:28%}
+#callcrm .dashboard-table th:nth-child(5){width:24%}
+#callcrm .dashboard-metric{display:flex;justify-content:space-between;gap:8px;margin:3px 0;flex-wrap:wrap}
+#callcrm .dashboard-metric strong{font-variant-numeric:tabular-nums}
+#callcrm .dashboard-table tbody tr:nth-child(even){background:var(--color-background-hover,#f5f5f5)}
+@media(max-width:900px){
+ #callcrm .dashboard-table,#callcrm .dashboard-table tbody{display:block}
+ #callcrm .dashboard-table thead{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+ #callcrm .dashboard-table tbody tr{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--color-border,#ddd);border-radius:10px;margin:12px 0;padding:8px}
+ #callcrm .dashboard-table tbody th:nth-child(1){grid-column:1/-1;width:auto}
+ #callcrm .dashboard-table td::before{content:attr(data-label);display:block;font-weight:600;margin-bottom:6px}
+}
+@media(max-width:480px){#callcrm .dashboard-table tbody tr{grid-template-columns:1fr}}

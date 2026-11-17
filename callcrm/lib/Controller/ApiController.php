@@ -190,6 +190,10 @@ class ApiController extends Controller {
 		$f = ['q' => trim((string)$this->request->getParam('q', '')), 'status' => in_array($st, Statuses::keys(), true) ? $st : '',
 			'assigned' => $this->a->can('all') ? (string)$this->request->getParam('assigned', '') : '', 'rappels' => (bool)$this->request->getParam('rappels', false), 'asc' => (bool)$this->request->getParam('asc', false),
 			'reg_from' => (int)$this->request->getParam('reg_from', 0), 'reg_to' => (int)$this->request->getParam('reg_to', 0), 'proc_from' => (int)$this->request->getParam('proc_from', 0), 'proc_to' => (int)$this->request->getParam('proc_to', 0)];
+		// Same union-of-groups / intersection-with-users rules as the reports.
+		$selected = $this->filters();
+		$f['users'] = $selected['users'];
+		$f['cat'] = $selected['cat'];
 		$off = max(0, (int)$this->request->getParam('offset', 0));
 		$f['sort'] = (string)$this->request->getParam('sort', ''); $f['dir'] = (string)$this->request->getParam('dir', '');
 		if ($this->a->can('mask')) { $f['nophone'] = true; }

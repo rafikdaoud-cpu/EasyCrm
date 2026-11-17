@@ -125,7 +125,7 @@ function canLeave(action,only=null){
 window.addEventListener('beforeunload',e=>{if([...dirtyChecks.values()].some(v=>v.check())){e.preventDefault();e.returnValue='';}});
 function chronology(pid){
  const box=h('div',{class:'card crm-chronology'}),items=h('div'),message=h('p',{class:'muted'});let kind='all',cursor='',sequence=0;
- setTimeout(()=>{if(box.isConnected)box.after(yeastarHistory(pid));},0);
+ setTimeout(()=>{if(box.isConnected){box.after(yeastarHistory(pid));if(me.can.assign||me.can.call)box.after(yeastarRecordingsCard(pid));}},0);
  const more=h('button',{onclick:()=>load(true)},'Afficher les événements précédents');
  const title={call:'Appel',note:'Commentaire modifié',sim:'Simulation enregistrée',assign:'Affectation modifiée',appointment:'Rendez-vous',documents:'Documents client'};
  const render=e=>{const b=e.body||{};let body;
@@ -288,6 +288,46 @@ function yeastarHistory(pid){
  const load=async()=>{try{const rows=await api('/prospects/'+pid+'/yeastar');body.replaceChildren(...(rows.length?rows.map(r=>h('p',{},fmt(Number(r.created_at))+' · '+(r.direction==='inbound'?'Entrant':'Sortant')+' · '+pbxState(r.state))):[h('p',{class:'muted'},'Aucun événement Yeastar enregistré.')]));}catch(e){body.textContent=e.message;}};
  box.addEventListener('toggle',()=>{if(box.open)load();});return box;
 }
+function yeastarRecordingsCard(pid=null){
+ const box=h('details',{class:'card crm-yeastar-recordings'}),body=h('div'),message=h('p',{role:'status'});
+ let offset=0,loading=false;
+ const title=pid===null?'Audios Yeastar à rattacher':'Appels et enregistrements Yeastar';
+ const refresh=h('button',{type:'button',onclick:()=>{offset=0;load();}},'Actualiser');
+ box.append(h('summary',{},title),h('p',{class:'muted'},pid===null?'Numéro absent ou ambigu : choisissez le dossier après vérification.':'Les audios sont récupérés automatiquement après l’appel. Le traitement peut prendre quelques minutes.'),refresh,message,body);
+ const load=async()=>{
+  if(loading)return;loading=true;
+  refresh.disabled=true;message.textContent='Chargement…';
+  try{
+   const result=await api((pid===null?'/yeastar/recordings':'/prospects/'+pid+'/yeastar-recordings')+'?offset='+offset);
+   const nodes=result.rows.map(r=>{
+    const row=h('div',{class:'card'}),status={ready:'Audio enregistré dans Nextcloud',queued:'Récupération automatique en attente',processing:'Récupération en cours',failed:'Récupération en échec',no_recording:'Aucun audio signalé par Yeastar'};
+    row.append(h('p',{},(r.started_at||fmt(Number(r.created_at)))+' · '+(r.direction==='inbound'?'Entrant':'Sortant')+' · '+r.phone),h('p',{},'Poste '+r.extension+(r.user_id?' · '+r.user_id:'')+' · Conversation : '+r.talk_duration+' s · '+r.call_status),h('p',{},status[r.state]||r.state));
+    if(r.error && r.state!=='ready')row.append(h('p',{class:'muted'},r.error));
+    if(r.state==='ready'){
+     const url=API+'/yeastar/recordings/'+r.id+'/audio';
+     row.append(h('audio',{controls:true,preload:'none',src:url,'aria-label':'Écouter l’appel du '+r.started_at}),h('a',{href:url+'?download=1',download:''},'Télécharger'));
+    }
+    if(r.state==='failed' && me.can.assign)row.append(h('button',{type:'button',onclick:async e=>{
+     const button=e.currentTarget;button.disabled=true;try{await api('/yeastar/recordings/'+r.id+'/retry',{method:'POST'});offset=0;await load();}catch(error){message.textContent=error.message;button.disabled=false;}
+    }},'Réessayer la récupération'));
+    if(pid===null){
+     const input=h('input',{type:'number',min:1,placeholder:'Identifiant du dossier','aria-label':'Identifiant du dossier client'});
+     row.append(h('div',{class:'bar'},input,h('button',{type:'button',onclick:async e=>{
+      const id=Number(input.value);if(!Number.isSafeInteger(id)||id<=0){message.textContent='Indiquez un identifiant de dossier valide.';return;}
+      if(!confirm('Rattacher cet appel au dossier n° '+id+' ?'))return;
+      const button=e.currentTarget;button.disabled=true;try{await api('/yeastar/recordings/'+r.id+'/attach',{method:'POST',body:{prospect_id:id}});offset=0;await load();}catch(error){message.textContent=error.message;button.disabled=false;}
+     }},'Rattacher au dossier')));
+    }
+    return row;
+   });
+   if(offset===0)body.replaceChildren();
+   body.querySelector('.crm-yeastar-more')?.remove();body.append(...nodes);
+   if(result.has_more)body.append(h('button',{class:'crm-yeastar-more',type:'button',onclick:e=>{if(loading)return;e.currentTarget.disabled=true;offset+=50;load();}},'Afficher les appels précédents'));
+   message.textContent=body.childElementCount?'':'Aucun appel enregistré.';
+  }catch(error){message.textContent=error.message;}finally{refresh.disabled=false;loading=false;}
+ };
+ box.addEventListener('toggle',()=>{if(box.open){offset=0;load();}});return box;
+}
 function yeastarSettingsCard(){
  const box=h('div',{class:'card crm-yeastar-settings'}),body=h('div'),message=h('p',{class:'muted',role:'status'});
  box.append(h('h3',{},'Téléphonie · Yeastar P550'),body,message);
@@ -299,6 +339,7 @@ function yeastarSettingsCard(){
   const clear=h('input',{type:'checkbox'}),linkus=h('input',{type:'url',value:s.linkus_url,placeholder:'Adresse HTTPS de votre Client WEB',autocomplete:'off'});
   const enabled=h('input',{type:'checkbox',checked:s.enabled===true}),webhookSecret=h('input',{type:'password',autocomplete:'new-password',placeholder:s.has_webhook_secret?'Secret Webhook enregistré · laisser vide pour conserver':'Secret généré dans le Webhook Yeastar'});
   const selfSigned=h('input',{type:'checkbox',checked:s.allow_self_signed===true,'aria-label':'Autoriser le certificat autosigné'});
+  const recordingsEnabled=h('input',{type:'checkbox',checked:s.recordings_enabled===true,'aria-label':'Récupérer automatiquement les audios'}),recordingsFolder=h('input',{value:s.recordings_folder||'yeastar-recordings',maxlength:64,'aria-label':'Dossier privé des audios'}),recordingsMax=h('input',{type:'number',min:1,max:64,value:s.recordings_max_mb||64,'aria-label':'Taille maximale audio en Mio'});
   const rows=h('div',{class:'crm-yeastar-extensions'}),associations=[];
   const addRow=(value={})=>{
    const select=h('select',{'aria-label':'Commercial'},h('option',{value:''},'— Choisir un commercial —'),...(me.commerciaux||[]).map(u=>h('option',{value:u.uid,selected:u.uid===value.uid},u.name)));
@@ -307,7 +348,7 @@ function yeastarSettingsCard(){
    row.append(h('label',{},'Commercial',select),h('label',{},'Extension',extension),h('button',{type:'button',onclick:()=>{associations.splice(associations.indexOf(item),1);row.remove();}},'Supprimer'));associations.push(item);rows.append(row);
   };
   (s.extensions||[]).forEach(addRow);
-  const payload=()=>({url:url.value,client_id:client.value,secret:secret.value,clear_secret:clear.checked,linkus_url:linkus.value,enabled:enabled.checked,webhook_secret:webhookSecret.value,allow_self_signed:selfSigned.checked,extensions:associations.map(x=>({uid:x.select.value,extension:x.extension.value}))});
+  const payload=()=>({url:url.value,client_id:client.value,secret:secret.value,clear_secret:clear.checked,linkus_url:linkus.value,enabled:enabled.checked,webhook_secret:webhookSecret.value,allow_self_signed:selfSigned.checked,recordings_enabled:recordingsEnabled.checked,recordings_folder:recordingsFolder.value,recordings_max_mb:Number(recordingsMax.value),extensions:associations.map(x=>({uid:x.select.value,extension:x.extension.value}))});
   let baseline=JSON.stringify(payload());watchEdits('yeastar-settings','Réglages Yeastar modifiés',()=>box.isConnected&&JSON.stringify(payload())!==baseline);
   const save=h('button',{type:'button',class:'primary',onclick:async()=>{
    save.disabled=true;message.textContent='Enregistrement…';try{
@@ -316,14 +357,18 @@ function yeastarSettingsCard(){
     message.textContent='Réglages enregistrés. '+(result.has_secret?'Clé secrète conservée chiffrée.':'Aucune clé enregistrée.');
    }catch(e){message.textContent=e.message;}finally{save.disabled=false;}
   }},'Enregistrer les réglages Yeastar');
-  body.replaceChildren(h('p',{class:'muted'},'Activez Yeastar pour appeler depuis les fiches. Gardez Linkus Web ouvert et connecté à votre extension pour répondre et utiliser votre casque.'),
+  body.replaceChildren(h('p',{class:'muted'},'Activez Yeastar pour appeler depuis les fiches. Gardez Linkus Desktop ou Web connecté à votre extension pour répondre et utiliser votre casque.'),
    h('div',{class:'g2'},h('label',{},'Adresse HTTPS du P550',url),h('label',{},'ID du client API',client),h('label',{},'Clé secrète du client API',secret),h('label',{},'Adresse Linkus Web (facultative)',linkus)),
    h('label',{},enabled,' Activer les appels Yeastar dans Call CRM'),h('label',{},clear,' Supprimer la clé enregistrée'),
    h('p',{class:'muted'},'Utilisez l’adresse de base, sans /integration/api. Un changement d’adresse ou d’ID client efface l’ancienne clé : saisissez-la à nouveau. La clé n’est jamais renvoyée au navigateur.'),
    h('label',{},selfSigned,' Autoriser le certificat autosigné (temporaire)'),
    h('p',{class:'muted'},'Cette option désactive la vérification du certificat pour les requêtes du connecteur Yeastar uniquement. HTTPS reste obligatoire, mais l’identité du P550 ne sera plus vérifiée. Limitez le port 8088 à l’IP publique du VPS et décochez cette option après installation d’un certificat valide.'),
    h('h4',{},'Extensions des commerciaux'),rows,h('button',{type:'button',onclick:()=>addRow()},'+ Associer un commercial'),
-   h('p',{class:'muted'},'Une extension unique par commercial, par exemple 1029.'),h('h4',{},'Appels entrants · Webhook signé'),h('label',{},'Adresse à copier dans le P550 (méthode POST)',h('input',{readonly:true,value:new URL(API+'/yeastar/webhook',window.location.origin).href})),h('label',{},'Secret du Webhook Yeastar (distinct de la clé API)',webhookSecret),h('p',{class:'muted'},'Dans le P550 : Intégrations → API → Push Webhook. Sélectionnez l’événement 30011 (état des appels), copiez ici le secret généré par Yeastar, puis enregistrez. Activez la surveillance des postes et trunks concernés.'),h('div',{class:'bar'},save,h('button',{type:'button',onclick:async e=>{const b=e.currentTarget;if(JSON.stringify(payload())!==baseline){message.textContent='Enregistrez vos modifications avant le test.';return;}b.disabled=true;message.textContent='Test de connexion…';try{await api('/yeastar/test',{method:'POST'});message.textContent='Authentification Yeastar réussie.';}catch(error){message.textContent=error.message;}finally{b.disabled=false;}}},'Tester la connexion Yeastar')));
+   h('h4',{},'Récupération automatique des enregistrements'),h('label',{},recordingsEnabled,' Récupérer automatiquement les audios dans Nextcloud'),
+   h('div',{class:'g2'},h('label',{},'Dossier privé des audios',recordingsFolder),h('label',{},'Taille maximale par audio (Mio, 1 à 64)',recordingsMax)),
+   h('p',{class:'muted'},'La connexion API ci-dessus est réutilisée. Le serveur Nextcloud récupère les fichiers via Yeastar ; aucun accès au partage Windows n’est nécessaire. Le cron Nextcloud doit être actif.'),
+   h('p',{class:'muted'},'Le dossier appartient au stockage privé de Call CRM ; écoute et téléchargement depuis les fiches clients. Un changement de dossier concerne les nouveaux appels ; les anciens audios restent accessibles. Les numéros inconnus ou ambigus sont réservés aux responsables pour rattachement.'),
+   h('p',{class:'muted'},'Une extension unique par commercial, par exemple 1029.'),h('h4',{},'Appels entrants · Webhook signé'),h('label',{},'Adresse à copier dans le P550 (méthode POST)',h('input',{readonly:true,value:new URL(API+'/yeastar/webhook',window.location.origin).href})),h('label',{},'Secret du Webhook Yeastar (distinct de la clé API)',webhookSecret),h('p',{class:'muted'},'Dans le P550 : Intégrations → API → Push Webhook. Sélectionnez les événements 30011 (état des appels) et 30012 (fin d’appel et enregistrement), copiez ici le secret généré par Yeastar, puis enregistrez. Activez la surveillance des postes et trunks concernés.'),h('div',{class:'bar'},save,h('button',{type:'button',onclick:async e=>{const b=e.currentTarget;if(JSON.stringify(payload())!==baseline){message.textContent='Enregistrez vos modifications avant le test.';return;}b.disabled=true;message.textContent='Test de connexion…';try{await api('/yeastar/test',{method:'POST'});message.textContent='Authentification Yeastar réussie.';}catch(error){message.textContent=error.message;}finally{b.disabled=false;}}},'Tester la connexion Yeastar')));
  }catch(e){message.textContent=e.message;}}setTimeout(load,0);return box;
 }
 function documentSettingsCard(){
@@ -419,9 +464,15 @@ async function list(k) {
   const box = h('div', {}, skel());
   const q = h('input', {type:'search', placeholder:'Rechercher…', value:filt.q});
   const bar = h('div', {class:'bar'}, q);
-  let s, a;
+  let s, a, g;
   if (K.all) { s = h('select', {}, h('option', {value:''}, 'Tous statuts'), Object.entries(ST).map(([v, l]) => h('option', {value:v, selected: filt.status === v}, l))); bar.append(s); }
-  if (me.can.all) { a = h('select', {}, h('option', {value:''}, 'Tous commerciaux'), me.commerciaux.map(u => h('option', {value:u.uid, selected: filt.assigned === u.uid}, u.name))); bar.append(a); }
+  if (me.can.all) {
+    a = multi('Commerciaux', me.commerciaux.map(u => ({v:u.uid, t:u.name})), (filt.user || filt.assigned || '').split('|'));
+    g = multi('Groupes de commerciaux', (me.groups || []).map(group => ({v:group.id, t:group.name})), (filt.group || '').split('|'));
+    bar.append(a.el, g.el, h('button', {type:'button', onclick:() => { a.clear(); g.clear(); load(); }}, 'Tous les commerciaux / groupes'));
+  }
+  const category = multi('Produits demandés', (me.options.c2 || []).map(c => ({v:c, t:c})), (filt.cat || '').split('|'));
+  bar.append(category.el, h('button', {type:'button', onclick:() => { category.clear(); load(); }}, 'Tous les produits'));
   let page = 1;
   const SORTS = [['', 'Tri par défaut'], ['nom', 'Nom'], ['date', 'Date d’enregistrement'], ['statut', 'Statut'], ['wilaya', 'Wilaya'], ['categorie', 'Catégorie'], ['appel', 'Dernier appel'], ['rappel', 'Date de rappel']];
   const so = h('select', {title:'Trier par'}, SORTS.map(([v, l]) => h('option', {value:v, selected: sortBy.k === v}, l)));
@@ -457,9 +508,9 @@ async function list(k) {
   const pst = 'justify-content:space-between;align-items:center;margin:8px 0';
   const pager = h('div', {class:'bar', style:pst}), pagerB = h('div', {class:'bar', style:pst});
   const load = async (keep) => {
-    if (keep !== true) page = 1;
-    filt = {q:q.value, status: s ? s.value : '', assigned: a ? a.value : ''};
-    const p = new URLSearchParams({q:filt.q, status: K.status || filt.status, assigned:filt.assigned, rappels: K.rappels ? 1 : '', asc: K.asc ? 1 : '',
+    if (keep !== true) { page = 1; sel.clear(); }
+    filt = {q:q.value, status: s ? s.value : '', user:a ? a.values().join('|') : '', group:g ? g.values().join('|') : '', cat:category.values().join('|')};
+    const p = new URLSearchParams({q:filt.q, status: K.status || filt.status, user:filt.user, group:filt.group, cat:filt.cat, rappels: K.rappels ? 1 : '', asc: K.asc ? 1 : '',
       reg_from: dts(rf.value, 0), reg_to: dts(rt.value, 86400), proc_from: dts(pf.value, 0), proc_to: dts(pt.value, 86400),
       sort:sortBy.k, dir:sortBy.d, paged:1, limit:pageSize, offset:(page - 1) * pageSize});
     try {
@@ -479,7 +530,7 @@ async function list(k) {
       pager.replaceChildren(...mk()); pagerB.replaceChildren(...mk());
     } catch (e) { box.replaceChildren(h('p', {class:'err'}, e.message)); }
   };
-  [q, s, a, rf, rt, pf, pt].forEach(e => e && e.addEventListener('change', () => load()));
+  [q, s, a?.el, g?.el, category.el, rf, rt, pf, pt].forEach(e => e && e.addEventListener('change', () => load()));
   show(h('h2', {}, K.t), me.can.create ? h('div', {class:'bar'}, h('button', {class:'primary', onclick: () => addForm()}, '+ Ajouter un client')) : '', me.can.assign && K.all ? distButtons() : '', bar, dbar, selBar, pager, box, pagerB); load();
 }
 async function addForm() {
@@ -820,14 +871,16 @@ function simCard() {
   return box;
 }
 
-function multi(label, opts) {
-  const boxes = opts.map(o => h('label', {style:'display:block;padding:3px 10px;white-space:nowrap'}, h('input', {type:'checkbox', value:o.v}), ' ' + o.t));
+function multi(label, opts, selected = []) {
+  const boxes = opts.map(o => h('label', {style:'display:block;padding:3px 10px;white-space:nowrap'}, h('input', {type:'checkbox', value:o.v, checked:selected.includes(o.v)}), ' ' + o.t));
   const sum = h('summary', {style:'cursor:pointer;padding:6px 10px;border:1px solid var(--color-border);border-radius:6px'}, label);
   const el = h('details', {style:'position:relative;display:inline-block'}, sum,
     h('div', {style:'position:absolute;z-index:50;background:var(--color-main-background);border:1px solid var(--color-border);border-radius:6px;padding:4px 0;max-height:260px;overflow:auto;min-width:210px'}, boxes));
   const values = () => boxes.map(l => l.firstChild).filter(i => i.checked).map(i => i.value);
-  boxes.forEach(l => l.firstChild.addEventListener('change', () => { const n = values().length; sum.textContent = n ? label + ' (' + n + ')' : label; }));
-  return {el, values};
+  const update = () => { const n = values().length; sum.textContent = (n ? label + ' (' + n + ')' : label + ' : tous') + ' ▾'; };
+  boxes.forEach(l => l.firstChild.addEventListener('change', update));
+  update();
+  return {el, values, clear:() => { boxes.forEach(l => { l.firstChild.checked = false; }); update(); }};
 }
 
 function statusChart(rows) {
@@ -854,6 +907,100 @@ function hoursChart(hrs) {
     h('div', {style:'display:flex;gap:3px;margin-top:4px'}, hrs.map((n, i) => h('span', {style:'flex:1;text-align:center;font-size:10px;color:var(--color-text-maxcontrast)'}, String(i)))),
     h('div', {class:'muted', style:'margin-top:6px'}, total + ' appel(s) — heure la plus active : ' + best + 'h–' + (best + 1) + 'h (' + hrs[best] + ')'));
 }
+function dashboardPeriodFilter(apply) {
+  const from = h('input', {type:'date', 'aria-label':'Du'}), to = h('input', {type:'date', 'aria-label':'Au'});
+  const error = h('span', {class:'err', role:'status'});
+  const buttons = [];
+  const select = key => buttons.forEach(([value, button]) => button.setAttribute('aria-pressed', String(value === key)));
+  const dates = h('div', {class:'dashboard-dates', hidden:true}, h('label', {}, 'Du ', from), h('label', {}, 'Au ', to),
+    h('button', {type:'button', onclick:() => {
+      if (!from.value || !to.value || from.value > to.value) { error.textContent = 'Choisissez une date de début et une date de fin égale ou postérieure.'; return; }
+      error.textContent = ''; apply({period:'custom', from:from.value, to:to.value});
+    }}, 'Appliquer les dates'), h('small', {}, 'Une journée précise : la même date dans Du et Au. Une semaine passée : du lundi au dimanche.'));
+  const choices = [['day','Aujourd’hui'],['week','Cette semaine'],['month','Ce mois'],['custom','Choisir des dates…']].map(([key,label]) => {
+    const button = h('button', {type:'button', 'aria-pressed':String(key === 'day'), onclick:() => {
+      select(key); dates.hidden = key !== 'custom'; error.textContent = '';
+      if (key !== 'custom') apply({period:key});
+    }}, label);
+    buttons.push([key,button]); return button;
+  });
+  return h('div', {class:'dashboard-period'}, h('div', {class:'bar', role:'group', 'aria-label':'Période des statistiques'}, choices), dates, error);
+}
+
+function callDashboardCard() {
+  const manager = ['admin', 'superviseur'].includes(me.role);
+  if (!manager && me.role !== 'commercial') return '';
+  let filter = {period:'day'}, report = null, generation = 0, page = 0;
+  const body = h('div', {role:'status'}, 'Chargement…');
+  const incoming = h('div');
+  const state = h('select', {'aria-label':'État du suivi'},
+    h('option', {value:'open'}, 'À vérifier / rappeler'), h('option', {value:'done'}, 'Traités'), h('option', {value:'all'}, 'Tous'));
+  const search = h('input', {type:'search', 'aria-label':'Rechercher un numéro', placeholder:'Rechercher un numéro…'});
+  const duration = value => { const s = Number(value) || 0; return Math.floor(s / 3600) + ' h ' + String(Math.floor(s % 3600 / 60)).padStart(2, '0') + ' min ' + String(s % 60).padStart(2, '0') + ' s'; };
+  const time = value => new Date(value * 1000).toLocaleString('fr-FR', {timeZone:report.timezone});
+  const drawIncoming = () => {
+    if (!report) return;
+    const rows = report.incoming.filter(r => (state.value === 'all' || r.state === state.value) && r.phone.includes(search.value.trim()));
+    page = Math.max(0, Math.min(page, Math.ceil(rows.length / 20) - 1));
+    const items = rows.slice(page * 20, (page + 1) * 20);
+    incoming.replaceChildren(h('p', {}, rows.length + ' appel(s) à examiner — page ' + (page + 1) + ' / ' + Math.max(1, Math.ceil(rows.length / 20))),
+      ...items.map(r => {
+        const feedback = h('span', {role:'status', class:'err'});
+        const action = manager ? h('button', {onclick:async e => {
+          const button = e.currentTarget; button.disabled = true; feedback.textContent = '';
+          try { await api('/dashboard/followup', {method:'POST', body:{id:r.id, state:r.state === 'done' ? 'open' : 'done'}}); await load(); }
+          catch (error) { feedback.textContent = error.message; }
+          finally { button.disabled = false; }
+        }}, r.state === 'done' ? 'Rouvrir le suivi' : 'Marquer traité') : '';
+        return h('div', {class:'card'}, h('strong', {}, r.phone), ' · ' + time(r.received_at),
+          h('p', {}, r.kind === 'unmapped' ? 'SVI / file / poste non associé : réponse commerciale à vérifier.' : 'Aucune réponse d’un commercial associé dans les détails reçus.'),
+          h('p', {class:'muted'}, 'Destination(s) : ' + r.extensions.join(', ') + (r.state === 'done' ? ' · Traité le ' + time(r.updated_at) : ' · Suivi ouvert')),
+          r.prospect_id ? h('button', {onclick:() => detail(r.prospect_id)}, 'Ouvrir le dossier / rappeler') : h('span', {class:'muted'}, 'Numéro sans dossier unique : rattachement dans les enregistrements Yeastar.'), ' ', action, feedback);
+      }),
+      h('div', {class:'bar'}, h('button', {disabled:page === 0, onclick:() => { page--; drawIncoming(); }}, 'Précédent'),
+        h('button', {disabled:(page + 1) * 20 >= rows.length, onclick:() => { page++; drawIncoming(); }}, 'Suivant')));
+  };
+  state.addEventListener('change', () => { page = 0; drawIncoming(); });
+  search.addEventListener('input', () => { page = 0; drawIncoming(); });
+  const refresh = h('button', {onclick:() => load()}, 'Actualiser le tableau de bord');
+  const load = async () => {
+    const request = ++generation; refresh.disabled = true; body.replaceChildren('Chargement…'); incoming.replaceChildren(); report = null;
+    try {
+      const r = await api('/dashboard?' + new URLSearchParams(filter));
+      if (request !== generation) return;
+      report = r;
+      const sums = r.rows.reduce((s, row) => { for (const k of ['inbound','outbound','answered','talk']) s[k] += row.telephony[k]; s.processed += row.processed; return s; }, {inbound:0,outbound:0,answered:0,talk:0,processed:0});
+      const results = [...new Set(r.rows.flatMap(row => Object.keys(row.by_result)))];
+      const labels = ['Commercial', 'Dossiers', 'Appels Yeastar', 'Temps', 'Résultats des dossiers'];
+      const line = (label, value) => h('div', {class:'dashboard-metric'}, h('span', {}, label), h('strong', {}, String(value)));
+      body.replaceChildren(h('p', {class:'muted'}, r.range.from + ' au ' + r.range.to + ' · ' + r.timezone),
+        h('div', {class:'dashboard-kpis'}, ...[['Dossiers traités par agent',sums.processed],['Sortants par agent',sums.outbound],['Réponses agent',sums.answered],['Temps de conversation',duration(sums.talk)],['Suivis entrants ouverts¹',r.totals.unanswered + r.totals.unmapped - r.totals.treated]].map(([label,value]) => h('div', {class:'card'}, h('strong', {}, String(value)), h('div', {}, label)))),
+        h('p', {class:'muted'}, '¹ Appels à vérifier, y compris SVI et postes non associés. Ce chiffre ne représente pas les appels perdus.'),
+        h('table', {class:'t dashboard-table'}, h('caption', {}, 'Performance commerciale et téléphonie'),
+          h('thead', {}, h('tr', {}, labels.map(label => h('th', {scope:'col'}, label)))),
+          h('tbody', {}, r.rows.map(row => { const t = row.telephony, p = row.totals.selected; return h('tr', {},
+            h('th', {scope:'row'}, row.name),
+            h('td', {'data-label':'Dossiers'}, h('strong', {}, String(row.processed))),
+            h('td', {'data-label':'Appels Yeastar'}, line('Sortants', t.outbound), line('Entrants proposés', t.inbound), line('Réponses agent', t.answered)),
+            h('td', {'data-label':'Temps'}, line('Conversation', duration(t.talk)), line('Moyenne / réponse', t.answered ? duration(Math.round(t.talk / t.answered)) : '—'), line('Présence active', duration(p.online)), line('Pause', duration(p.pause)), line('Déjeuner', duration(p.lunch))),
+            h('td', {'data-label':'Résultats des dossiers'}, results.length ? results.map(k => line(ST[k] || k, row.by_result[k] || 0)) : 'Aucun résultat')); }))),
+        h('p', {class:'muted'}, 'Dossiers : une fois par commercial, avec le dernier résultat de la période. Téléphonie : une fois par identifiant d’appel et commercial ; un transfert peut concerner plusieurs agents. Durée : maximum reçu par appel et agent. La présence mesure la connexion au CRM.'),
+        h('h3', {}, 'Appels entrants : suivi des réponses et rappels'),
+        h('p', {}, r.totals.inbound + ' identifiant(s) entrant(s) · ' + r.totals.answered + ' avec réponse agent · ' + r.totals.unanswered + ' sans réponse agent · ' + r.totals.unmapped + ' SVI / non associés · ' + r.totals.treated + ' suivi(s) traité(s).'),
+        h('p', {class:'muted'}, 'Seuls les détails Yeastar reçus sont connus. Des identifiants différents restent séparés : cette liste signale des appels à vérifier, pas un taux définitif d’appels perdus. « Traité » est une validation manuelle du responsable, pas une preuve de rappel abouti.'),
+        h('p', {class:'muted'}, manager ? 'Vue équipe. Les numéros inconnus restent réservés aux responsables.' : 'Les compteurs téléphoniques sont ceux de votre poste associé. La liste entrante concerne uniquement vos dossiers actuellement affectés.'));
+      drawIncoming();
+    } catch (error) { if (request === generation) body.replaceChildren(h('p', {class:'err'}, error.message)); }
+    finally { if (request === generation) refresh.disabled = false; }
+  };
+  const card = h('section', {class:'card call-dashboard', 'aria-label':'Performance et suivi des appels'},
+    h('h3', {}, 'Performance et suivi des appels'),
+    h('p', {class:'muted'}, 'Filtres propres à ce tableau. Les appels sont datés à leur réception dans le CRM ; les résultats et temps de présence utilisent la même période civile.'),
+    dashboardPeriodFilter(value => { filter = value; page = 0; load(); }), refresh, body,
+    h('div', {class:'bar'}, state, search), incoming);
+  load(); return card;
+}
+
 async function stats() {
   const nameOf = u => (me.commerciaux.find(c => c.uid === u) || {name:u}).name;
   const box = h('div', {}, skel()), sum = h('div');
@@ -962,6 +1109,7 @@ async function stats() {
     } catch (e) { alert(e.message); }
   };
   show(h('h2', {}, me.can.all ? 'Statistiques' : 'Mes statistiques'),
+    callDashboardCard(),
     me.role === 'commercial' ? personalTimesCard() : '',
     h('div', {class:'bar'}, me.can.all ? [usr.el, grp.el] : '', cat.el, res, h('label', {}, 'Du ', from), h('label', {}, 'Au ', to), presets, rbtn, me.can.export ? h('button', {onclick: xl, title: me.can.export_phone ? '' : 'Export sans numéros de téléphone'}, '⬇ Télécharger Excel' + (me.can.export_phone ? '' : ' (sans téléphone)')) : '', upd),
     h('h3', {}, 'Journal des appels'), h('div', {class:'bar'}, jq), jpg,
@@ -1657,7 +1805,7 @@ function admin() {
     orph,
     h('p', {class:'muted'}, 'Profils : définis par les groupes (AD ou Nextcloud) associés aux rôles administrateur, superviseur, commercial et lecture seule.'));
   if(me.can.fields)root.querySelector('.crm-page')?.append(yeastarSettingsCard(),documentSettingsCard(),collectSettingsCard());
-  if(me.can.assign)root.querySelector('.crm-page')?.append(documentsCard());
+  if(me.can.assign)root.querySelector('.crm-page')?.append(documentsCard(),yeastarRecordingsCard());
   adminPanels();
   api('/recordings').then(rows => {
     orph.replaceChildren(...(rows.length ? [h('h3', {}, 'Enregistrements non rattachés à une fiche'),

@@ -67,6 +67,46 @@ class YeastarClient {
         } finally { $this->locks->releaseLock($resource, ILockingProvider::LOCK_EXCLUSIVE); }
     }
 
+    /** Download only from the configured PBX, never from a webhook-supplied URL. */
+    public function downloadRecording(string $filename): array {
+        if (!YeastarRecordings::validFilename($filename)) throw new \InvalidArgumentException('Nom audio invalide.');
+        $s=$this->settings->credentials();
+        $token=$this->token();
+        $options=['headers'=>['User-Agent'=>'CallCRM-OpenAPI','Accept-Encoding'=>'identity'],
+            'timeout'=>90,'connect_timeout'=>5,'allow_redirects'=>false,'verify'=>!$s['allow_self_signed'],'stream'=>true];
+        try {
+            $url=$s['url'].'/openapi/v1.0/recording/download?'.http_build_query(['access_token'=>$token,'file'=>$filename]);
+            $response=$this->http->newClient()->get($url,$options);
+            $metadata=json_decode(self::readLimited($response,1048576),true,32,JSON_THROW_ON_ERROR);
+            if ((string)($metadata['errcode']??'')!=='0') throw new \RuntimeException();
+            $path=$metadata['download_resource_url']??'';
+            // Restrict the response to the PBX attachment endpoints. No external URL, query or traversal.
+            if (!is_string($path) || !preg_match('~^/api/(?:download|downloadattachment)/[A-Za-z0-9_.-]+$~D',$path) || str_contains($path,'..')) throw new \RuntimeException();
+            $response=$this->http->newClient()->get($s['url'].$path.'?'.http_build_query(['access_token'=>$token]),$options);
+            $bytes=self::readLimited($response,min(YeastarRecordings::MAX_SIZE,$s['recordings_max_mb']*1048576));
+            $wav=strlen($bytes)>=12 && substr($bytes,0,4)==='RIFF' && substr($bytes,8,4)==='WAVE';
+            $mp3=str_starts_with($bytes,'ID3') || (strlen($bytes)>2 && ord($bytes[0])===255 && (ord($bytes[1])&224)===224);
+            if (!$wav && !$mp3) throw new \RuntimeException();
+            return ['bytes'=>$bytes,'mime'=>$wav?'audio/wav':'audio/mpeg'];
+        } catch (\Throwable $e) {
+            // HTTP exceptions may contain access tokens. Never propagate their details.
+            throw new \RuntimeException('Audio Yeastar indisponible ou supérieur à la taille maximale configurée.');
+        }
+    }
+
+    private static function readLimited($response, int $limit): string {
+        $body=$response->getBody();
+        try {
+            if ($response->getStatusCode()!==200) throw new \RuntimeException();
+            if (is_resource($body)) {
+                $bytes=stream_get_contents($body,$limit+1);
+                if ($bytes===false) throw new \RuntimeException();
+            } else $bytes=(string)$body;
+            if ($bytes==='' || strlen($bytes)>$limit) throw new \RuntimeException();
+            return $bytes;
+        } finally { if (is_resource($body)) fclose($body); }
+    }
+
     public function test(): void { $this->token(); }
     public function dial(string $extension, string $number): string {
         if (!preg_match('/^\d{1,10}$/D',$extension) || !preg_match('/^\+?\d{3,20}$/D',$number)) throw new \InvalidArgumentException('Extension ou numéro invalide.');
