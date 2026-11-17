@@ -364,3 +364,141 @@ body[data-themes*="dark"] #callcrm,body[data-theme-dark] #callcrm{--brand:var(--
 }
 @media(max-width:480px){#callcrm .dashboard-table tbody tr{grid-template-columns:1fr}}
 #callcrm .wa-composer select,#callcrm .wa-composer textarea{width:100%;box-sizing:border-box;margin:6px 0}#callcrm .wa-composer label{display:block;margin:8px 0}#callcrm .wa-composer input{width:100%;box-sizing:border-box}#callcrm .wa-tpl-preview:not(:empty){margin:10px 0 10px auto;max-width:100%}
+
+/* ───────── Interface 0.35 : clair, aéré, pensé pour l'ordinateur (maquette validée le 17/11/2026) ───────── */
+#callcrm.crm-workspace{--ui-accent:#2f5ec4;--ui-accent-ink:#fff;--ui-panel:var(--color-main-background,#fff);--ui-line:var(--color-border,#e6eaf2);--ui-muted:var(--color-text-maxcontrast,#6a748c);
+ --ui-soft:color-mix(in srgb,var(--ui-accent) 7%,var(--ui-panel));--ui-hover:color-mix(in srgb,var(--ui-accent) 4%,var(--ui-panel));--ui-r:14px;--ui-r-sm:10px;
+ --brand:var(--ui-accent);--brand-ink:var(--ui-accent-ink);--soft:var(--ui-soft);--line:var(--ui-line);
+ font-family:Inter,"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+body[data-themes*="dark"] #callcrm.crm-workspace,body[data-theme-dark] #callcrm.crm-workspace{--ui-accent:#7f9ef0;--ui-accent-ink:#0d1530}
+@media(prefers-color-scheme:dark){body:not([data-themes*="light"]):not([data-theme-light]) #callcrm.crm-workspace{--ui-accent:#7f9ef0;--ui-accent-ink:#0d1530}}
+#callcrm.crm-workspace h2,#callcrm.crm-workspace h3{font-family:inherit}
+#callcrm.crm-workspace button,#callcrm.crm-workspace input,#callcrm.crm-workspace select,#callcrm.crm-workspace textarea{font-size:14px;min-height:38px;border-radius:var(--ui-r-sm)}
+#callcrm.crm-workspace button{font-weight:600;padding:7px 14px}
+#callcrm.crm-workspace button.primary{background:var(--ui-accent);border-color:var(--ui-accent);color:var(--ui-accent-ink)}
+#callcrm.crm-workspace .crm-page .card{border-radius:var(--ui-r);border-color:var(--ui-line);padding:18px 20px;box-shadow:none}
+#callcrm.crm-workspace .crm-page h3{font-size:15px;margin:0 0 12px}
+#callcrm.crm-workspace kbd{font:600 11px/1 inherit;border:1px solid var(--ui-line);border-bottom-width:2px;border-radius:5px;padding:2px 5px;background:var(--ui-panel);color:var(--ui-muted)}
+/* Fiche client */
+#callcrm .crm-crumb{display:flex;align-items:center;gap:12px;margin:0 0 14px}
+#callcrm .crm-crumb .crm-back{border:0;background:transparent;color:var(--ui-muted);padding:6px 4px;font-weight:600}
+#callcrm .crm-crumb .crm-back:hover{color:var(--ui-accent);background:transparent}
+#callcrm .crm-stepper{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:13px}
+#callcrm .crm-icon-btn{width:34px;min-width:34px;padding:0!important;font-size:18px!important;line-height:1}
+#callcrm .crm-hero{display:flex;align-items:center;gap:18px;margin:0 0 18px!important}
+#callcrm .crm-avatar{flex:none;width:54px;height:54px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:18px;background:var(--ui-soft);color:var(--ui-accent)}
+#callcrm .crm-hero-main{flex:1;min-width:0}
+#callcrm .crm-hero-title{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+#callcrm .crm-page .crm-hero h2{margin:0;font-size:22px;line-height:1.25}
+#callcrm .crm-meta{display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:6px;color:var(--ui-muted);font-size:13px}
+#callcrm .crm-meta .crm-callback{color:#a86510;font-weight:600}#callcrm .crm-meta .crm-late{color:var(--bad);font-weight:600}
+#callcrm .crm-hero-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+#callcrm .crm-btn{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:8px 16px;border-radius:var(--ui-r-sm);font-weight:600;text-decoration:none;border:1px solid var(--ui-line);color:inherit}
+#callcrm .crm-btn-primary{background:var(--ui-accent);border-color:var(--ui-accent);color:var(--ui-accent-ink)!important;padding:8px 20px}
+#callcrm .crm-btn-primary:hover{filter:brightness(1.08)}
+#callcrm .crm-btn-wa{background:color-mix(in srgb,#1f9d55 12%,var(--ui-panel));border-color:color-mix(in srgb,#1f9d55 30%,var(--ui-panel));color:#147a43}
+#callcrm .crm-btn-ghost,#callcrm button.sim-open.crm-btn-ghost{background:transparent;border-color:transparent;color:var(--ui-muted);margin:0;width:auto;padding:8px 12px}
+#callcrm button.sim-open.crm-btn-ghost:hover{background:var(--ui-soft);color:inherit}
+#callcrm .crm-page .crm-client-columns,#callcrm .crm-page .cols[data-pid]{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(300px,1fr);gap:18px;align-items:start}
+#callcrm .crm-client-columns>div,#callcrm .cols[data-pid]>div{display:grid;gap:18px;align-content:start;min-width:0}
+#callcrm .crm-client-columns>div>*,#callcrm .cols[data-pid]>div>*,#callcrm .cols[data-pid]>div>div>.card{margin:0!important}
+#callcrm .crm-card-head{display:flex;align-items:center;gap:10px;margin:0 0 14px}
+#callcrm .crm-card-head h3{margin:0!important}
+#callcrm .crm-card-head>:last-child:not(h3){margin-left:auto}
+#callcrm .crm-kbd-hint{font-size:12px}
+#callcrm .crm-outcome .res{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0}
+#callcrm .crm-outcome .res button{display:flex;align-items:center;gap:8px;justify-content:flex-start;text-align:left;padding:9px 12px;min-height:42px;font-size:14px;border:1px solid var(--ui-line);border-radius:var(--ui-r-sm);background:var(--ui-panel);color:inherit;box-shadow:none}
+#callcrm .crm-outcome .res button:before{content:"";flex:none;width:9px;height:9px;border-radius:50%;background:var(--sc,#888);order:-1}
+#callcrm .crm-outcome .res button kbd{order:3;margin-left:auto}
+#callcrm .crm-outcome .res button:hover{border-color:var(--sc,var(--ui-line));background:color-mix(in srgb,var(--sc,#888) 6%,var(--ui-panel))}
+#callcrm .crm-outcome .res button.on{border-color:var(--sc);background:color-mix(in srgb,var(--sc,#888) 12%,var(--ui-panel));color:inherit;box-shadow:0 0 0 3px color-mix(in srgb,var(--sc,#888) 22%,transparent)}
+#callcrm .crm-outcome-form{margin-top:14px;display:grid;gap:10px}
+#callcrm .crm-outcome-form textarea{width:100%;min-height:64px}
+#callcrm .crm-outcome-form .shortcuts{display:flex;gap:6px;flex-wrap:wrap}
+#callcrm .crm-outcome-form .shortcuts button{min-height:32px;padding:4px 10px;font-size:13px}
+#callcrm .crm-outcome-actions{display:flex;justify-content:flex-end}
+#callcrm .crm-info-view .crm-dl{display:grid;grid-template-columns:minmax(90px,auto) 1fr;gap:9px 14px;margin:0}
+#callcrm .crm-dl dt{color:var(--ui-muted)}#callcrm .crm-dl dd{margin:0;font-weight:500;overflow-wrap:anywhere}
+#callcrm .crm-note{margin-top:14px;padding:10px 12px;border-radius:var(--ui-r-sm);background:color-mix(in srgb,#e2a93b 12%,var(--ui-panel));border:1px solid color-mix(in srgb,#e2a93b 35%,var(--ui-panel));white-space:pre-wrap}
+#callcrm .crm-info-toggle{border:0!important;background:transparent!important;color:var(--ui-accent);min-height:30px!important;padding:4px 8px!important}
+#callcrm .crm-client-info{padding:0!important}
+#callcrm .crm-client-info>summary{list-style:none;cursor:pointer;padding:16px 20px 0;font-weight:600;color:var(--ui-muted);font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+#callcrm .crm-client-info>summary::-webkit-details-marker{display:none}
+#callcrm .crm-client-info>.card,#callcrm .crm-client-info>div{border:0!important;margin:0!important;padding:12px 20px 18px!important}
+#callcrm .crm-assign{display:flex!important;align-items:center;gap:10px}#callcrm .crm-assign select{flex:1}
+#callcrm .crm-danger-link{justify-self:start;border:0!important;background:transparent!important;color:var(--bad)!important;font-weight:500!important;padding:4px 0!important}
+@media(max-width:1100px){#callcrm .crm-page .crm-client-columns,#callcrm .crm-page .cols[data-pid]{grid-template-columns:minmax(0,1fr) minmax(260px,.8fr)}#callcrm .crm-outcome .res{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){#callcrm .crm-hero{flex-wrap:wrap}#callcrm .crm-hero-actions{width:100%;justify-content:flex-start}#callcrm .crm-page .crm-client-columns,#callcrm .crm-page .cols[data-pid]{grid-template-columns:1fr}#callcrm .crm-kbd-hint,#callcrm .crm-outcome .res button kbd{display:none}}
+#callcrm .crm-client-info{position:relative;background:var(--ui-panel)!important}
+#callcrm .crm-client-info>summary{font-size:15px;text-transform:none;letter-spacing:0;color:inherit;padding:18px 20px 4px}
+#callcrm .crm-client-info .crm-card-head h3{display:none}
+#callcrm .crm-client-info .crm-card-head{margin:0}
+#callcrm .crm-client-info .crm-info-toggle{position:absolute;top:13px;right:14px}
+#callcrm .crm-col-main>.card[title]{background:var(--ui-panel)!important;border-left:3px solid #a86510!important}
+#callcrm .crm-timeline-filters{gap:6px!important;margin-bottom:8px}
+#callcrm .crm-timeline-filters button{min-height:30px!important;padding:3px 12px!important;border-radius:20px!important;font-size:13px!important;font-weight:500!important}
+#callcrm .crm-timeline-filters button.on{background:var(--ui-soft)!important;color:var(--ui-accent)!important;border-color:color-mix(in srgb,var(--ui-accent) 35%,var(--ui-panel))!important}
+#callcrm .crm-col-side details.card>summary,#callcrm .crm-col-main details.card>summary{font-weight:600;cursor:pointer}
+/* Navigation */
+#callcrm.crm-workspace{grid-template-columns:232px minmax(0,1fr);gap:28px}
+#callcrm.crm-workspace>.crm-sidebar{border-radius:var(--ui-r);padding:16px 12px;display:flex!important;flex-direction:column;max-height:calc(100vh - 80px)}
+#callcrm .crm-sidebar .nav{display:flex!important;flex-direction:column;gap:2px;margin:0!important;padding:0!important;border:0!important;position:static!important;overflow:visible!important;background:transparent!important}
+#callcrm .crm-nav-sec{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ui-muted);padding:14px 10px 4px;opacity:.85}
+#callcrm .crm-sidebar .nav button{display:flex!important;align-items:center;gap:10px;width:100%;justify-content:flex-start;text-align:left;min-height:36px!important;padding:7px 10px!important;border-radius:var(--ui-r-sm)!important;border:0!important;background:transparent!important;color:inherit!important;font-weight:500!important;opacity:.85}
+#callcrm .crm-sidebar .nav button:hover{background:var(--ui-soft)!important;opacity:1}
+#callcrm .crm-sidebar .nav button.on{background:var(--ui-soft)!important;color:var(--ui-accent)!important;font-weight:600!important;opacity:1}
+#callcrm .crm-sidebar-user{margin-top:auto;display:flex;align-items:center;gap:10px;padding:12px 6px 2px;border-top:1px solid var(--ui-line);font-size:13px}
+#callcrm .crm-sidebar-user .crm-avatar{width:34px;height:34px;font-size:12px}
+#callcrm .crm-sidebar-user strong,#callcrm .crm-sidebar-user small{display:block;line-height:1.3}
+/* En-tête de page et onglets */
+#callcrm .crm-page-head{display:flex;align-items:flex-end;gap:16px;margin:4px 0 18px}
+#callcrm .crm-page .crm-page-head h2{font-size:24px;margin:0;line-height:1.2}
+#callcrm .crm-page-head p{margin:4px 0 0}
+#callcrm .crm-page-actions{margin-left:auto;display:flex;gap:8px}
+#callcrm .crm-tabs{display:flex!important;gap:2px!important;flex-wrap:nowrap!important;overflow-x:auto;border-bottom:1px solid var(--ui-line);margin:0 0 16px!important;scrollbar-width:none}
+#callcrm .crm-tabs button{border:0!important;border-bottom:2px solid transparent!important;border-radius:0!important;background:transparent!important;color:var(--ui-muted)!important;padding:9px 12px!important;min-height:38px!important;font-size:14px!important;white-space:nowrap;flex:none}
+#callcrm .crm-tabs button:hover{color:inherit!important}
+#callcrm .crm-tabs button.on{color:var(--ui-accent)!important;border-bottom-color:var(--ui-accent)!important}
+#callcrm .crm-tabs .ovd{margin-left:6px}
+#callcrm .crm-page .crm-filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 10px}
+#callcrm .crm-filters input[type=search]{flex:1;min-width:220px;max-width:360px}
+#callcrm .crm-filters details summary{min-height:38px;display:flex;align-items:center;border-radius:var(--ui-r-sm)!important;border-color:var(--ui-line)!important;background:var(--ui-panel);font-weight:500}
+#callcrm .crm-filters>button{font-weight:500}
+#callcrm .crm-more-filters{margin:0 0 14px}#callcrm .crm-more-filters>summary{cursor:pointer;color:var(--ui-accent);font-weight:600;font-size:13px;display:inline-block;padding:2px 0}
+#callcrm .crm-more-filters .bar{margin-top:10px}
+/* Tableau des dossiers */
+#callcrm .crm-page .crm-list{padding:0!important;overflow:hidden}
+#callcrm .crm-list .row{display:grid;grid-template-columns:minmax(200px,2.2fr) minmax(90px,1fr) minmax(110px,1.2fr) 178px minmax(120px,1.2fr) 110px 84px;gap:12px;align-items:center;margin:0;padding:11px 16px;border:0;border-bottom:1px solid var(--ui-line);border-radius:0;box-shadow:none!important;background:transparent}
+#callcrm .crm-list .row:has(.cell-ck){grid-template-columns:24px minmax(200px,2.2fr) minmax(90px,1fr) minmax(110px,1.2fr) 178px minmax(120px,1.2fr) 110px 84px}
+#callcrm .crm-list .row:hover{background:var(--ui-hover)}
+#callcrm .crm-list .row.overdue{background:color-mix(in srgb,var(--bad) 4%,var(--ui-panel));border-left:0}
+#callcrm .crm-list .crm-row-head{cursor:default;font-size:12px;font-weight:600;color:var(--ui-muted);padding-block:10px;background:color-mix(in srgb,var(--ui-line) 25%,var(--ui-panel))}
+#callcrm .crm-list .crm-row-head:hover{background:color-mix(in srgb,var(--ui-line) 25%,var(--ui-panel))}
+#callcrm .crm-list .cell-who{display:flex;align-items:center;gap:12px;min-width:0}
+#callcrm .crm-list .row .av{width:36px;height:36px;font-size:12px;background:var(--ui-soft);color:var(--ui-accent)}
+#callcrm .crm-list .row .main strong{font-weight:600}
+#callcrm .crm-list .cell{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#callcrm .crm-list .row .side{max-width:none;align-items:flex-start}
+#callcrm .crm-list .cell-cb.late{color:var(--bad);font-weight:600}
+#callcrm .crm-list .cell-d{font-size:13px}
+#callcrm .crm-list .cell-act{display:flex;gap:6px;justify-content:flex-end}
+#callcrm .crm-row-btn{width:34px;height:34px;border-radius:9px;border:1px solid var(--ui-line);display:grid;place-items:center;text-decoration:none;background:var(--ui-panel);font-size:15px}
+#callcrm .crm-row-btn.call{color:var(--ui-accent)}#callcrm .crm-row-btn:hover{border-color:var(--ui-accent)}
+#callcrm .crm-list .empty{padding:40px 20px;text-align:center}
+#callcrm .crm-list>.bar{margin:0!important;padding:10px 16px;border-top:0}
+#callcrm .crm-pager{display:inline-flex;align-items:center;gap:8px}#callcrm .crm-pager button{width:34px;min-width:34px;padding:0!important;font-size:18px!important}
+#callcrm .crm-list select{min-height:34px!important;padding:4px 8px}
+@media(max-width:1100px){#callcrm .crm-list .cell-c,#callcrm .crm-list .cell-d{display:none}#callcrm .crm-list .row{grid-template-columns:minmax(180px,2fr) minmax(80px,1fr) 178px minmax(110px,1.2fr) 80px}#callcrm .crm-list .row:has(.cell-ck){grid-template-columns:24px minmax(180px,2fr) minmax(80px,1fr) 178px minmax(110px,1.2fr) 80px}}
+@media(max-width:760px){#callcrm .crm-list .crm-row-head{display:none}#callcrm .crm-list .row,#callcrm .crm-list .row:has(.cell-ck){grid-template-columns:auto 1fr auto;row-gap:4px}#callcrm .crm-list .cell-w,#callcrm .crm-list .cell-cb:not(.late){display:none}#callcrm .crm-sidebar .crm-nav-sec,#callcrm .crm-sidebar-user{display:none}#callcrm .crm-sidebar .nav{flex-direction:row!important;overflow-x:auto!important}#callcrm .crm-sidebar .nav button{width:auto}}
+/* États en pastilles douces */
+#callcrm.crm-workspace .badge{background:color-mix(in srgb,var(--bc,#888) 15%,var(--ui-panel))!important;color:color-mix(in srgb,var(--bc,#888) 78%,var(--color-main-text,#111))!important;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+#callcrm.crm-workspace .badge:before{content:"";width:7px;height:7px;border-radius:50%;background:var(--bc,#888)}
+/* Barre du haut */
+#callcrm .crm-session-header{display:flex;align-items:center;gap:14px;padding-bottom:16px;margin-bottom:22px;border-bottom:1px solid var(--ui-line)}
+#callcrm .crm-session-header .crm-session-who{display:none}
+#callcrm .crm-global-search{flex:1;max-width:520px;display:flex!important;align-items:center;justify-content:space-between;gap:10px;font-weight:400!important;color:var(--ui-muted)!important;background:color-mix(in srgb,var(--ui-line) 35%,var(--ui-panel))!important;border-color:transparent!important;text-align:left}
+#callcrm .crm-global-search:hover{border-color:var(--ui-line)!important}
+#callcrm .crm-session-header .crm-session-actions,#callcrm .crm-session-header .crm-role{margin-left:auto}
+#callcrm .crm-filters select{max-width:220px}
+#callcrm .crm-filters>button:not(.primary){background:transparent;border-color:transparent;color:var(--ui-muted)}
+#callcrm .crm-outcome-form p{margin:4px 0 0}

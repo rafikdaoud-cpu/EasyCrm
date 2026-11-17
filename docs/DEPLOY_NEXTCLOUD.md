@@ -16,7 +16,7 @@ Versions de ce lot : **Call CRM 0.25.1** et **EasyCrm 1.6.1**. Les deux applicat
 
 | ZIP | Dossier racine dans le ZIP | Destination |
 |---|---|---|
-| callcrm-0.34.0.zip | callcrm/ | custom_apps/callcrm/ |
+| callcrm-0.35.0.zip | callcrm/ | custom_apps/callcrm/ |
 | easycrm-1.8.0.zip | easycrm/ | custom_apps/easycrm/ |
 
 Ne pas créer `callcrm/callcrm` ou `easycrm/easycrm`. Ne pas renommer les identifiants des applications pour les faire correspondre à un dossier. Le dossier Git `nextcloud/` contient l'application d'identifiant `easycrm` et le script l'archive correctement.
