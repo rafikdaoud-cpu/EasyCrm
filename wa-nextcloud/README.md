@@ -85,6 +85,19 @@ renvoie les modèles APPROVED du compte (cache 10 min). Les deux routes n'accept
   Manager → Modèles de message) et doivent être approuvés par Meta. Pris en charge : en-tête
   texte (ou aucun), variables `{{1}}` ou nommées, boutons sans variable.
 
+## 3 ter. Fiabilité : messages en échec
+
+- gunicorn tourne avec 2 processus : le traitement est sérialisé par un verrou de fichier
+  (`data/.serial.lock`, flock) commun aux processus et à la relance, pas seulement par thread.
+  Avant, deux messages simultanés du même client pouvaient créer son dossier en même temps
+  (HTTP 423 FileLocked).
+- La création de dossier réessaie sur 423 et 502-504 (maintenance Nextcloud), 8 fois au plus.
+- Relance automatique (crontab de csmtak11, toutes les 10 min, seulement s'il y a quelque chose) :
+  ```
+  */10 * * * * cd /home/csmtak11/wa-nextcloud && [ -n "$(find data/failed data/crm_queue -type f 2>/dev/null | head -1)" ] && venv/bin/python app.py retry >> logs/retry.log 2>&1
+  ```
+  Rejouer est sans doublon (messages déjà traités mémorisés) et garde l'heure d'origine.
+
 ## 4. Test
 
 Envoie une photo avec une légende à ton numéro Business depuis un autre téléphone :

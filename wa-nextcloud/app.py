@@ -14,6 +14,7 @@ Hébergement : service systemd (gunicorn 127.0.0.1:8085) derrière Apache (wa.cs
 """
 
 import base64
+import fcntl
 import hashlib
 import hmac
 import json
@@ -180,10 +181,16 @@ class Nextcloud:
     def ensure_dir(self, path):
         if path in self._dirs:
             return
-        r = self.s.request("MKCOL", self._u(path), timeout=30)
-        if r.status_code not in (201, 405):  # 405 = existe déjà
-            raise RuntimeError(f"MKCOL {path} -> HTTP {r.status_code} {r.text[:200]}")
-        self._dirs.add(path)
+        for attempt in range(8):
+            r = self.s.request("MKCOL", self._u(path), timeout=30)
+            if r.status_code in (201, 405):  # 405 = existe déjà
+                self._dirs.add(path)
+                return
+            # 423 : dossier verrouillé par Nextcloud (création simultanée) ; 502-504 : maintenance ou redémarrage
+            if r.status_code not in (423, 502, 503, 504):
+                break
+            time.sleep(min(attempt + 1, 5))
+        raise RuntimeError(f"MKCOL {path} -> HTTP {r.status_code} {r.text[:200]}")
 
     def upload(self, path, data, mime="application/octet-stream"):
         """Envoie un fichier sans écraser l'existant (suffixe -1, -2... si besoin)."""
@@ -679,7 +686,8 @@ def retry_failed():
         with open(path, encoding="utf-8") as f:
             item = json.load(f)
         try:
-            handle_locked(item["msg"], item["value"], item.get("direction", "in"))
+            with serial_lock():
+                handle_locked(item["msg"], item["value"], item.get("direction", "in"))
             os.remove(path)
             ok += 1
         except Exception as e:  # noqa: BLE001
@@ -699,8 +707,27 @@ app.config["MAX_CONTENT_LENGTH"] = 80 * 1024 * 1024
 _serial_lock = threading.Lock()
 
 
+SERIAL_LOCK_FILE = os.path.join(DATA_DIR, ".serial.lock")
+
+
+class serial_lock:
+    """Un message à la fois pour TOUS les processus (workers gunicorn et relance cron), pas seulement les threads."""
+    def __enter__(self):
+        _serial_lock.acquire()
+        self.f = open(SERIAL_LOCK_FILE, "a")
+        fcntl.flock(self.f, fcntl.LOCK_EX)
+        return self
+
+    def __exit__(self, *exc):
+        try:
+            fcntl.flock(self.f, fcntl.LOCK_UN)
+            self.f.close()
+        finally:
+            _serial_lock.release()
+
+
 def _serial(payload):
-    with _serial_lock:
+    with serial_lock():
         process_payload(payload)
 
 
