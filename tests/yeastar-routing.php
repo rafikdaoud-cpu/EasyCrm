@@ -32,7 +32,7 @@ class FakePbx extends YeastarClient {
    case 'inbound_route/delete': unset($this->routes[$query['id']]);return ['errcode'=>0];
    case 'queue/list': return ['errcode'=>0,'queue_list'=>[['id'=>1,'number'=>'6400','name'=>'CSM_AR'],['id'=>2,'number'=>'6401','name'=>'CSM_FR']]];
    case 'extension/get': return ['errcode'=>0,'data'=>['id'=>$query['id'],'number'=>'x','presence_list'=>$this->ext[$query['id']]??($this->ext[$query['id']]=self::presence())]];
-   case 'extension/update': $this->ext[$body['id']]=$body['presence_list'];$this->extUpdates++;return ['errcode'=>0];
+   case 'extension/update': foreach($body['presence_list'] as $u){if(isset($u['mobile_prefix']))return ['errcode'=>40002];foreach($this->ext[$body['id']] as &$e)if($e['status']===$u['status'])$e=array_merge($e,$u);unset($e);}$this->extUpdates++;return ['errcode'=>0];
   }
   return ['errcode'=>10001];
  }

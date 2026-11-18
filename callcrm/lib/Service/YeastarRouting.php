@@ -22,6 +22,8 @@ class YeastarRouting {
 	public const CHUNK = 250;
 	public const PLACEHOLDER = '0000000000';
 	public const NAME = '/^CRM_(\d{1,10})_(\d{1,3})$/D';
+	private const FORWARD_KEYS = ['enb_ex_no_answer_forward', 'ex_no_answer_forward_dest', 'ex_no_answer_forward_prefix', 'ex_no_answer_forward_value', 'ex_no_answer_forward_num',
+		'enb_ex_busy_forward', 'ex_busy_forward_dest', 'ex_busy_forward_prefix', 'ex_busy_forward_value', 'ex_busy_forward_num'];
 
 	public function __construct(private YeastarClient $client, private YeastarSettings $settings, private IConfig $config, private IDBConnection $db, private Presence $presence) {}
 
@@ -215,15 +217,15 @@ class YeastarRouting {
 		foreach ($want as $w) {
 			$id = (int)($w['ext_id'] ?? 0); if (!$id || ($done[$id] ?? '') === $queue) continue;
 			$e = $this->ok($this->client->call('GET', 'extension/get', ['id' => $id]), 'Lecture d’un poste')['data'] ?? [];
-			$list = $e['presence_list'] ?? []; $changed = false;
-			foreach ($list as &$p) {
-				if (($p['status'] ?? '') !== 'available') continue;
-				$backup[$id] ??= array_intersect_key($p, array_flip(['enb_ex_no_answer_forward', 'ex_no_answer_forward_dest', 'ex_no_answer_forward_value', 'enb_ex_busy_forward', 'ex_busy_forward_dest', 'ex_busy_forward_value']));
-				foreach (['no_answer', 'busy'] as $k) { $p['enb_ex_' . $k . '_forward'] = 1; $p['ex_' . $k . '_forward_dest'] = 'queue'; $p['ex_' . $k . '_forward_value'] = $queue; }
-				$changed = true;
+			$available = null;
+			foreach ($e['presence_list'] ?? [] as $p) if (($p['status'] ?? '') === 'available') $available = $p;
+			if ($available) {
+				// Le standard refuse qu'on lui renvoie certains champs (mobile_prefix…) : on n'envoie que ceux du renvoi externe.
+				$backup[$id] ??= array_intersect_key($available, array_flip(self::FORWARD_KEYS));
+				$set = ['status' => 'available'];
+				foreach (['no_answer', 'busy'] as $k) $set += ['enb_ex_' . $k . '_forward' => 1, 'ex_' . $k . '_forward_dest' => 'queue', 'ex_' . $k . '_forward_value' => $queue];
+				$this->ok($this->client->call('POST', 'extension/update', [], ['id' => $id, 'presence_list' => [$set]]), 'Renvoi du poste ' . ($e['number'] ?? $id));
 			}
-			unset($p);
-			if ($changed) $this->ok($this->client->call('POST', 'extension/update', [], ['id' => $id, 'presence_list' => $list]), 'Renvoi du poste ' . ($e['number'] ?? $id));
 			$done[$id] = $queue;
 			$s['forward_backup'] = $backup; $s['forward_done'] = $done; $this->saveState($s);
 		}
@@ -233,11 +235,7 @@ class YeastarRouting {
 	private function restoreForwards(): void {
 		$s = $this->state();
 		foreach ($s['forward_backup'] ?? [] as $id => $orig) {
-			$e = $this->ok($this->client->call('GET', 'extension/get', ['id' => (int)$id]), 'Lecture d’un poste')['data'] ?? [];
-			$list = $e['presence_list'] ?? [];
-			foreach ($list as &$p) if (($p['status'] ?? '') === 'available') $p = array_merge($p, $orig);
-			unset($p);
-			$this->ok($this->client->call('POST', 'extension/update', [], ['id' => (int)$id, 'presence_list' => $list]), 'Restauration du poste ' . ($e['number'] ?? $id));
+			$this->ok($this->client->call('POST', 'extension/update', [], ['id' => (int)$id, 'presence_list' => [['status' => 'available'] + array_intersect_key($orig, array_flip(self::FORWARD_KEYS))]]), 'Restauration du poste ' . $id);
 			unset($s['forward_backup'][$id], $s['forward_done'][$id]); $this->saveState($s);
 		}
 	}
