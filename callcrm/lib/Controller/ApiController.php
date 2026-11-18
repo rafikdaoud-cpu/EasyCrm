@@ -180,7 +180,7 @@ class ApiController extends Controller {
 		if (!$this->a->can('view')) { return $this->deny(); }
 		$can = [];
 		foreach (['call', 'assign', 'create', 'import', 'invite', 'fields', 'labels', 'delete', 'all', 'audit', 'export', 'export_phone'] as $k) { $can[$k] = $this->a->can($k); }
-		return new JSONResponse(['statuses' => Statuses::all(), 'fields' => Fields::all(), 'role' => $this->a->role(), 'uid' => $this->a->uid(), 'labels' => $this->getLabels(), 'options' => self::OPT + ['c5' => array_keys(Lookup::WILAYAS)], 'teams' => $this->getTeams(), 'groups' => array_map(fn($g, $n) => ['id' => $g, 'name' => $n, 'cats' => array_keys(array_filter(Access::cats(), fn($x) => $x === $g))], array_keys(Access::teams()), array_values(Access::teams())), 'commerciaux' => $this->commerciaux(), 'max_callbacks' => $this->maxCallbacks(), 'prefs' => Prefs::all(), 'can' => $can, 'sms' => $this->smsRuntime()]);
+		return new JSONResponse(['statuses' => Statuses::all(), 'fields' => Fields::all(), 'role' => $this->a->role(), 'uid' => $this->a->uid(), 'name' => $this->um->get($this->a->uid())?->getDisplayName() ?: $this->a->uid(), 'labels' => $this->getLabels(), 'options' => self::OPT + ['c5' => array_keys(Lookup::WILAYAS)], 'teams' => $this->getTeams(), 'groups' => array_map(fn($g, $n) => ['id' => $g, 'name' => $n, 'cats' => array_keys(array_filter(Access::cats(), fn($x) => $x === $g))], array_keys(Access::teams()), array_values(Access::teams())), 'commerciaux' => $this->commerciaux(), 'max_callbacks' => $this->maxCallbacks(), 'prefs' => Prefs::all(), 'can' => $can, 'sms' => $this->smsRuntime()]);
 	}
 
 	#[NoAdminRequired]

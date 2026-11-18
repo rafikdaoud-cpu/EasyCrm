@@ -638,14 +638,14 @@ function nav() {
   for (const [key, label] of t) { const sec = SEC[key] || 'Outils'; if (sec !== last) { items.push(h('div', {class:'crm-nav-sec'}, sec)); last = sec; }
     items.push(h('button', {class:(key === 'dossiers' ? inDossiers : tab === key) ? 'on' : '', 'data-k':key,
       'aria-current':(key === 'dossiers' ? inDossiers : tab === key) ? 'page' : null, onclick:() => go(key)}, icon(key), h('span',{class:'crm-nav-label'},label))); }
-  const who = me.name || me.uid || '';
+  const who = me.name || (me.commerciaux || []).find(u => u.uid === me.uid)?.name || me.uid || '';
   const role = {admin:'Administrateur', superviseur:'Superviseur', commercial:'Commercial', lecture:'Consultation'}[me.role] || '';
   return h('aside', {class:'client-navigation crm-sidebar', 'aria-label':'Navigation CRM'},
     h('div', {class:'crm-brand'}, h('span', {class:'crm-brand-mark', 'aria-hidden':'true'}, window.OC&&OC.imagePath ? h('img', {src:OC.imagePath('callcrm','app.svg'), alt:'', width:22, height:22}) : 'C'), h('strong', {}, 'Call CRM')),
     h('div', {class:'nav', role:'navigation'}, items),
     h('div', {class:'crm-sidebar-note crm-sidebar-user'}, h('span', {class:'crm-avatar', 'aria-hidden':'true'}, (who.match(/[\p{L}\p{N}]+/gu) || ['?']).slice(0, 2).map(w => w[0]).join('').toUpperCase()),
       h('span', {}, h('strong', {}, who), h('small', {class:'muted'}, role))),
-    h('div', {class:'crm-credit muted'}, 'Créé par Rafik DAOUD'));
+    h('div', {class:'crm-credit muted'}, 'By Rafik DAOUD'));
 }
 function go(k) { if(typeof canLeave==='function'&&!canLeave(()=>go(k)))return; if (k === 'dossiers') k = 'nouveaux'; if (k === 'sim') { openSim(null); return; } tab = k; if(k==='documents'){show(h('h2',{},'Pièces reçues'),documentsCard());return;} if(k==='search'||k==='neglected'){discovery(k);return;} if(k==='enregistrements'){recordingsPage();return;} if(k==='manques'){missedPage();return;} if(k==='agenda'){agenda();return;} if (k === 'journee' && me.role === 'commercial') myDay(); else if (k === 'wa') waList(); else if (k === 'stats') stats(); else if (k === 'admin') admin(); else if (k === 'annonce') show(h('h2', {}, 'Annonce'), announcementCard()); else if (k === 'commerciaux') presenceBoard(); else list(k); }
 /** Onglets des états de dossiers (au-dessus de la liste). */
