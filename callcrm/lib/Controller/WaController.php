@@ -226,7 +226,7 @@ class WaController extends Controller {
 			$values = $this->request->getParam('values', []);
 			if (!is_array($values) || !preg_match('/^[a-z0-9_]{1,512}$/', $tpl) || !preg_match('/^[A-Za-z_]{2,10}$/', $lang)) { return $this->err('Modèle invalide'); }
 			$clean = [];
-			foreach (['header', 'body'] as $part) {
+			foreach (['header', 'body', 'button'] as $part) {
 				foreach ((array)($values[$part] ?? []) as $k => $v) {
 					if (!preg_match('/^[A-Za-z0-9_]{1,64}$/', (string)$k) || !is_scalar($v)) { return $this->err('Variable de modèle invalide'); }
 					$clean[$part][(string)$k] = mb_substr(trim((string)$v), 0, 1000);

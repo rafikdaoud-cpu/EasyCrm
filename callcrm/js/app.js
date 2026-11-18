@@ -301,10 +301,13 @@ const collectDays=link=>Math.max(1,Math.round(((link.expires_at||0)-(link.create
 /** « jours » en arabe : يوم واحد، يومان، 3 إلى 10 أيام، 11 يومًا فأكثر. */
 const arabicDays=n=>n===1?'يوم واحد':n===2?'يومين':n<=10?n+' أيام':n+' يومًا';
 /** Message unique bilingue (français puis arabe) envoyé au client avec le lien de dépôt de documents. */
+/** Lien court https://cloud…/d/<jeton> (redirection du serveur web vers la page de dépôt) : message plus court, un SMS de moins. */
+const collectShort=url=>{const m=/^(https:\/\/[^/]+)\/(?:index\.php\/)?apps\/callcrm\/collecte\/([A-Za-z0-9_-]{20,64})$/.exec(url||'');return m?m[1]+'/d/'+m[2]:url;};
 function collectMessage(p,url,link){
+ url=collectShort(url);
  const n=collectDays(link),name=(p.firstname||'').trim();
- return 'CSM TAKSIT : Bonjour'+(name?' '+name:'')+', merci d’envoyer vos documents via ce lien sécurisé, valable '+n+' jour'+(n>1?'s':'')+'.\n'
-  +'يرجى إرسال وثائقكم عبر هذا الرابط الآمن، صالح لمدة '+arabicDays(n)+'.\n'+url;
+ return 'Bonjour'+(name?' '+name:'')+', envoyez vos documents via ce lien sécurisé, valable '+n+' jour'+(n>1?'s':'')+'.\n'
+  +'أرسلوا وثائقكم عبر هذا الرابط الآمن، صالح لمدة '+arabicDays(n)+'.\n'+url;
 }
 function collectCard(p){
  const box=h('details',{class:'card crm-collect-card',open:window.innerWidth>760}),rows=h('div'),msg=h('p',{class:'muted',role:'status'}),result=h('div');
@@ -325,14 +328,21 @@ function collectCard(p){
   const text=collectMessage(p,url,link);
   const c=smsCount(text),out=h('p',{class:'muted',role:'status','aria-live':'polite'});
   const field=h('input',{value:url,readonly:true,'aria-label':'Lien à envoyer au client',onfocus:e=>e.target.select()});
+  // WhatsApp de l'entreprise : modèle validé par Meta (bouton « Documents / الوثائق »), sinon message libre si le client a écrit depuis moins de 24 h.
+  const waBtn=p.phone&&['admin','superviseur','commercial'].includes(me.role)?h('button',{class:'primary',onclick:async e=>{const b=e.currentTarget;b.disabled=true;out.textContent='Envoi WhatsApp…';
+   const n=collectDays(link),token=(/\/collecte\/([A-Za-z0-9_-]{20,64})$/.exec(url)||[])[1]||'';
+   try{await api('/wa/prospect/'+p.id+'/send',{method:'POST',body:{template:'csm_demande_documents',language:'fr',values:{body:{1:n+' jour'+(n>1?'s':''),2:arabicDays(n)},button:{1:token}}}});
+    out.textContent='✔ WhatsApp envoyé avec le bouton « Documents / الوثائق ».';b.textContent='WhatsApp envoyé';}
+   catch(x){try{await api('/wa/prospect/'+p.id+'/send',{method:'POST',body:{text}});out.textContent='✔ WhatsApp envoyé (message libre, le client a écrit récemment).';b.textContent='WhatsApp envoyé';}
+    catch(y){out.textContent='WhatsApp de l’entreprise : '+x.message+' Utilisez le SMS, ou « WhatsApp du téléphone ».';b.disabled=false;}}}},'Envoyer par WhatsApp'):'';
   const smsBtn=p.phone&&me.sms?.enabled?h('button',{class:'primary',onclick:async e=>{const b=e.currentTarget;b.disabled=true;out.textContent='Envoi du SMS…';
    try{const r=await api('/prospects/'+p.id+'/sms',{method:'POST',body:{text}});out.textContent='✔ SMS envoyé au '+p.phone+' ('+r.segments+' SMS).';b.textContent='SMS envoyé';}
    catch(x){out.textContent=x.message;b.disabled=false;}}},'✉ Envoyer par SMS'):'';
   result.replaceChildren(h('div',{class:'crm-collect-result'},h('strong',{},'Lien créé ('+link.requested+' document(s), valable '+collectDays(link)+' jour(s), jusqu’au '+fmt(link.expires_at)+') — à envoyer au client :'),
    h('pre',{class:'crm-collect-message','aria-label':'Message envoyé au client'},text),
    h('small',{class:'muted'},c.chars+' caractères · '+c.segments+' SMS'+(c.segments>5?' · trop long pour un SMS, utilisez WhatsApp':'')),
-   h('div',{class:'bar'},smsBtn,
-    p.phone?h('a',{class:'crm-agenda-call',href:'https://wa.me/'+waNum(p.phone)+'?text='+encodeURIComponent(text),target:'_blank',rel:'noopener noreferrer'},'Envoyer par WhatsApp'):'',
+   h('div',{class:'bar'},smsBtn,waBtn,
+    p.phone?h('a',{class:'crm-agenda-call',href:'https://wa.me/'+waNum(p.phone)+'?text='+encodeURIComponent(text),target:'_blank',rel:'noopener noreferrer'},'WhatsApp du téléphone'):'',
     p.phone&&!me.sms?.enabled?h('a',{class:'crm-agenda-call',href:'sms:'+p.phone+'?body='+encodeURIComponent(text)},'SMS depuis le téléphone'):'',
     p.email?h('a',{class:'crm-agenda-call',href:'mailto:'+p.email+'?subject='+encodeURIComponent('Vos documents / وثائقكم')+'&body='+encodeURIComponent(text)},'Envoyer par e-mail'):''),
    out,field,

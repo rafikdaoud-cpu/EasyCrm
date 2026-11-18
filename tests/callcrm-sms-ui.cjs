@@ -53,12 +53,35 @@ test('réglages admin : désactivé, mot de passe jamais réaffiché, enregistre
 test('demande de documents : un seul message français puis arabe, lien et validité en jours (arabe accordé)',()=>{
  const code2=part('const SMS_GSM','function smsDialog')+part('const collectDays','function collectCard(');
  const ctx=vm.createContext({Date,Math});vm.runInContext(code2+';this.collectMessage=collectMessage;this.arabicDays=arabicDays;this.smsCount=smsCount;',ctx);
- const now=1800000000,url='https://cloud.csmtaksit.dz/apps/callcrm/collecte/'+'a'.repeat(32);
+ const now=1800000000,url='https://cloud.csmtaksit.dz/index.php/apps/callcrm/collecte/'+'a'.repeat(32);
  const t=ctx.collectMessage({firstname:'Karim'},url,{created_at:now,expires_at:now+7*86400});
  const lines=t.split('\n');
- assert.match(lines[0],/^CSM TAKSIT : Bonjour Karim, .*valable 7 jours\.$/);
- assert.match(lines[1],/صالح لمدة 7 أيام\.$/);assert.equal(lines[2],url,'lien seul sur la dernière ligne');
+ assert.match(lines[0],/^Bonjour Karim, envoyez vos documents .*valable 7 jours\.$/);
+ assert.match(lines[1],/صالح لمدة 7 أيام\.$/);assert.equal(lines[2],'https://cloud.csmtaksit.dz/d/'+'a'.repeat(32),'lien court seul sur la dernière ligne');
  assert.deepEqual([1,2,5,11,30].map(ctx.arabicDays),['يوم واحد','يومين','5 أيام','11 يومًا','30 يومًا']);
- assert.match(ctx.collectMessage({},url,{created_at:now,expires_at:now+86400}),/^CSM TAKSIT : Bonjour, .*valable 1 jour\./);
- assert.ok(ctx.smsCount(t).segments<=5,'tient dans un envoi SMS');
+ assert.match(ctx.collectMessage({},url,{created_at:now,expires_at:now+86400}),/^Bonjour, envoyez .*valable 1 jour\./);
+ assert.ok(ctx.smsCount(t).segments<=3,'3 SMS au plus');
+});
+test('demande de documents : WhatsApp de l’entreprise avec le modèle à bouton, puis message libre en secours',async()=>{
+ const code3=part('const h =','async function api(')+part('const collectDays','/** Administration : appels des clients attribués');
+ const dom=new JSDOM('<main id="r"></main>',{url:'https://cloud.example.test'}),document=dom.window.document,root=document.getElementById('r');
+ const calls=[];let tplOk=false;
+ const ctx=vm.createContext({document,window:Object.assign(dom.window,{innerWidth:1200}),Node:dom.window.Node,root,setTimeout,clearTimeout,URLSearchParams,confirm:()=>true,
+  fmt:t=>'D'+t,waNum:x=>x,OC:{generateUrl:x=>x},me:{role:'commercial',uid:'u',can:{call:true},sms:{enabled:true}},
+  smsCount:()=>({chars:195,segments:3}),
+  api:async(path,o={})=>{calls.push([path,o.body]);
+   if(path==='/prospects/7/collect'&&o.method==='POST')return{url:'https://cloud.csmtaksit.dz/index.php/apps/callcrm/collecte/'+'k'.repeat(32),link:{requested:3,created_at:1800000000,expires_at:1800000000+15*86400}};
+   if(path==='/prospects/7/collect')return[];
+   if(path==='/wa/prospect/7/send'){if(o.body.template&&!tplOk)throw new Error('Modèle introuvable ou non approuvé');return{ok:true};}
+   return{};}});
+ vm.runInContext(code3+';root.append(collectCard({id:7,firstname:"Karim",phone:"0550123456"}));',ctx);
+ await tick();[...document.querySelectorAll('button')].find(b=>b.textContent.includes('Envoyer le lien de documents')).click();await tick();
+ assert.match(document.querySelector('.crm-collect-message').textContent,/\/d\/k{32}$/);
+ const wa=()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Envoyer par WhatsApp');
+ wa().click();await tick();
+ const sent=calls.filter(c=>c[0]==='/wa/prospect/7/send');
+ assert.deepEqual(JSON.parse(JSON.stringify(sent[0][1])),{template:'csm_demande_documents',language:'fr',values:{body:{1:'15 jours',2:'15 يومًا'},button:{1:'k'.repeat(32)}}});
+ assert.match(sent[1][1].text,/^Bonjour Karim, .*\nhttps:\/\/cloud\.csmtaksit\.dz\/d\/k{32}$/s,'secours : message libre bilingue');
+ assert.match(document.body.textContent,/message libre/);
+ assert.ok([...document.querySelectorAll('a')].some(a=>a.textContent==='WhatsApp du téléphone'),'lien wa.me conservé');
 });

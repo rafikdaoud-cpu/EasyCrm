@@ -593,19 +593,25 @@ def list_templates():
             comps = {c.get("type"): c for c in t.get("components", [])}
             header, body = comps.get("HEADER") or {}, comps.get("BODY") or {}
             buttons = (comps.get("BUTTONS") or {}).get("buttons", [])
-            # Pris en charge : en-tête texte (ou aucun), corps à variables, boutons sans variable
+            # Pris en charge : en-tête texte (ou aucun), corps à variables, boutons fixes ou bouton lien à une variable
             unsupported = ""
+            button_params = []
+            for i, b in enumerate(buttons):
+                ps = template_params(b.get("url", ""))
+                if not ps:
+                    continue
+                if b.get("type") != "URL" or len(ps) != 1:
+                    unsupported = "bouton à variable"
+                button_params.append({"index": i, "param": ps[0], "text": b.get("text", ""), "url": b.get("url", "")})
             if header and header.get("format") not in (None, "TEXT"):
                 unsupported = "en-tête " + str(header.get("format")).lower()
-            elif any(template_params(b.get("url", "")) for b in buttons):
-                unsupported = "bouton à variable"
             out.append({"name": t["name"], "language": t.get("language", ""), "category": t.get("category", ""),
                         "named": t.get("parameter_format") == "NAMED",
                         "header": header.get("text", "") if header.get("format") == "TEXT" else "",
                         "header_params": template_params(header.get("text", "")) if header.get("format") == "TEXT" else [],
                         "body": body.get("text", ""), "body_params": template_params(body.get("text", "")),
                         "footer": (comps.get("FOOTER") or {}).get("text", ""),
-                        "buttons": [b.get("text", "") for b in buttons], "unsupported": unsupported})
+                        "buttons": [b.get("text", "") for b in buttons], "button_params": button_params, "unsupported": unsupported})
         url, params = (j.get("paging") or {}).get("next"), None
     out.sort(key=lambda t: (t["name"], t["language"]))
     _tpl_cache.update(at=time.time(), data=out)
@@ -638,12 +644,17 @@ def template_payload(to, tpl, values):
         comps.append({"type": "header", "parameters": params(found["header_params"], "header")})
     if found["body_params"]:
         comps.append({"type": "body", "parameters": params(found["body_params"], "body")})
+    for b in found.get("button_params", []):
+        v = str((values.get("button") or {}).get(b["param"], "")).strip()
+        if not v or len(v) > 200 or not re.fullmatch(r"[A-Za-z0-9_\-./?=&%]+", v):
+            raise ValueError(f"Lien du bouton « {b['text']} » à remplir (caractères de lien uniquement)")
+        comps.append({"type": "button", "sub_type": "url", "index": str(b["index"]), "parameters": [{"type": "text", "text": v}]})
     for n in found["body_params"]:
         text = re.sub(r"\{\{\s*" + re.escape(n) + r"\s*\}\}", lambda _m: values["body"][n].strip(), text)
     head = found["header"]
     for n in found["header_params"]:
         head = re.sub(r"\{\{\s*" + re.escape(n) + r"\s*\}\}", lambda _m: values["header"][n].strip(), head)
-    readable = "\n".join(x for x in (head and "*" + head + "*", text, found["footer"]) if x)
+    readable = "\n".join(x for x in (head and "*" + head + "*", text, found["footer"], *("[" + b + "]" for b in found["buttons"])) if x)
     payload = {"to": to, "type": "template", "template": {"name": found["name"], "language": {"code": found["language"]}, **({"components": comps} if comps else {})}}
     return payload, readable
 
