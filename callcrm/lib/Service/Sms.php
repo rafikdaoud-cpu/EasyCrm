@@ -13,6 +13,7 @@ class Sms {
 	public const MAX_SEGMENTS = 5;
 	public const MAX_TEMPLATES = 30;
 	public const HARD_BULK = 2000;
+	public const DEFAULT_URL = 'https://smsapi.icosnet.com:8443';
 	private const CHUNK = 50;
 	// Alphabet GSM 03.38 (table de base + extension comptée double).
 	private const GSM = "@£\$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà";
@@ -41,7 +42,7 @@ class Sms {
 		$s = $this->stored();
 		return [
 			'enabled' => ($s['enabled'] ?? false) === true,
-			'url' => (string)($s['url'] ?? ''),
+			'url' => (string)($s['url'] ?? self::DEFAULT_URL),
 			'username' => (string)($s['username'] ?? ''),
 			'has_password' => !empty($s['password']),
 			'sender' => (string)($s['sender'] ?? ''),
@@ -60,7 +61,7 @@ class Sms {
 
 	public function configured(): bool {
 		$s = $this->stored();
-		return !empty($s['url']) && !empty($s['username']) && !empty($s['password']) && !empty($s['sender']);
+		return ($s['url'] ?? self::DEFAULT_URL) !== '' && !empty($s['username']) && !empty($s['password']) && !empty($s['sender']);
 	}
 
 	public function save(array $in): array {
@@ -111,7 +112,7 @@ class Sms {
 			if (count($t) > self::MAX_TEMPLATES) throw new \InvalidArgumentException(self::MAX_TEMPLATES . ' modèles au maximum.');
 			$s['templates'] = $t;
 		}
-		if (($s['enabled'] ?? false) === true && !(!empty($s['url']) && !empty($s['username']) && !empty($s['password']) && !empty($s['sender']))) {
+		if (($s['enabled'] ?? false) === true && !(($s['url'] ?? self::DEFAULT_URL) !== '' && !empty($s['username']) && !empty($s['password']) && !empty($s['sender']))) {
 			throw new \InvalidArgumentException('Pour activer l’envoi, renseignez l’adresse, l’identifiant, le mot de passe et l’expéditeur ICOSNET.');
 		}
 		$this->config->setAppValue('callcrm', 'sms_settings', json_encode($s, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
@@ -158,7 +159,7 @@ class Sms {
 	private function credentials(): array {
 		if (!$this->configured()) throw new \RuntimeException('L’envoi de SMS n’est pas configuré (Administration → SMS ICOSNET).');
 		$s = $this->stored();
-		return ['url' => $s['url'], 'username' => $s['username'], 'password' => $this->crypto->decrypt($s['password']), 'sender' => $s['sender'], 'dlr' => ($s['dlr'] ?? false) === true];
+		return ['url' => $s['url'] ?? self::DEFAULT_URL, 'username' => $s['username'], 'password' => $this->crypto->decrypt($s['password']), 'sender' => $s['sender'], 'dlr' => ($s['dlr'] ?? false) === true];
 	}
 
 	private function get(string $url): string {
@@ -185,33 +186,51 @@ class Sms {
 	public function send(array $numbers, string $text): array {
 		self::check($text);
 		$c = $this->credentials();
-		$type = self::isGsm($text) ? 0 : 2;
+		$gsm = self::isGsm($text);
+		// Spécification ICOSNET : type 0 = texte GSM 03.38 ; type 2 = Unicode, message en UTF-16BE écrit en hexadécimal.
+		$message = $gsm ? $text : strtoupper(bin2hex(mb_convert_encoding($text, 'UTF-16BE', 'UTF-8')));
 		$out = [];
 		foreach (array_chunk(array_values(array_unique($numbers)), self::CHUNK) as $chunk) {
-			$query = http_build_query(['username' => $c['username'], 'password' => $c['password'], 'type' => $type, 'dlr' => $c['dlr'] ? 1 : 0,
-				'destination' => implode(',', $chunk), 'source' => $c['sender'], 'message' => $text], '', '&', PHP_QUERY_RFC3986);
-			try { $body = $this->get($c['url'] . '/bulksms/bulksms?' . $query); }
-			catch (\RuntimeException $e) { foreach ($chunk as $n) $out[$n] = ['ok' => false, 'code' => 'net', 'id' => '', 'error' => $e->getMessage()]; continue; }
-			foreach (self::parse($body, $chunk) as $n => $r) $out[$n] = $r;
+			// Seul le code 1709 peut être retenté (une fois) ; jamais les autres, ni 1715.
+			for ($attempt = 0, $todo = $chunk; $todo && $attempt < 2; $attempt++) {
+				$query = http_build_query(['username' => $c['username'], 'password' => $c['password'], 'type' => $gsm ? 0 : 2, 'dlr' => $c['dlr'] ? 1 : 0,
+					'destination' => implode(',', $todo), 'source' => $c['sender'], 'message' => $message], '', '&', PHP_QUERY_RFC3986);
+				try { $body = $this->get($c['url'] . '/bulksms/bulksms?' . $query); }
+				catch (\RuntimeException $e) { foreach ($todo as $n) $out[$n] = ['ok' => false, 'code' => 'net', 'id' => '', 'error' => $e->getMessage()]; break; }
+				$retry = [];
+				foreach (self::parse($body, $todo) as $n => $r) { $out[$n] = $r; if ($r['code'] === '1709') $retry[] = $n; }
+				$todo = $retry;
+			}
 		}
 		return $out;
 	}
 
-	/** Réponses « 1701|213XXXXXXXXX:idmessage » (ou « code|numéro|id »), séparées par des virgules ou des retours à la ligne. */
+	/**
+	 * Réponses « 1701|213XXXXXXXXX|idmessage » séparées par des virgules. Un lot interrompu (crédit épuisé, serveur SMPP
+	 * indisponible) se termine par « 1025 | numéro » ou « 1709 | numéro » : ce numéro et les suivants ne sont pas envoyés.
+	 * Un numéro invalide est simplement sauté par ICOSNET.
+	 */
 	public static function parse(string $body, array $numbers): array {
-		$out = []; $generic = null;
+		$out = []; $generic = null; $abort = null;
 		foreach (preg_split('/[,\r\n]+/', trim($body)) ?: [] as $part) {
-			$part = trim($part);
+			$part = preg_replace('/\s*\|\s*/', '|', trim($part)) ?? '';
 			if ($part === '' || !preg_match('/^(\d{1,5})(?:\|(.*))?$/sD', $part, $m)) continue;
 			$code = $m[1]; $rest = $m[2] ?? '';
 			$bits = preg_split('/[|:]/', $rest) ?: [];
 			$num = self::number((string)($bits[0] ?? '')) ?? '';
 			$id = substr(preg_replace('/[^A-Za-z0-9_\-]/', '', (string)($bits[1] ?? '')) ?? '', 0, 80);
 			$r = ['ok' => $code === '1701', 'code' => $code, 'id' => $id, 'error' => $code === '1701' ? '' : self::error($code)];
+			if (in_array($code, ['1025', '1725', '1709'], true) && $id === '' && $num !== '') { $abort = ['num' => $num, 'r' => $r]; continue; }
 			if ($num !== '' && in_array($num, $numbers, true)) $out[$num] = $r; else $generic ??= $r;
 		}
+		if ($abort) {
+			$i = array_search($abort['num'], $numbers, true);
+			foreach ($numbers as $k => $n) if (!isset($out[$n]) && ($i === false || $k >= $i)) $out[$n] = ['ok' => false, 'code' => $abort['r']['code'], 'id' => '', 'error' => 'Envoi interrompu : ' . $abort['r']['error']];
+		}
+		$several = count($numbers) > 1 && count($out) > 0;
 		foreach ($numbers as $n) {
 			if (isset($out[$n])) continue;
+			if ($several) { $out[$n] = ['ok' => false, 'code' => '1706', 'id' => '', 'error' => self::error('1706')]; continue; }
 			// Réponse unique sans numéro (erreur globale, ou un seul destinataire) : s'applique à chacun.
 			$out[$n] = $generic && ($generic['ok'] === false || count($numbers) === 1)
 				? $generic : ['ok' => false, 'code' => '?', 'id' => '', 'error' => 'Réponse ICOSNET illisible : vérifiez l’envoi dans votre espace ICOSNET.'];

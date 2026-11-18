@@ -44,9 +44,15 @@ $r=Sms::parse('1703',['213550000001','213550000002']);ok(!$r['213550000001']['ok
 $r=Sms::parse('<html>oops</html>',['213550000001']);ok(!$r['213550000001']['ok']&&str_contains($r['213550000001']['error'],'illisible'),'réponse illisible = échec');
 ok(str_contains(Sms::error('18'),'non autorisée'),'IP non autorisée');ok(str_contains(Sms::error('1725'),'Crédit'),'crédit');
 
+// Format officiel (pipes), lot interrompu, numéro invalide sauté
+$r=Sms::parse('1701|213550000001|m1,1701|213550000002|m2',['213550000001','213550000002']);ok($r['213550000001']['ok']&&$r['213550000002']['id']==='m2','format 1701|numéro|id');
+$r=Sms::parse('1701|213550000001|m1,1025 | 213550000002',['213550000001','213550000002','213550000003']);
+ok($r['213550000001']['ok']&&!$r['213550000002']['ok']&&!$r['213550000003']['ok']&&str_contains($r['213550000003']['error'],'interrompu')&&str_contains($r['213550000003']['error'],'Crédit'),'crédit épuisé en cours de lot');
+$r=Sms::parse('1701|213550000001|m1,1701|213550000003|m3',['213550000001','213550000002','213550000003']);ok(!$r['213550000002']['ok']&&str_contains($r['213550000002']['error'],'invalide')&&$r['213550000003']['ok'],'numéro sauté = invalide');
 // Réglages : désactivé par défaut, activation impossible sans les accès
 $cfg=new Config;$http=new Http;$sms=new Sms($cfg,new Crypto,$http);
 $s=$sms->settings();ok($s['enabled']===false&&$sms->runtime()['enabled']===false,'désactivé par défaut');
+ok($s['url']==='https://smsapi.icosnet.com:8443','adresse ICOSNET préremplie');
 throws(fn()=>$sms->save(['enabled'=>true]),'renseignez','activation sans accès refusée');
 throws(fn()=>$sms->save(['url'=>'https://x.dz/bulksms/bulksms']),'Adresse','chemin refusé');
 throws(fn()=>$sms->save(['url'=>'https://u:p@x.dz']),'Adresse','identifiants dans l’URL refusés');
@@ -70,10 +76,15 @@ ok($res['213550123456']['ok'],'envoi OK');
 parse_str(parse_url($http->c->urls[0],PHP_URL_QUERY),$q);
 ok(str_starts_with($http->c->urls[0],'https://sms.icosnet.test:8443/bulksms/bulksms?'),'point d’entrée');
 ok($q['username']==='csm'&&$q['password']==='S3cr&t=1'&&$q['type']==='0'&&$q['dlr']==='0'&&$q['source']==='CSMTAKSIT'&&$q['message']==='Bonjour Karim'&&$q['destination']==='213550123456','paramètres');
-$http->c->urls=[];$sms->send(['213550123456'],'مرحبا');parse_str(parse_url($http->c->urls[0],PHP_URL_QUERY),$q);ok($q['type']==='2'&&$q['message']==='مرحبا','arabe en Unicode (type 2)');
+$http->c->urls=[];$sms->send(['213550123456'],'مرحبا');parse_str(parse_url($http->c->urls[0],PHP_URL_QUERY),$q);ok($q['type']==='2'&&$q['message']==='06450631062D06280627','arabe : type 2, UTF-16BE en hexadécimal (spécification ICOSNET)');
+$http->c->urls=[];$sms->send(['213550123456'],'À bientôt');parse_str(parse_url($http->c->urls[0],PHP_URL_QUERY),$q);ok($q['type']==='2'&&$q['message']===strtoupper(bin2hex(mb_convert_encoding('À bientôt','UTF-16BE','UTF-8'))),'accent hors GSM : Unicode hexadécimal');
 $nums=[];for($i=0;$i<120;$i++)$nums[]='2135500'.str_pad((string)$i,5,'0',STR_PAD_LEFT);
 $http->c->urls=[];$http->c->reply=function($u){parse_str(parse_url($u,PHP_URL_QUERY),$q);return new Resp(200,implode(',',array_map(fn($d)=>'1701|'.$d.':x'.$d,explode(',',$q['destination']))));};
 $res=$sms->send($nums,'Promo');ok(count($http->c->urls)===3&&count(array_filter($res,fn($r)=>$r['ok']))===120,'120 numéros en 3 paquets');
+$calls=0;$http->c->reply=function($u)use(&$calls){$calls++;return new Resp(200,$calls===1?'1709 | 213550123456':'1701|213550123456|ok2');};
+$res=$sms->send(['213550123456'],'x');ok($calls===2&&$res['213550123456']['ok'],'1709 retenté une seule fois');
+$calls=0;$http->c->reply=function($u)use(&$calls){$calls++;return new Resp(200,'1715|213550123456|');};
+$res=$sms->send(['213550123456'],'x');ok($calls===1&&!$res['213550123456']['ok'],'1715 jamais retenté');
 $http->c->reply=function($u){throw new \RuntimeException('cURL error for '.$u);};
 $res=$sms->send(['213550123456'],'x');ok(!$res['213550123456']['ok']&&!str_contains(json_encode($res),'S3cr'),'erreur réseau sans mot de passe');
 $http->c->reply=fn($u)=>new Resp(500,'S3cr&t=1');

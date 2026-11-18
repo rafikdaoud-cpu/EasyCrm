@@ -334,7 +334,7 @@ function smsSettingsCard(){
  box.append(h('h3',{},'SMS · ICOSNET'),body,out);
  api('/sms/settings').then(s=>{
   const field=(label,input,help)=>h('label',{class:'crm-sms-field'},h('span',{},label),input,help?h('small',{class:'muted'},help):'');
-  const enabled=h('input',{type:'checkbox',checked:s.enabled}),url=h('input',{type:'url',value:s.url,placeholder:'https://serveur:port…',autocomplete:'off',spellcheck:false});
+  const enabled=h('input',{type:'checkbox',checked:s.enabled}),url=h('input',{type:'url',value:s.url,placeholder:'https://smsapi.icosnet.com:8443',autocomplete:'off',spellcheck:false});
   const user=h('input',{value:s.username,autocomplete:'off',spellcheck:false}),pass=h('input',{type:'password',autocomplete:'new-password',placeholder:s.has_password?'•••••••• (enregistré, laisser vide pour garder)':''});
   const sender=h('input',{value:s.sender,maxlength:18,placeholder:'CSMTAKSIT…',spellcheck:false}),max=h('input',{type:'number',min:1,max:2000,value:s.max_bulk,style:'width:7em'});
   const comm=h('input',{type:'checkbox',checked:s.commercial_send}),dlr=h('input',{type:'checkbox',checked:s.dlr});
