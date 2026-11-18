@@ -23,7 +23,8 @@ class YeastarRoutingController extends Controller {
 		if (!$this->access->can('fields')) return $this->error('Accès refusé', 403);
 		$on = filter_var($this->request->getParam('enabled'), FILTER_VALIDATE_BOOLEAN);
 		try {
-			$r = $this->routing->setEnabled($on);
+			$q = $this->request->getParam('fallback_queue');
+			$r = $this->routing->setEnabled($on, $q === null ? null : (string)$q);
 			$this->store->audit($this->access->uid(), 'yeastar_routing', null, $on ? 'Routage vers le commercial activé' : 'Routage vers le commercial désactivé');
 			return new JSONResponse($r);
 		} catch (\RuntimeException $e) { return $this->error($e->getMessage(), 502); }

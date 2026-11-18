@@ -12,7 +12,8 @@ $fail=0;$n=0;function ok($c,$m){global $fail,$n;$n++;if(!$c){$fail++;echo "FAIL 
 class Config implements \OCP\IConfig {public array $v=[];public function getAppValue($a,$k,$d=''){return $this->v[$k]??$d;}public function setAppValue($a,$k,$x){$this->v[$k]=$x;}}
 /** Faux standard : routes en mémoire, ordre de création = ordre de priorité (comme le Yeastar). */
 class FakePbx extends YeastarClient {
- public array $routes=[];public int $next=10;public array $log=[];public bool $badCopy=false;
+ public array $routes=[];public array $ext=[];public int $extUpdates=0;public int $next=10;
+ public static function presence(){return [['status'=>'available','enb_ex_no_answer_forward'=>1,'ex_no_answer_forward_dest'=>'ext_vm','ex_no_answer_forward_value'=>'','enb_ex_busy_forward'=>1,'ex_busy_forward_dest'=>'ext_vm','ex_busy_forward_value'=>'','enb_in_no_answer_forward'=>1,'in_no_answer_forward_dest'=>'ext_vm','ring_timeout'=>30],['status'=>'away','ex_no_answer_forward_dest'=>'ext_vm']];}public array $log=[];public bool $badCopy=false;
  public function __construct(){}
  public function call(string $verb,string $path,array $query=[],?array $body=null):array{
   $this->log[]=$path;
@@ -29,6 +30,9 @@ class FakePbx extends YeastarClient {
    case 'inbound_route/update': $id=$body['id'];if(!isset($this->routes[$id]))return ['errcode'=>40002];if(count($body['cid_pattern_list']??[])>300)return ['errcode'=>60002];
      $this->routes[$id]=array_merge($this->routes[$id],$body);return ['errcode'=>0];
    case 'inbound_route/delete': unset($this->routes[$query['id']]);return ['errcode'=>0];
+   case 'queue/list': return ['errcode'=>0,'queue_list'=>[['id'=>1,'number'=>'6400','name'=>'CSM_AR'],['id'=>2,'number'=>'6401','name'=>'CSM_FR']]];
+   case 'extension/get': return ['errcode'=>0,'data'=>['id'=>$query['id'],'number'=>'x','presence_list'=>$this->ext[$query['id']]??($this->ext[$query['id']]=self::presence())]];
+   case 'extension/update': $this->ext[$body['id']]=$body['presence_list'];$this->extUpdates++;return ['errcode'=>0];
   }
   return ['errcode'=>10001];
  }
@@ -66,8 +70,11 @@ $g=end($pbx->routes);ok($g['outside_business_hours_destination_value']==='2'&&$g
 $first=reset($pbx->routes);ok(count($first['cid_pattern_list'])===250&&$first['business_hours_destination']==='extension'&&$first['business_hours_destination_value']==='7'&&$first['outside_business_hours_destination_value']==='2'&&$first['holidays_hours_destination']==='end_call','route commercial : poste aux heures d’ouverture, horaires copiés');
 ok($st['summary']['commercials']===1&&$st['summary']['numbers']===600&&$st['summary']['not_routed']===['1000 (hors ligne)'],'résumé : '.json_encode($st['summary']));
 
+// Renvois du poste : appels externes non répondus / occupé → file choisie ; internes et autres statuts inchangés
+$p=$pbx->ext[7][0];ok($p['ex_no_answer_forward_dest']==='queue'&&$p['ex_no_answer_forward_value']==='1'&&$p['ex_busy_forward_dest']==='queue'&&$p['in_no_answer_forward_dest']==='ext_vm'&&$pbx->ext[7][1]['ex_no_answer_forward_dest']==='ext_vm','renvoi externe vers la file, interne et autres statuts intacts');
+ok(isset($pbx->ext[8])&&$pbx->ext[8][0]['ex_no_answer_forward_dest']==='queue','renvoi aussi pour un commercial hors ligne (prêt quand il revient)');
 // Deuxième passage sans changement : aucune écriture
-$pbx->log=[];$r->sync();ok(!array_intersect($pbx->log,['inbound_route/update','inbound_route/create','inbound_route/delete']),'rien de changé : aucune écriture');
+$pbx->log=[];$r->sync();ok(!array_intersect($pbx->log,['inbound_route/update','inbound_route/create','inbound_route/delete','extension/update']),'rien de changé : aucune écriture');
 
 // Commercial passe hors ligne : routes neutralisées par un numéro impossible, jamais vides ni supprimées
 $r->want['1004']['reachable']=false;$r->want['1004']['why']='en pause';$r->sync();
@@ -93,7 +100,9 @@ ok(count($pbx->routes)===2,'rien créé');
 [$pbx,$cfg,$r]=$setup();$pbx->routes[2]=['id'=>2,'name'=>'CRM_TEST_DSI','cid_pattern_list'=>[['cid_pattern'=>'0782240723']]]+$general;
 $r->want=['1029'=>['uid'=>'u','ext_id'=>20,'reachable'=>true,'why'=>'','numbers'=>['0782240723','0550000001']]];$r->setEnabled(true);
 ok(count(array_filter($pbx->routes,fn($x)=>preg_match(YeastarRouting::NAME,$x['name'])))===1,'activé : une route gérée');
+ok($pbx->ext[20][0]['ex_no_answer_forward_dest']==='queue','activé : renvoi posé');
 $r->setEnabled(false);
+ok($pbx->ext[20][0]['ex_no_answer_forward_dest']==='ext_vm'&&$pbx->ext[20][0]['ex_busy_forward_dest']==='ext_vm','désactivé : renvoi d’origine (messagerie) restauré');
 ok(count(array_filter($pbx->routes,fn($x)=>preg_match(YeastarRouting::NAME,$x['name'])))===0&&isset($pbx->routes[2])&&in_array('Inbound_Route',array_column($pbx->routes,'name'),true),'désactivé : routes gérées supprimées, le reste intact');
 
 echo $fail?"$fail/$n routing checks FAILED\n":"callcrm: $n Yeastar routing checks passed\n";exit($fail?1:0);

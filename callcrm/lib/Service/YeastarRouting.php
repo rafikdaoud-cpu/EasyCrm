@@ -34,11 +34,13 @@ class YeastarRouting {
 	public function status(): array {
 		$s = $this->state();
 		return ['enabled' => ($s['enabled'] ?? false) === true, 'last_sync' => (int)($s['last_sync'] ?? 0), 'last_error' => (string)($s['last_error'] ?? ''),
-			'summary' => $s['summary'] ?? null];
+			'summary' => $s['summary'] ?? null, 'fallback_queue' => (string)($s['fallback_queue'] ?? '1'), 'queues' => $s['queues'] ?? []];
 	}
 
-	public function setEnabled(bool $on): array {
-		$s = $this->state(); $s['enabled'] = $on; $this->saveState($s);
+	public function setEnabled(bool $on, ?string $queue = null): array {
+		$s = $this->state(); $s['enabled'] = $on;
+		if ($queue !== null && preg_match('/^\d{1,6}$/D', $queue)) $s['fallback_queue'] = $queue;
+		$this->saveState($s);
 		return $on ? $this->sync(true) : $this->removeAll();
 	}
 
@@ -121,6 +123,7 @@ class YeastarRouting {
 			$extensions = [];
 			foreach ($this->ok($this->client->call('GET', 'extension/list', ['page' => 1, 'page_size' => 1000]), 'Lecture des postes')['data'] ?? [] as $e) $extensions[(string)$e['number']] = $e;
 			$want = $this->desired($extensions);
+			$this->forwards($want);
 
 			$all = $this->routes(); $managed = []; $general = null; $details = [];
 			foreach ($all as $r) {
@@ -198,10 +201,52 @@ class YeastarRouting {
 		$this->ok($this->client->call('POST', 'inbound_route/update', [], ['id' => (int)$r['id'], 'name' => $name]), 'Renommage de la route générale');
 	}
 
+	/**
+	 * Sur le poste de chaque commercial, statut « disponible », appels EXTERNES seulement : non-réponse et occupé
+	 * renvoient vers la file d'attente choisie au lieu de la messagerie (sinon un client routé sans réponse finirait
+	 * sur la boîte vocale). Les appels internes ne changent pas. Réglage d'origine sauvegardé, restauré à la désactivation.
+	 */
+	private function forwards(array $want): void {
+		$s = $this->state(); $queue = (string)($s['fallback_queue'] ?? '1'); $backup = $s['forward_backup'] ?? []; $done = $s['forward_done'] ?? [];
+		$queues = [];
+		foreach ($this->ok($this->client->call('GET', 'queue/list', []), 'Lecture des files')['queue_list'] ?? [] as $q) $queues[(string)$q['id']] = $q['number'] . ' · ' . $q['name'];
+		$s['queues'] = $queues;
+		if (!isset($queues[$queue])) { $s['last_error'] = 'File d’attente de secours introuvable : renvoi non modifié.'; $this->saveState($s); return; }
+		foreach ($want as $w) {
+			$id = (int)($w['ext_id'] ?? 0); if (!$id || ($done[$id] ?? '') === $queue) continue;
+			$e = $this->ok($this->client->call('GET', 'extension/get', ['id' => $id]), 'Lecture d’un poste')['data'] ?? [];
+			$list = $e['presence_list'] ?? []; $changed = false;
+			foreach ($list as &$p) {
+				if (($p['status'] ?? '') !== 'available') continue;
+				$backup[$id] ??= array_intersect_key($p, array_flip(['enb_ex_no_answer_forward', 'ex_no_answer_forward_dest', 'ex_no_answer_forward_value', 'enb_ex_busy_forward', 'ex_busy_forward_dest', 'ex_busy_forward_value']));
+				foreach (['no_answer', 'busy'] as $k) { $p['enb_ex_' . $k . '_forward'] = 1; $p['ex_' . $k . '_forward_dest'] = 'queue'; $p['ex_' . $k . '_forward_value'] = $queue; }
+				$changed = true;
+			}
+			unset($p);
+			if ($changed) $this->ok($this->client->call('POST', 'extension/update', [], ['id' => $id, 'presence_list' => $list]), 'Renvoi du poste ' . ($e['number'] ?? $id));
+			$done[$id] = $queue;
+			$s['forward_backup'] = $backup; $s['forward_done'] = $done; $this->saveState($s);
+		}
+		$this->saveState($s);
+	}
+
+	private function restoreForwards(): void {
+		$s = $this->state();
+		foreach ($s['forward_backup'] ?? [] as $id => $orig) {
+			$e = $this->ok($this->client->call('GET', 'extension/get', ['id' => (int)$id]), 'Lecture d’un poste')['data'] ?? [];
+			$list = $e['presence_list'] ?? [];
+			foreach ($list as &$p) if (($p['status'] ?? '') === 'available') $p = array_merge($p, $orig);
+			unset($p);
+			$this->ok($this->client->call('POST', 'extension/update', [], ['id' => (int)$id, 'presence_list' => $list]), 'Restauration du poste ' . ($e['number'] ?? $id));
+			unset($s['forward_backup'][$id], $s['forward_done'][$id]); $this->saveState($s);
+		}
+	}
+
 	/** Désactivation : les routes gérées sont supprimées, tous les appels reprennent le circuit normal. */
 	private function removeAll(): array {
 		if (!$this->lock()) throw new \RuntimeException('Une synchronisation est en cours, réessayez dans un instant.');
 		try {
+			$this->restoreForwards();
 			foreach ($this->routes() as $r) if (preg_match(self::NAME, (string)$r['name'])) $this->ok($this->client->call('GET', 'inbound_route/delete', ['id' => (int)$r['id']]), 'Suppression de ' . $r['name']);
 			$s = $this->state(); $s['hashes'] = []; $s['summary'] = null; $s['last_sync'] = time(); $s['last_error'] = ''; $this->saveState($s);
 			return $this->status();
