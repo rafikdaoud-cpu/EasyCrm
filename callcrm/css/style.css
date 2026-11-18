@@ -691,3 +691,4 @@ body[data-themes*="dark"] #callcrm.crm-workspace,body[data-theme-dark] #callcrm.
 @media(max-width:760px){#callcrm-chat .crm-chat-fab{bottom:84px;right:12px;width:50px;height:50px}#callcrm-chat .crm-chat-panel{right:8px;left:8px;width:auto;bottom:144px;height:calc(100dvh - 170px)}#callcrm-chat .crm-chat-toasts{right:12px;bottom:144px}}
 #callcrm-chat .crm-chat-badge[hidden]{display:none}
 #callcrm-chat .crm-chat-compose textarea{box-sizing:border-box;height:38px;line-height:20px}
+#callcrm .crm-collect-message{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;background:#f5f7fb;border:1px solid var(--color-border,#dfe4eb);border-radius:8px;padding:10px 12px;margin:8px 0 4px;line-height:1.6}

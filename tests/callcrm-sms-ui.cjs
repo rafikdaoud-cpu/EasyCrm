@@ -50,3 +50,15 @@ test('réglages admin : désactivé, mot de passe jamais réaffiché, enregistre
  assert.equal(pass.value,'','mot de passe effacé du champ après enregistrement');
  [...card.querySelectorAll('button')].find(b=>b.textContent==='Vérifier le crédit').click();await tick();assert.match(card.textContent,/Crédit restant : 1500.00 DA/);
 });
+test('demande de documents : un seul message français puis arabe, lien et validité en jours (arabe accordé)',()=>{
+ const code2=part('const SMS_GSM','function smsDialog')+part('const collectDays','function collectCard(');
+ const ctx=vm.createContext({Date,Math});vm.runInContext(code2+';this.collectMessage=collectMessage;this.arabicDays=arabicDays;this.smsCount=smsCount;',ctx);
+ const now=1800000000,url='https://cloud.csmtaksit.dz/apps/callcrm/collecte/'+'a'.repeat(32);
+ const t=ctx.collectMessage({firstname:'Karim'},url,{created_at:now,expires_at:now+7*86400});
+ const lines=t.split('\n');
+ assert.match(lines[0],/^CSM TAKSIT : Bonjour Karim, .*valable 7 jours\.$/);
+ assert.match(lines[1],/صالح لمدة 7 أيام\.$/);assert.equal(lines[2],url,'lien seul sur la dernière ligne');
+ assert.deepEqual([1,2,5,11,30].map(ctx.arabicDays),['يوم واحد','يومين','5 أيام','11 يومًا','30 يومًا']);
+ assert.match(ctx.collectMessage({},url,{created_at:now,expires_at:now+86400}),/^CSM TAKSIT : Bonjour, .*valable 1 jour\./);
+ assert.ok(ctx.smsCount(t).segments<=5,'tient dans un envoi SMS');
+});

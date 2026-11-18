@@ -296,6 +296,16 @@ function documentsCard(pid=null){
  setTimeout(()=>load(),0);return box;
 }
 /** Lien de dépôt de documents envoyé au client : création (liste et durée réglables), suivi, annulation. */
+/** Durée de validité d'un lien de dépôt, en jours entiers (arrondie, au moins 1). */
+const collectDays=link=>Math.max(1,Math.round(((link.expires_at||0)-(link.created_at||Math.floor(Date.now()/1000)))/86400));
+/** « jours » en arabe : يوم واحد، يومان، 3 إلى 10 أيام، 11 يومًا فأكثر. */
+const arabicDays=n=>n===1?'يوم واحد':n===2?'يومين':n<=10?n+' أيام':n+' يومًا';
+/** Message unique bilingue (français puis arabe) envoyé au client avec le lien de dépôt de documents. */
+function collectMessage(p,url,link){
+ const n=collectDays(link),name=(p.firstname||'').trim();
+ return 'CSM TAKSIT : Bonjour'+(name?' '+name:'')+', merci d’envoyer vos documents via ce lien sécurisé, valable '+n+' jour'+(n>1?'s':'')+'.\n'
+  +'يرجى إرسال وثائقكم عبر هذا الرابط الآمن، صالح لمدة '+arabicDays(n)+'.\n'+url;
+}
 function collectCard(p){
  const box=h('details',{class:'card crm-collect-card',open:window.innerWidth>760}),rows=h('div'),msg=h('p',{class:'muted',role:'status'}),result=h('div');
  const canSend=me.can.call||me.can.assign;
@@ -312,17 +322,21 @@ function collectCard(p){
   btn.disabled=true;try{const r=await api('/prospects/'+p.id+'/collect',{method:'POST'});showLink(r.url,r.link);load();}catch(e){msg.textContent=e.message;}finally{btn.disabled=false;}
  }
  function showLink(url,link){
-  // Message bilingue français / arabe, lien seul sur la dernière ligne (cliquable dans WhatsApp et les SMS).
-  const until=fmt(link.expires_at);
-  const text='Bonjour, merci d’envoyer vos documents avec votre téléphone en ouvrant ce lien sécurisé (valable jusqu’au '+until+') :\n\n'
-   +'مرحبًا، يُرجى إرسال وثائقكم عبر هاتفكم بفتح هذا الرابط الآمن (صالح إلى غاية '+until+'):\n\n'+url;
+  const text=collectMessage(p,url,link);
+  const c=smsCount(text),out=h('p',{class:'muted',role:'status','aria-live':'polite'});
   const field=h('input',{value:url,readonly:true,'aria-label':'Lien à envoyer au client',onfocus:e=>e.target.select()});
-  result.replaceChildren(h('div',{class:'crm-collect-result'},h('strong',{},'Lien créé ('+link.requested+' document(s), valable jusqu’au '+fmt(link.expires_at)+') — à envoyer au client :'),field,
-   h('div',{class:'bar'},
-    h('button',{class:'primary',onclick:async()=>{try{await navigator.clipboard.writeText(url);msg.textContent='Lien copié.';}catch(e){field.select();msg.textContent='Copiez le lien sélectionné.';}}},'Copier le lien'),
+  const smsBtn=p.phone&&me.sms?.enabled?h('button',{class:'primary',onclick:async e=>{const b=e.currentTarget;b.disabled=true;out.textContent='Envoi du SMS…';
+   try{const r=await api('/prospects/'+p.id+'/sms',{method:'POST',body:{text}});out.textContent='✔ SMS envoyé au '+p.phone+' ('+r.segments+' SMS).';b.textContent='SMS envoyé';}
+   catch(x){out.textContent=x.message;b.disabled=false;}}},'✉ Envoyer par SMS'):'';
+  result.replaceChildren(h('div',{class:'crm-collect-result'},h('strong',{},'Lien créé ('+link.requested+' document(s), valable '+collectDays(link)+' jour(s), jusqu’au '+fmt(link.expires_at)+') — à envoyer au client :'),
+   h('pre',{class:'crm-collect-message','aria-label':'Message envoyé au client'},text),
+   h('small',{class:'muted'},c.chars+' caractères · '+c.segments+' SMS'+(c.segments>5?' · trop long pour un SMS, utilisez WhatsApp':'')),
+   h('div',{class:'bar'},smsBtn,
     p.phone?h('a',{class:'crm-agenda-call',href:'https://wa.me/'+waNum(p.phone)+'?text='+encodeURIComponent(text),target:'_blank',rel:'noopener noreferrer'},'Envoyer par WhatsApp'):'',
-    p.phone?h('a',{class:'crm-agenda-call',href:'sms:'+p.phone+'?body='+encodeURIComponent(text)},'Envoyer par SMS'):'',
+    p.phone&&!me.sms?.enabled?h('a',{class:'crm-agenda-call',href:'sms:'+p.phone+'?body='+encodeURIComponent(text)},'SMS depuis le téléphone'):'',
     p.email?h('a',{class:'crm-agenda-call',href:'mailto:'+p.email+'?subject='+encodeURIComponent('Vos documents / وثائقكم')+'&body='+encodeURIComponent(text)},'Envoyer par e-mail'):''),
+   out,field,
+   h('button',{onclick:async()=>{try{await navigator.clipboard.writeText(url);out.textContent='Lien copié.';}catch(e){field.select();out.textContent='Copiez le lien sélectionné.';}}},'Copier le lien seul'),
    h('p',{class:'muted'},'Le lien ne sera plus affiché ensuite : en cas de perte, créez-en un nouveau (l’ancien est annulé). Les documents arriveront dans le dossier Nextcloud du commercial de la fiche.')));
  }
  box.append(h('summary',{},'Documents à demander au client'),rows,msg,result,canSend?h('button',{class:'primary',onclick:e=>send(e.currentTarget)},'📨 Envoyer le lien de documents au client'):'');
