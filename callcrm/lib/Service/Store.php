@@ -24,7 +24,7 @@ class Store {
 		if (!empty($f['q'])) {
 			$l = '%' . $this->db->escapeLikeParameter($f['q']) . '%';
 			$or = $qb->expr()->orX();
-			foreach (empty($f['nophone']) ? ['lastname', 'firstname', 'email', 'phone'] : ['lastname', 'firstname', 'email'] as $c) { $or->add($qb->expr()->like($c, $qb->createNamedParameter($l))); }
+			foreach (empty($f['nophone']) ? ['lastname', 'firstname', 'email', 'phone'] : ['lastname', 'firstname', 'email'] as $c) { $or->add($qb->expr()->iLike($c, $qb->createNamedParameter($l))); }
 			$qb->andWhere($or);
 		}
 	}
@@ -164,7 +164,7 @@ class Store {
 		if ($q !== '') {
 			$l = $qb->createNamedParameter('%' . $this->db->escapeLikeParameter($q) . '%');
 			$or = [];
-			foreach (empty($f['nophone']) ? ['p.lastname', 'p.firstname', 'p.phone', 'c.note', 'c.user_id'] : ['p.lastname', 'p.firstname', 'c.note', 'c.user_id'] as $col) { $or[] = $qb->expr()->like($col, $l); }
+			foreach (empty($f['nophone']) ? ['p.lastname', 'p.firstname', 'p.phone', 'c.note', 'c.user_id'] : ['p.lastname', 'p.firstname', 'c.note', 'c.user_id'] as $col) { $or[] = $qb->expr()->iLike($col, $l); }
 			if (!empty($f['qusers'])) { $or[] = $qb->expr()->in('c.user_id', $qb->createNamedParameter($f['qusers'], IQueryBuilder::PARAM_STR_ARRAY)); }
 			$qb->andWhere($qb->expr()->orX(...$or));
 		}

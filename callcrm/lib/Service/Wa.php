@@ -92,7 +92,7 @@ class Wa {
 		if ($user !== '') { $qb->andWhere($owner($user)); }
 		if ($q !== '') {
 			$l = $qb->createNamedParameter('%' . $this->db->escapeLikeParameter($q) . '%');
-			$qb->andWhere($e->orX($e->like('c.name', $l), $e->like('c.phone', $l), $e->like('c.wa_id', $l), $e->like('p.lastname', $l), $e->like('p.firstname', $l), $e->like('c.last_preview', $l)));
+			$qb->andWhere($e->orX($e->iLike('c.name', $l), $e->iLike('c.phone', $l), $e->iLike('c.wa_id', $l), $e->iLike('p.lastname', $l), $e->iLike('p.firstname', $l), $e->iLike('c.last_preview', $l)));
 		}
 	}
 	public function search(?string $uid, string $box, string $q, string $user, int $limit, int $off): array {

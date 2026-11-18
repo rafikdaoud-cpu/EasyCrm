@@ -60,7 +60,7 @@ class YeastarRecordings {
     }
     /** Filtres communs à la liste détaillée et à la liste groupée par numéro. */
     private function filters(IQueryBuilder $q, array $f): void {
-        if (($f['q'] ?? '') !== '') { $like = '%' . $this->db->escapeLikeParameter($f['q']) . '%'; $q->andWhere($q->expr()->orX($q->expr()->like('r.phone', $q->createNamedParameter($like)), $q->expr()->like('p.lastname', $q->createNamedParameter($like)), $q->expr()->like('p.firstname', $q->createNamedParameter($like)), $q->expr()->like('r.extension', $q->createNamedParameter($like)))); }
+        if (($f['q'] ?? '') !== '') { $like = '%' . $this->db->escapeLikeParameter($f['q']) . '%'; $q->andWhere($q->expr()->orX($q->expr()->iLike('r.phone', $q->createNamedParameter($like)), $q->expr()->iLike('p.lastname', $q->createNamedParameter($like)), $q->expr()->iLike('p.firstname', $q->createNamedParameter($like)), $q->expr()->iLike('r.extension', $q->createNamedParameter($like)))); }
         if (($f['phone'] ?? '') !== '') $q->andWhere($q->expr()->eq('r.phone', $q->createNamedParameter($f['phone'])));
         if (($f['direction'] ?? '') !== '') $q->andWhere($q->expr()->eq('r.direction', $q->createNamedParameter($f['direction'])));
         if (($f['user'] ?? '') !== '') $q->andWhere($q->expr()->eq('r.user_id', $q->createNamedParameter($f['user'])));

@@ -25,7 +25,7 @@ class ClientActivity {
   elseif ($assigned!=='') $q->andWhere($q->expr()->eq('p.assigned_to',$q->createNamedParameter($assigned)));
   if ($search!=='') {
    $term='%'.$this->db->escapeLikeParameter(mb_substr($search,0,120)).'%';
-   $or=$q->expr()->orX();foreach (['p.lastname','p.firstname','p.phone'] as $col) $or->add($q->expr()->like($col,$q->createNamedParameter($term)));
+   $or=$q->expr()->orX();foreach (['p.lastname','p.firstname','p.phone'] as $col) $or->add($q->expr()->iLike($col,$q->createNamedParameter($term)));
    $q->andWhere($or);
   }
  }
@@ -156,7 +156,7 @@ class ClientActivity {
   $search=trim($search);if(mb_strlen($search)<2) return ['rows'=>[],'has_more'=>false,'next_offset'=>0];
   $search=mb_substr($search,0,120);$q=$this->db->getQueryBuilder();$q->select('p.id','p.lastname','p.firstname','p.phone','p.assigned_to','p.status','p.remarque')->from('callcrm_prospects','p');
   $term='%'.$this->db->escapeLikeParameter($search).'%';$or=$q->expr()->orX();
-  foreach(['lastname','firstname','phone','remarque','last_note','email'] as $col)$or->add($q->expr()->like('p.'.$col,$q->createNamedParameter($term)));
+  foreach(['lastname','firstname','phone','remarque','last_note','email'] as $col)$or->add($q->expr()->iLike('p.'.$col,$q->createNamedParameter($term)));
   if($scope===null){$uids=[];foreach($this->users->search($search,30,0) as $u)$uids[]=$u->getUID();if($uids)$or->add($q->expr()->in('p.assigned_to',$q->createNamedParameter($uids,IQueryBuilder::PARAM_STR_ARRAY)));}
   $q->where($or);$this->scoped($q,$scope);$offset=max(0,min(10000,$offset));$q->orderBy('p.id','DESC')->setMaxResults(21)->setFirstResult($offset);$rows=$q->executeQuery()->fetchAll();
   foreach($rows as &$r){$r['owner']=$this->userName($r['assigned_to']);unset($r['remarque']);}unset($r);

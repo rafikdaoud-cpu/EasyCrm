@@ -27,7 +27,7 @@ namespace {
   private string $kind='SELECT',$table='',$columns='*',$alias='';private array $params=[],$where=[],$values=[],$joins=[],$order=[];private int $limit=0,$offset=0;private array $group=[];private string $having='';
   public function __construct(private DB $db){}public function expr(){return $this;}public function func(){return $this;}public function lower($column){return 'LOWER('.$column.')';}public function count($column,$alias){return "COUNT($column) AS $alias";}
   public function createNamedParameter($value,$type=null){if(is_array($value))return '('.implode(',',array_map(fn($v)=>$this->createNamedParameter($v),$value)).')';$key=':p'.count($this->params);$this->params[$key]=$value;return $key;}
-  public function eq($a,$b){return "$a = $b";}public function neq($a,$b){return "$a <> $b";}public function gt($a,$b){return "$a > $b";}public function isNotNull($a){return "$a IS NOT NULL";}public function lt($a,$b){return "$a < $b";}public function gte($a,$b){return "$a >= $b";}public function in($a,$b){return "$a IN $b";}public function isNull($a){return "$a IS NULL";}public function like($a,$b){return "$a LIKE $b ESCAPE '\\'";}
+  public function eq($a,$b){return "$a = $b";}public function neq($a,$b){return "$a <> $b";}public function gt($a,$b){return "$a > $b";}public function isNotNull($a){return "$a IS NOT NULL";}public function lt($a,$b){return "$a < $b";}public function gte($a,$b){return "$a >= $b";}public function in($a,$b){return "$a IN $b";}public function isNull($a){return "$a IS NULL";}public function like($a,$b){return "$a LIKE $b ESCAPE '\\'";}public function iLike($a,$b){return "LOWER($a) LIKE LOWER($b) ESCAPE '\\'";}
   public function andX(...$parts){return new Expression('AND',$parts);}public function orX(...$parts){return new Expression('OR',$parts);}
   public function select(...$columns){$this->kind='SELECT';$this->columns=implode(',',$columns);return $this;}public function from($table,$alias=''){$this->table=$table;$this->alias=$alias;return $this;}
   public function innerJoin($base,$table,$alias,$on){$this->joins[]="INNER JOIN $table $alias ON $on";return $this;}public function where($condition){$this->where=[(string)$condition];return $this;}public function andWhere($condition){$this->where[]=(string)$condition;return $this;}
@@ -68,6 +68,7 @@ namespace {
  check(count($activity->globalSearch('alice','Note enrichie')['rows'])===1,'global search finds client comment in own scope');
  check(count($activity->globalSearch('bob','Note enrichie')['rows'])===0,'global search does not disclose another commercial comment');
  check(count($activity->globalSearch(null,'alice')['rows'])>=1,'manager search resolves a commercial display name');
+ check(count($activity->globalSearch('alice','NOTE ENRICHIE')['rows'])===1&&count($activity->globalSearch('alice','note enrichie')['rows'])===1,'search ignores upper/lower case');
  check(count($activity->neglected('alice','callback')['rows'])===0,'closed callback does not appear as overdue');
  $rows=$activity->neglected('alice','idle',7)['rows'];check(count($rows)>=1,'idle client appears in follow-up list');
  $db->pdo->exec("UPDATE {$app}_prospects SET last_call_at=0 WHERE id=1");
