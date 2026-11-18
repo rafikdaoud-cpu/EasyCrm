@@ -693,3 +693,35 @@ body[data-themes*="dark"] #callcrm.crm-workspace,body[data-theme-dark] #callcrm.
 #callcrm-chat .crm-chat-compose textarea{box-sizing:border-box;height:38px;line-height:20px}
 #callcrm .crm-collect-message{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;background:#f5f7fb;border:1px solid var(--color-border,#dfe4eb);border-radius:8px;padding:10px 12px;margin:8px 0 4px;line-height:1.6}
 #callcrm .crm-routing-excluded{border:1px solid var(--color-border,#dfe4eb);border-radius:8px;padding:6px 12px;margin:10px 0;display:flex;flex-wrap:wrap;gap:0 18px}#callcrm .crm-routing-excluded legend{font-size:13px;font-weight:600;padding:0 4px}
+/* ---- Effet verre (clair et sombre selon le thème Nextcloud) : bouton « Effet verre » du menu, mémorisé sur le poste ---- */
+#callcrm.crm-glass{
+  --g-panel:rgba(255,255,255,.6);--g-panel-strong:rgba(255,255,255,.78);--g-edge:rgba(255,255,255,.8);--g-line:rgba(30,36,71,.09);
+  --g-hi:rgba(255,255,255,.95);--g-shadow:0 10px 28px rgba(30,36,71,.10);--g-blur:blur(20px) saturate(160%);
+  --g-side:rgba(255,255,255,.5);--g-dialog:rgba(255,255,255,.86);
+  --g-b1:rgba(74,144,226,.20);--g-b2:rgba(140,120,220,.14);--g-b3:rgba(120,200,220,.14);--g-page:linear-gradient(165deg,#f5f7fc 0%,#e7ecf5 55%,#f1f3f8 100%);
+  --crm-surface:var(--g-panel);--crm-border:var(--g-line);
+  background:radial-gradient(900px 600px at 8% 0%,var(--g-b1),transparent 60%),radial-gradient(800px 600px at 96% 22%,var(--g-b2),transparent 60%),radial-gradient(900px 650px at 55% 100%,var(--g-b3),transparent 60%),var(--g-page);
+  border-radius:18px;min-height:calc(100vh - 60px)}
+body[data-themes*="dark"] #callcrm.crm-glass,body[data-theme-dark] #callcrm.crm-glass{
+  --g-panel:rgba(255,255,255,.07);--g-panel-strong:rgba(255,255,255,.11);--g-edge:rgba(255,255,255,.13);--g-line:rgba(255,255,255,.12);
+  --g-hi:rgba(255,255,255,.2);--g-shadow:0 12px 32px rgba(0,0,0,.35);--g-side:rgba(255,255,255,.05);--g-dialog:rgba(32,36,52,.88);
+  --g-b1:rgba(74,144,226,.26);--g-b2:rgba(122,140,190,.22);--g-b3:rgba(30,36,71,.55);--g-page:linear-gradient(165deg,#22263a 0%,#171a2b 55%,#111322 100%)}
+@media(prefers-color-scheme:dark){body:not([data-themes*="light"]):not([data-theme-light]) #callcrm.crm-glass{
+  --g-panel:rgba(255,255,255,.07);--g-panel-strong:rgba(255,255,255,.11);--g-edge:rgba(255,255,255,.13);--g-line:rgba(255,255,255,.12);
+  --g-hi:rgba(255,255,255,.2);--g-shadow:0 12px 32px rgba(0,0,0,.35);--g-side:rgba(255,255,255,.05);--g-dialog:rgba(32,36,52,.88);
+  --g-b1:rgba(74,144,226,.26);--g-b2:rgba(122,140,190,.22);--g-b3:rgba(30,36,71,.55);--g-page:linear-gradient(165deg,#22263a 0%,#171a2b 55%,#111322 100%)}}
+#callcrm.crm-glass .card,#callcrm.crm-glass .crm-sidebar,#callcrm.crm-glass .crm-client-footer{
+  background:var(--g-panel);-webkit-backdrop-filter:var(--g-blur);backdrop-filter:var(--g-blur);
+  border:1px solid var(--g-edge);box-shadow:inset 0 1px 0 var(--g-hi),var(--g-shadow);border-radius:20px}
+#callcrm.crm-glass .crm-sidebar{background:var(--g-side);padding:12px;align-self:start;position:sticky;top:12px}
+#callcrm.crm-glass .crm-dialog{background:var(--g-dialog);color:var(--color-main-text,#182237);-webkit-backdrop-filter:var(--g-blur);backdrop-filter:var(--g-blur);border:1px solid var(--g-edge);border-radius:22px}
+#callcrm.crm-glass .crm-dialog-bg{-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+#callcrm.crm-glass .card .card{background:transparent;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none}
+#callcrm.crm-glass input:not([type=checkbox]):not([type=radio]),#callcrm.crm-glass select,#callcrm.crm-glass textarea{background-color:color-mix(in srgb,var(--color-main-background,#fff) 55%,transparent);border-color:var(--g-line)}
+#callcrm.crm-glass table th{background:color-mix(in srgb,var(--color-main-background,#fff) 35%,transparent)}
+#callcrm.crm-glass .crm-sidebar .nav button.on{box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 6px 16px rgba(30,36,71,.18)}
+#callcrm .crm-glass-toggle{display:block;width:100%;margin:10px 0 0;padding:8px 10px;border:1px solid var(--crm-border);border-radius:10px;background:transparent;color:var(--color-main-text,#1e293b);font-size:12px;font-weight:600;text-align:start;cursor:pointer;min-height:34px}
+#callcrm .crm-glass-toggle[aria-pressed=true]{background:linear-gradient(180deg,#5b9cea,#3b7fd2);border-color:transparent;color:#fff}
+body.crm-glass-on #callcrm-chat .crm-chat-panel,body.crm-glass-on #callcrm-chat .crm-chat-toast{background:color-mix(in srgb,var(--color-main-background,#fff) 72%,transparent);-webkit-backdrop-filter:blur(20px) saturate(160%);backdrop-filter:blur(20px) saturate(160%)}
+@media (prefers-reduced-transparency:reduce){#callcrm.crm-glass .card,#callcrm.crm-glass .crm-sidebar,#callcrm.crm-glass .crm-client-footer,#callcrm.crm-glass .crm-dialog{background:var(--color-main-background,#fff);-webkit-backdrop-filter:none;backdrop-filter:none}}
+@media(max-width:760px){#callcrm.crm-glass{border-radius:0}#callcrm.crm-glass .crm-sidebar{position:static}#callcrm.crm-glass .crm-client-footer{border-radius:18px 18px 0 0}}
