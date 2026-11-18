@@ -167,7 +167,9 @@ class YeastarRouting {
 					$id = (int)$managed[$key]['id'];
 					if (!$force && ($hashes[$id] ?? '') === $hash) continue;
 					if (!$n['ext_id']) { $keep = $this->route($id); foreach (['def_dest', 'def_dest_value', 'business_hours_destination', 'business_hours_destination_value'] as $k) if (isset($keep[$k])) $body[$k] = $keep[$k]; }
-					$this->ok($this->client->call('POST', 'inbound_route/update', [], ['id' => $id] + $body), 'Mise à jour de ' . $body['name']);
+					// Codes de fonction de la route : lus mais refusés en modification par le standard.
+					$send = array_diff_key($body, array_flip(['prefix_code', 'reset_code', 'holiday_code', 'office_code']));
+					$this->ok($this->client->call('POST', 'inbound_route/update', [], ['id' => $id] + $send), 'Mise à jour de ' . $body['name']);
 					$hashes[$id] = $hash; $updated++;
 				} elseif ($n['numbers']) {
 					$r = $this->ok($this->client->call('POST', 'inbound_route/create', [], $body), 'Création de ' . $body['name']);

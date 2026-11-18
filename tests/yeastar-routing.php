@@ -27,7 +27,7 @@ class FakePbx extends YeastarClient {
      $r['cid_pattern_list']=array_map(fn($x,$i)=>['id'=>$i]+$x,$r['cid_pattern_list']??[],array_keys($r['cid_pattern_list']??[]));return ['errcode'=>0,'data'=>$r];
    case 'inbound_route/create': if(count($body['cid_pattern_list']??[])>300)return ['errcode'=>60002];
      $id=$this->next++;$r=['id'=>$id]+$body;if($this->badCopy&&str_ends_with($body['name'],'_tmp'))$r['outside_business_hours_destination_value']='9';$this->routes[$id]=$r;return ['errcode'=>0,'id'=>$id];
-   case 'inbound_route/update': $id=$body['id'];if(!isset($this->routes[$id]))return ['errcode'=>40002];if(count($body['cid_pattern_list']??[])>300)return ['errcode'=>60002];
+   case 'inbound_route/update': $id=$body['id'];if(array_intersect_key($body,['prefix_code'=>1,'reset_code'=>1,'holiday_code'=>1,'office_code'=>1]))return ['errcode'=>40002];if(!isset($this->routes[$id]))return ['errcode'=>40002];if(count($body['cid_pattern_list']??[])>300)return ['errcode'=>60002];
      $this->routes[$id]=array_merge($this->routes[$id],$body);return ['errcode'=>0];
    case 'inbound_route/delete': unset($this->routes[$query['id']]);return ['errcode'=>0];
    case 'queue/list': return ['errcode'=>0,'queue_list'=>[['id'=>1,'number'=>'6400','name'=>'CSM_AR'],['id'=>2,'number'=>'6401','name'=>'CSM_FR']]];
@@ -41,7 +41,7 @@ class TestRouting extends YeastarRouting {
  public array $want=[];
  public function desired(array $extensions):array{return $this->want;}
 }
-$general=['name'=>'Inbound_Route','trunk_list'=>[['id'=>1]],'did_option'=>'patterns','cid_option'=>'patterns','def_dest'=>'queue','def_dest_value'=>'1',
+$general=['name'=>'Inbound_Route','prefix_code'=>'*8','reset_code'=>'','holiday_code'=>'','office_code'=>'','trunk_list'=>[['id'=>1]],'did_option'=>'patterns','cid_option'=>'patterns','def_dest'=>'queue','def_dest_value'=>'1',
  'enb_time_condition'=>1,'timezone_id'=>1,'time_condition'=>'route_scope','time_condition_value'=>[['days_of_week'=>'sun mon','times'=>['08:30-16:30'],'months'=>'','days'=>'','dest'=>'','dest_prefix'=>'','dest_value'=>'','time_condition_switch'=>0]],
  'business_hours_destination'=>'ivr','business_hours_destination_value'=>'1','outside_business_hours_destination'=>'ivr','outside_business_hours_destination_value'=>'2','holidays_hours_destination'=>'end_call'];
 $setup=function() use($general){
