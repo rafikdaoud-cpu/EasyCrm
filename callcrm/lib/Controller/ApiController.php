@@ -180,12 +180,32 @@ class ApiController extends Controller {
 		if (!$this->a->can('view')) { return $this->deny(); }
 		$can = [];
 		foreach (['call', 'assign', 'create', 'import', 'invite', 'fields', 'labels', 'delete', 'all', 'audit', 'export', 'export_phone'] as $k) { $can[$k] = $this->a->can($k); }
-		return new JSONResponse(['statuses' => Statuses::all(), 'fields' => Fields::all(), 'role' => $this->a->role(), 'uid' => $this->a->uid(), 'labels' => $this->getLabels(), 'options' => self::OPT + ['c5' => array_keys(Lookup::WILAYAS)], 'teams' => $this->getTeams(), 'groups' => array_map(fn($g, $n) => ['id' => $g, 'name' => $n, 'cats' => array_keys(array_filter(Access::cats(), fn($x) => $x === $g))], array_keys(Access::teams()), array_values(Access::teams())), 'commerciaux' => $this->commerciaux(), 'max_callbacks' => $this->maxCallbacks(), 'prefs' => Prefs::all(), 'can' => $can]);
+		return new JSONResponse(['statuses' => Statuses::all(), 'fields' => Fields::all(), 'role' => $this->a->role(), 'uid' => $this->a->uid(), 'labels' => $this->getLabels(), 'options' => self::OPT + ['c5' => array_keys(Lookup::WILAYAS)], 'teams' => $this->getTeams(), 'groups' => array_map(fn($g, $n) => ['id' => $g, 'name' => $n, 'cats' => array_keys(array_filter(Access::cats(), fn($x) => $x === $g))], array_keys(Access::teams()), array_values(Access::teams())), 'commerciaux' => $this->commerciaux(), 'max_callbacks' => $this->maxCallbacks(), 'prefs' => Prefs::all(), 'can' => $can, 'sms' => $this->smsRuntime()]);
 	}
 
 	#[NoAdminRequired]
 	public function prospects(): JSONResponse {
 		if (!$this->a->can('view')) { return $this->deny(); }
+		$f = $this->listFilter();
+		$off = max(0, (int)$this->request->getParam('offset', 0));
+		if ($this->request->getParam('paged')) {
+			$lim = (int)$this->request->getParam('limit', 10); if (!in_array($lim, [10, 20, 30, 0], true)) { $lim = 10; }
+			$eff = $lim === 0 ? 5000 : $lim; if ($lim === 0) { $off = 0; }
+			return new JSONResponse(['rows' => $this->maskRows($this->s->search($this->scope(), $f, $eff, $off)), 'total' => $this->s->count($this->scope(), $f), 'limit' => $lim]);
+		}
+		return new JSONResponse($this->maskRows($this->s->search($this->scope(), $f, 50, $off)));
+	}
+
+	/** Rien n'est exposé tant que l'administrateur n'a pas activé l'option : aucun bouton SMS n'apparaît. */
+	private function smsRuntime(): array {
+		try { $rt = \OCP\Server::get(\OCA\CallCrm\Service\Sms::class)->runtime(); } catch (\Throwable $e) { return ['enabled' => false]; }
+		$role = $this->a->role(); $manager = in_array($role, ['admin', 'superviseur'], true);
+		if (!$rt['enabled'] || !($manager || ($role === 'commercial' && $rt['commercial_send']))) { return ['enabled' => false]; }
+		return ['enabled' => true, 'bulk' => $manager, 'max_bulk' => $rt['max_bulk'], 'templates' => $rt['templates']];
+	}
+
+	/** Filtres de la liste « Dossiers clients » (aussi utilisés par l'envoi de SMS groupé, pour viser exactement la même sélection). */
+	private function listFilter(): array {
 		$st = (string)$this->request->getParam('status', '');
 		$f = ['q' => trim((string)$this->request->getParam('q', '')), 'status' => in_array($st, Statuses::keys(), true) ? $st : '',
 			'assigned' => $this->a->can('all') ? (string)$this->request->getParam('assigned', '') : '', 'rappels' => (bool)$this->request->getParam('rappels', false), 'asc' => (bool)$this->request->getParam('asc', false),
@@ -195,15 +215,54 @@ class ApiController extends Controller {
 		$f['users'] = $selected['users'];
 		$f['cat'] = $selected['cat'];
 		$f['src'] = array_values(array_intersect(array_filter(explode('|', (string)$this->request->getParam('src', ''))), \OCA\CallCrm\Service\ClientActivity::SOURCES));
-		$off = max(0, (int)$this->request->getParam('offset', 0));
 		$f['sort'] = (string)$this->request->getParam('sort', ''); $f['dir'] = (string)$this->request->getParam('dir', '');
 		if ($this->a->can('mask')) { $f['nophone'] = true; }
-		if ($this->request->getParam('paged')) {
-			$lim = (int)$this->request->getParam('limit', 10); if (!in_array($lim, [10, 20, 30, 0], true)) { $lim = 10; }
-			$eff = $lim === 0 ? 5000 : $lim; if ($lim === 0) { $off = 0; }
-			return new JSONResponse(['rows' => $this->maskRows($this->s->search($this->scope(), $f, $eff, $off)), 'total' => $this->s->count($this->scope(), $f), 'limit' => $lim]);
+		return $f;
+	}
+
+	/**
+	 * SMS groupé aux clients de la sélection affichée (administrateur et superviseur).
+	 * preview=1 : nombre de clients, de numéros valides et de SMS facturés, sans rien envoyer.
+	 */
+	#[NoAdminRequired]
+	public function smsBulk(): JSONResponse {
+		$sms = \OCP\Server::get(\OCA\CallCrm\Service\Sms::class);
+		$rt = $sms->runtime();
+		if (!$rt['enabled'] || !in_array($this->a->role(), ['admin', 'superviseur'], true)) { return $this->deny(); }
+		$f = $this->listFilter(); unset($f['sort'], $f['dir']);
+		$total = $this->s->count($this->scope(), $f);
+		if ($total > $rt['max_bulk']) { return new JSONResponse(['error' => 'Sélection trop grande : ' . $total . ' clients pour ' . $rt['max_bulk'] . ' au maximum par envoi. Affinez les filtres.'], 400); }
+		$template = str_replace("\r", '', (string)$this->request->getParam('text', ''));
+		$uid = $this->a->uid(); $me = $this->um->get($uid)?->getDisplayName() ?? $uid;
+		$groups = []; $invalid = 0; $seen = []; $billed = 0; $names = [];
+		foreach ($this->s->search($this->scope(), $f, $rt['max_bulk'], 0) as $p) {
+			$n = \OCA\CallCrm\Service\Sms::number((string)($p['phone'] ?? ''));
+			if (!$n) { $invalid++; continue; }
+			if (isset($seen[$n])) { continue; }
+			$seen[$n] = (int)$p['id'];
+			$owner = (string)($p['assigned_to'] ?? '');
+			$commercial = $owner === '' ? $me : ($names[$owner] ??= ($this->um->get($owner)?->getDisplayName() ?? $owner));
+			$text = \OCA\CallCrm\Service\Sms::render($template, $p, $commercial);
+			try { \OCA\CallCrm\Service\Sms::check($text); } catch (\InvalidArgumentException $e) { return new JSONResponse(['error' => $e->getMessage()], 400); }
+			$groups[$text][] = $n; $billed += \OCA\CallCrm\Service\Sms::segments($text)['segments'];
 		}
-		return new JSONResponse($this->maskRows($this->s->search($this->scope(), $f, 50, $off)));
+		$summary = ['clients' => $total, 'recipients' => count($seen), 'invalid' => $invalid, 'duplicates' => $total - $invalid - count($seen), 'billed' => $billed];
+		if ($this->request->getParam('preview')) { return new JSONResponse($summary); }
+		if ((int)$this->request->getParam('expected', -1) !== count($seen)) { return new JSONResponse(['error' => 'La sélection a changé depuis l’aperçu : vérifiez de nouveau avant d’envoyer.'], 409); }
+		if (!$seen) { return new JSONResponse(['error' => 'Aucun numéro mobile valide dans la sélection.'], 400); }
+		@set_time_limit(900);
+		$batch = bin2hex(random_bytes(6)); $sent = 0; $failed = []; $activity = \OCP\Server::get(\OCA\CallCrm\Service\ClientActivity::class);
+		foreach ($groups as $text => $numbers) {
+			try { $res = $sms->send($numbers, $text); }
+			catch (\RuntimeException $e) { return new JSONResponse(['error' => $e->getMessage(), 'sent' => $sent], 502); }
+			$seg = \OCA\CallCrm\Service\Sms::segments($text)['segments'];
+			foreach ($res as $n => $r) {
+				if ($r['ok']) { $sent++; } else { $failed[$r['error']] = ($failed[$r['error']] ?? 0) + 1; }
+				try { $activity->event($seen[$n], $uid, 'sms', ['text' => $text, 'ok' => $r['ok'], 'error' => $r['error'], 'message_id' => $r['id'], 'segments' => $seg, 'batch' => $batch]); } catch (\Throwable $e) {}
+			}
+		}
+		$this->s->audit($uid, 'sms_bulk', null, $sent . ' envoyé(s) sur ' . count($seen) . ' · lot ' . $batch . ($failed ? ' · échecs : ' . json_encode($failed, JSON_UNESCAPED_UNICODE) : ''));
+		return new JSONResponse($summary + ['sent' => $sent, 'failed' => $failed]);
 	}
 
 	#[NoAdminRequired]

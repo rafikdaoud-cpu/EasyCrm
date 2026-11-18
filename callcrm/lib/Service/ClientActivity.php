@@ -105,7 +105,7 @@ class ClientActivity {
  }
  /** Stable cursor across the three sources, including equal-second events. */
  public function timeline(int $pid, string $filter, string $cursor='', int $limit=30): array {
-  if (!in_array($filter,['all','call','note','sim','assign','appointment'],true)) throw new \InvalidArgumentException('Filtre de chronologie invalide.');
+  if (!in_array($filter,['all','call','note','sim','assign','appointment','sms'],true)) throw new \InvalidArgumentException('Filtre de chronologie invalide.');
   $limit=max(1,min(100,$limit));$boundary=null;
   if ($cursor!=='') { $boundary=json_decode(base64_decode($cursor,true) ?: '',true);if (!is_array($boundary) || count($boundary)!==3 || !is_int($boundary[0]) || !is_int($boundary[1]) || !is_int($boundary[2])) throw new \InvalidArgumentException('Page de chronologie invalide.'); }
   $events=[];

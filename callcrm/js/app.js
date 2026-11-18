@@ -36,6 +36,28 @@ const h = (t, a = {}, ...c) => {
 const SOURCES = {formulaire:'Formulaire réseaux sociaux', appel:'Appel téléphonique', import:'Import Excel', manuel:'Saisie manuelle', whatsapp:'WhatsApp'};
 const sourceOf = r => r.source || (r.c1 === 'Facebook /prospects' ? 'formulaire' : '');
 const srcBadge = r => { const k = sourceOf(r); return k ? h('span', {class:'crm-source crm-source-' + k, title:'Source du prospect'}, SOURCES[k] || k) : ''; };
+/* SMS ICOSNET : comptage identique au serveur (GSM 160/153, Unicode 70/67) et fenêtre de rédaction. */
+const SMS_GSM='@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !"#¤%&\'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà',SMS_EXT='^{}\\[~]|€';
+function smsCount(text){const chars=[...text];const gsm=chars.every(c=>SMS_GSM.includes(c)||SMS_EXT.includes(c));const n=gsm?chars.reduce((t,c)=>t+(SMS_EXT.includes(c)?2:1),0):chars.length;const [one,part]=gsm?[160,153]:[70,67];return {chars:n,segments:n===0?0:n<=one?1:Math.ceil(n/part),unicode:!gsm,limit:(n<=one?one:part*Math.max(1,Math.ceil(n/part)))};}
+function smsDialog({title,intro,preview,send}){
+ const text=h('textarea',{rows:6,maxlength:1000,'aria-label':'Texte du SMS',placeholder:'Votre message… Variables : {prenom}, {nom}, {commercial}'});
+ const tpl=h('select',{'aria-label':'Modèle de message'},h('option',{value:''},'— Modèle de message —'),(me.sms?.templates||[]).map((t,i)=>h('option',{value:i},t.name)));
+ const counter=h('small',{class:'muted crm-sms-counter','aria-live':'polite'}),msg=h('p',{class:'muted',role:'status'}),info=h('div',{class:'crm-sms-info'});
+ const go=h('button',{class:'primary'},'Envoyer');
+ const upd=()=>{const c=smsCount(text.value);counter.textContent=c.chars+' caractère'+(c.chars>1?'s':'')+' · '+c.segments+' SMS'+(c.unicode?' · arabe / accents spéciaux : 70 caractères par SMS':'')+(c.segments>5?' · trop long (5 SMS maximum)':'');go.disabled=!text.value.trim()||c.segments>5;};
+ tpl.addEventListener('change',()=>{const t=me.sms?.templates?.[tpl.value];if(t){text.value=t.text;upd();text.focus();}});
+ text.addEventListener('input',upd);upd();
+ const close=()=>overlay.remove();
+ go.addEventListener('click',async()=>{go.disabled=true;msg.className='muted';msg.textContent='Envoi en cours…';
+  try{msg.textContent=await send(text.value.trim(),info);go.textContent='Fermer';go.disabled=false;go.onclick=close;}catch(e){msg.className='err';msg.textContent=e.message;go.disabled=false;}});
+ const overlay=h('div',{class:'crm-dialog-bg'},h('section',{class:'crm-dialog crm-sms-dialog',role:'dialog','aria-modal':'true','aria-label':title},
+  h('div',{class:'bar'},h('h2',{},title),h('button',{'aria-label':'Fermer',onclick:close},'×')),intro?h('p',{class:'muted'},intro):'',info,
+  me.sms?.templates?.length?tpl:'',text,counter,msg,h('div',{class:'bar crm-sms-actions'},h('button',{onclick:close},'Annuler'),go)));
+ overlay.addEventListener('keydown',e=>{if(e.key==='Escape')close();});
+ root.append(overlay);text.focus();if(preview)preview(info,go);
+}
+function clientSms(p){smsDialog({title:'SMS à '+([p.firstname,p.lastname].filter(Boolean).join(' ')||p.phone),intro:'Envoyé au '+p.phone+' avec l’expéditeur de l’entreprise. Le message est enregistré dans la chronologie du client.',
+ send:async text=>{const r=await api('/prospects/'+p.id+'/sms',{method:'POST',body:{text}});return '✔ SMS envoyé ('+r.segments+' SMS facturé'+(r.segments>1?'s':'')+').';}});}
 async function api(path, opt = {}) {
   const o = {method: opt.method || 'GET', headers: {requesttoken: tok(), Accept: 'application/json'}};
   if (opt.body instanceof FormData) o.body = opt.body;
@@ -148,13 +170,14 @@ function chronology(pid){
  const box=h('div',{class:'card crm-chronology'}),items=h('div'),message=h('p',{class:'muted'});let kind='all',cursor='',sequence=0;
  setTimeout(()=>{if(box.isConnected){box.after(yeastarHistory(pid));if(me.can.assign||me.can.call)box.after(yeastarRecordingsCard(pid));}},0);
  const more=h('button',{onclick:()=>load(true)},'Afficher les événements précédents');
- const title={call:'Appel',note:'Commentaire modifié',sim:'Simulation enregistrée',assign:'Affectation modifiée',appointment:'Rendez-vous',documents:'Documents client'};
+ const title={call:'Appel',note:'Commentaire modifié',sim:'Simulation enregistrée',assign:'Affectation modifiée',appointment:'Rendez-vous',documents:'Documents client',sms:'SMS envoyé'};
  const render=e=>{const b=e.body||{};let body;
   if(e.kind==='call')body=[h('strong',{},ST[b.result]||b.result),b.reason?h('p',{},'Motif : '+b.reason):'',b.note?h('p',{},b.note):'',b.callback_at?h('small',{},'Rappel : '+fmt(b.callback_at)):'',e.recording?h('div',{class:'crm-event-audio'},h('audio',{controls:true,preload:'none',src:API+'/yeastar/recordings/'+e.recording.id+'/audio','aria-label':'Écouter l’appel'}),h('small',{class:'muted'},'Enregistrement · '+e.recording.talk+' s de conversation')):''];
   else if(e.kind==='assign')body=[b.from+' → '+b.to];
   else if(e.kind==='sim')body=[h('strong',{},Math.round(b.total||0).toLocaleString('fr-FR')+' DA'),h('p',{},[b.in?.model,b.in?.w&&b.in?.l?b.in.w+' × '+b.in.l+' m':''].filter(Boolean).join(' · '))];
   else if(e.kind==='appointment')body=[h('strong',{},b.title),h('p',{},fmt(b.starts_at)+' · '+({open:'Prévu',done:'Terminé',cancelled:'Annulé'}[b.state]||'')),b.notes||''];
   else if(e.kind==='documents')body=[b.action==='received'?'Le client a terminé l’envoi : '+b.count+' document(s)'+(b.folder?' · '+b.folder:''):b.action==='started'?'Le client a commencé à envoyer ses documents (livrés au fur et à mesure)':'Lien envoyé au client : '+b.count+' document(s) demandé(s)'+(b.expires_at?', valable jusqu’au '+fmt(b.expires_at):'')];
+  else if(e.kind==='sms')body=[h('p',{class:'crm-sms-text'},b.text||''),h('small',{class:b.ok?'muted':'err'},(b.ok?'Envoyé':'Échec : '+(b.error||'refusé'))+(b.segments?' · '+b.segments+' SMS':'')+(b.batch?' · envoi groupé':''))];
   else body=[b.note||'Commentaire effacé'];
   return h('article',{class:'crm-event','data-kind':e.kind},h('div',{class:'bar'},h('strong',{},title[e.kind]||'Événement'),h('small',{},fmt(e.created_at))),h('div',{class:'crm-event-body'},body),h('small',{},e.author));
  };
@@ -162,7 +185,7 @@ function chronology(pid){
   try{const r=await api('/prospects/'+pid+'/timeline?'+new URLSearchParams({kind,cursor:append?cursor:''}));if(request!==sequence)return;if(!box.isConnected)return;
    if(!append)items.replaceChildren();items.append(...r.rows.map(render));cursor=r.cursor;more.hidden=!r.has_more;message.textContent=items.children.length?'':'Aucun événement pour ce filtre.';
   }catch(e){if(request===sequence)message.textContent=e.message;}finally{if(request===sequence)more.disabled=false;}}
- const filters=h('div',{class:'bar crm-timeline-filters'},[['all','Tout'],['call','Appels'],['note','Notes'],['sim','Simulations'],['assign','Affectations'],['appointment','Rendez-vous']].map(([key,label])=>h('button',{class:key==='all'?'on':'',onclick:e=>{kind=key;filters.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b===e.currentTarget));load();}},label)));
+ const filters=h('div',{class:'bar crm-timeline-filters'},[['all','Tout'],['call','Appels'],['note','Notes'],['sim','Simulations'],['assign','Affectations'],['appointment','Rendez-vous'],...(me.sms?.enabled?[['sms','SMS']]:[])].map(([key,label])=>h('button',{class:key==='all'?'on':'',onclick:e=>{kind=key;filters.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b===e.currentTarget));load();}},label)));
  box.append(h('h3',{},'Chronologie du client'),filters,message,items,more);setTimeout(()=>load(),0);return box;
 }
 function appointmentEditor(pid,appointment=null,after=()=>{}){
@@ -181,7 +204,7 @@ function clientWorkspace(p,info,form,note,reason,cb,getResult,saveCall){
  info.addEventListener('crm-saved',saved);
  const wrap=h('details',{class:'card crm-client-info'},h('summary',{},'Informations du client'));info.classList.remove('card');info.replaceWith(wrap);wrap.append(info);if(window.innerWidth>760)wrap.open=true;
  const columns=root.querySelector('.cols');if(columns){columns.classList.add('crm-client-columns');columns.children[1].append(collectCard(p),documentsCard(p.id));}
- const footer=h('div',{class:'crm-client-footer'},p.phone&&me.can.call?h('a',{class:'footer-call',href:'tel:'+p.phone},'☎ Appeler'):'',p.phone&&me.can.call?h('a',{class:'footer-wa',href:'https://wa.me/'+waNum(p.phone),target:'_blank',rel:'noopener noreferrer'},'WhatsApp'):'',me.can.call?h('button',{class:'primary',onclick:()=>{if(getResult())saveCall();else{wrap.open=true;info.querySelector('button')?.click();}}},'Enregistrer'):'');root.querySelector('.crm-page')?.append(footer);
+ const footer=h('div',{class:'crm-client-footer'},p.phone&&me.can.call?h('a',{class:'footer-call',href:'tel:'+p.phone},'☎ Appeler'):'',p.phone&&me.can.call?h('a',{class:'footer-wa',href:'https://wa.me/'+waNum(p.phone),target:'_blank',rel:'noopener noreferrer'},'WhatsApp'):'',p.phone&&me.sms?.enabled?h('button',{class:'footer-sms',onclick:()=>clientSms(p)},'✉ SMS'):'',me.can.call?h('button',{class:'primary',onclick:()=>{if(getResult())saveCall();else{wrap.open=true;info.querySelector('button')?.click();}}},'Enregistrer'):'');root.querySelector('.crm-page')?.append(footer);
 }
 function agenda(){
  let period='today',offset=0,sequence=0;const box=h('div'),rows=h('div'),counts=h('div',{class:'team-kpis'}),msg=h('p',{class:'muted'}),search=h('input',{type:'search',placeholder:'Rechercher un client…','aria-label':'Rechercher un client'}),type=h('select',{'aria-label':'Type'},h('option',{value:'all'},'Tous les types'),h('option',{value:'callback'},'Rappels'),h('option',{value:'appointment'},'Rendez-vous'));
@@ -304,6 +327,43 @@ function collectCard(p){
  }
  box.append(h('summary',{},'Documents à demander au client'),rows,msg,result,canSend?h('button',{class:'primary',onclick:e=>send(e.currentTarget)},'📨 Envoyer le lien de documents au client'):'');
  setTimeout(load,0);return box;
+}
+/** Administration : accès à l'API SMS ICOSNET, activation de l'option, modèles de messages. */
+function smsSettingsCard(){
+ const box=h('div',{class:'card crm-sms-settings'}),body=h('div'),out=h('p',{class:'muted',role:'status','aria-live':'polite'});
+ box.append(h('h3',{},'SMS · ICOSNET'),body,out);
+ api('/sms/settings').then(s=>{
+  const field=(label,input,help)=>h('label',{class:'crm-sms-field'},h('span',{},label),input,help?h('small',{class:'muted'},help):'');
+  const enabled=h('input',{type:'checkbox',checked:s.enabled}),url=h('input',{type:'url',value:s.url,placeholder:'https://serveur:port…',autocomplete:'off',spellcheck:false});
+  const user=h('input',{value:s.username,autocomplete:'off',spellcheck:false}),pass=h('input',{type:'password',autocomplete:'new-password',placeholder:s.has_password?'•••••••• (enregistré, laisser vide pour garder)':''});
+  const sender=h('input',{value:s.sender,maxlength:18,placeholder:'CSMTAKSIT…',spellcheck:false}),max=h('input',{type:'number',min:1,max:2000,value:s.max_bulk,style:'width:7em'});
+  const comm=h('input',{type:'checkbox',checked:s.commercial_send}),dlr=h('input',{type:'checkbox',checked:s.dlr});
+  const list=h('div',{class:'crm-sms-templates'});
+  const line=(t={name:'',text:''})=>{const name=h('input',{value:t.name,maxlength:60,'aria-label':'Nom du modèle',placeholder:'Nom du modèle…'}),text=h('textarea',{rows:3,maxlength:1000,'aria-label':'Texte du modèle',placeholder:'Bonjour {prenom}, …'},t.text),cnt=h('small',{class:'muted'});
+   const upd=()=>{const c=smsCount(text.value);cnt.textContent=c.chars+' caractères · '+c.segments+' SMS'+(c.unicode?' (Unicode)':'');};text.addEventListener('input',upd);upd();
+   const row=h('div',{class:'crm-sms-template'},h('div',{class:'bar'},name,h('button',{type:'button','aria-label':'Supprimer ce modèle',onclick:()=>row.remove()},'✕')),text,cnt);return row;};
+  (s.templates||[]).forEach(t=>list.append(line(t)));
+  const status=h('p',{class:'crm-sms-state'});const paint=v=>{status.textContent=v?'✔ Option activée : les boutons SMS sont visibles.':'Option désactivée : aucun bouton SMS n’est affiché dans le CRM.';status.dataset.on=v?'1':'0';};paint(s.enabled);
+  const save=async()=>{out.textContent='Enregistrement…';
+   try{const r=await api('/sms/settings',{method:'POST',body:{enabled:enabled.checked,url:url.value.trim(),username:user.value.trim(),password:pass.value,sender:sender.value.trim(),max_bulk:Number(max.value),commercial_send:comm.checked,dlr:dlr.checked,
+    templates:[...list.children].map(r=>({name:r.querySelector('input').value.trim(),text:r.querySelector('textarea').value.trim()})).filter(t=>t.name||t.text)}});
+    pass.value='';pass.placeholder=r.has_password?'•••••••• (enregistré, laisser vide pour garder)':'';paint(r.enabled);out.textContent='Réglages enregistrés. Rechargez la page pour voir les boutons à jour.';}
+   catch(e){out.textContent=e.message;}};
+  const testPhone=h('input',{type:'tel',inputmode:'tel',placeholder:'0550 12 34 56…',autocomplete:'off','aria-label':'Numéro de test',style:'width:11em'});
+  body.replaceChildren(
+   h('p',{class:'muted'},'Accès fournis par ICOSNET (API HTTP Notif+). L’adresse IP du serveur (197.140.142.231) doit être autorisée chez ICOSNET. Le mot de passe est enregistré chiffré et n’est jamais renvoyé au navigateur.'),
+   status,h('label',{class:'crm-sms-check'},enabled,' Activer l’envoi de SMS dans le CRM'),
+   h('div',{class:'crm-sms-grid'},field('Adresse du serveur API',url,'Sans /bulksms à la fin.'),field('Identifiant',user),field('Mot de passe',pass),field('Expéditeur',sender,'Nom validé par ICOSNET : 11 caractères maximum.')),
+   h('label',{class:'crm-sms-check'},comm,' Les commerciaux peuvent envoyer un SMS à leurs propres clients'),
+   h('label',{class:'crm-sms-check'},dlr,' Demander les accusés de réception'),
+   h('label',{class:'crm-sms-field crm-sms-inline'},h('span',{},'Envoi groupé : '),max,h('span',{},' clients au maximum par envoi (administrateurs et superviseurs)')),
+   h('h4',{},'Modèles de messages'),h('p',{class:'muted'},'Proposés lors de la rédaction. Variables : {prenom}, {nom}, {commercial}.'),list,
+   h('button',{type:'button',onclick:()=>{list.append(line());list.lastChild.querySelector('input').focus();}},'+ Ajouter un modèle'),
+   h('div',{class:'bar crm-sms-actions'},h('button',{class:'primary',onclick:save},'Enregistrer'),
+    h('button',{onclick:async()=>{out.textContent='Lecture du crédit…';try{const r=await api('/sms/credit');out.textContent='Crédit restant : '+r.credit+' DA';}catch(e){out.textContent=e.message;}}},'Vérifier le crédit'),
+    testPhone,h('button',{onclick:async()=>{if(!testPhone.value.trim()){out.textContent='Saisissez un numéro pour le test.';return;}out.textContent='Envoi du SMS de test…';try{await api('/sms/test',{method:'POST',body:{phone:testPhone.value}});out.textContent='✔ SMS de test envoyé au '+testPhone.value+'.';}catch(e){out.textContent=e.message;}}},'Envoyer un SMS de test')));
+ }).catch(e=>{out.textContent=e.message;});
+ return box;
 }
 /** Administration : liste de documents proposée par défaut et durée de validité des liens. */
 function collectSettingsCard(){
@@ -664,12 +724,27 @@ async function list(k) {
   function refreshSel() { selCnt.textContent = sel.size + ' sélectionné(s)'; selBtn.disabled = !sel.size; stBtn.disabled = !sel.size; selAll.checked = !!rowsNow.length && rowsNow.every(x => sel.has(x.id)); }
   const pst = 'justify-content:space-between;align-items:center;margin:8px 0';
   const pager = h('div', {class:'bar', style:pst}), pagerB = h('div', {class:'bar', style:pst});
+  let lastQuery = null;
+  const bulkSms = () => { if (!lastQuery) return; const query = {...lastQuery}; let expected = -1;
+    smsDialog({title:'SMS aux clients de la sélection', intro:'Le même message est envoyé à tous les clients qui correspondent aux filtres affichés (toutes les pages). Les variables {prenom}, {nom} et {commercial} sont remplacées pour chacun.',
+      preview: async (info, go) => { go.disabled = true; info.textContent = 'Calcul de la sélection…';
+        try { const r = await api('/sms/bulk', {method:'POST', body:{...query, preview:1, text:'.'}}); expected = r.recipients;
+          info.replaceChildren(h('strong', {}, r.recipients + ' destinataire' + (r.recipients > 1 ? 's' : '')), ' sur ' + r.clients + ' client(s)' + (r.invalid ? ' · ' + r.invalid + ' sans mobile valide' : '') + (r.duplicates ? ' · ' + r.duplicates + ' numéro(s) en double' : '')); }
+        catch (e) { info.replaceChildren(h('span', {class:'err'}, e.message)); } },
+      send: async text => { const pv = await api('/sms/bulk', {method:'POST', body:{...query, preview:1, text}});
+        if (pv.recipients !== expected) throw new Error('La sélection a changé : fermez et rouvrez la fenêtre.');
+        if (!confirm('Envoyer ce SMS à ' + pv.recipients + ' client(s) ? Cela représente environ ' + pv.billed + ' SMS facturés. Cette action ne peut pas être annulée.')) throw new Error('Envoi annulé.');
+        const r = await api('/sms/bulk', {method:'POST', body:{...query, text, expected}});
+        const fails = Object.entries(r.failed || {}).map(([k, v]) => v + ' × ' + k).join(' ; ');
+        return '✔ ' + r.sent + ' SMS envoyé(s) sur ' + r.recipients + '.' + (fails ? ' Échecs : ' + fails : ''); }}); };
   const load = async (keep) => {
     if (keep !== true) { page = 1; sel.clear(); }
+    lastQuery = null;
     filt = {q:q.value, status: s ? s.value : '', user:a ? a.values().join('|') : '', group:g ? g.values().join('|') : '', cat:category.values().join('|'), src:origin.values().join('|')};
     const p = new URLSearchParams({q:filt.q, status: K.status || filt.status, user:filt.user, group:filt.group, cat:filt.cat, src:filt.src, rappels: K.rappels ? 1 : '', asc: K.asc ? 1 : '',
       reg_from: dts(rf.value, 0), reg_to: dts(rt.value, 86400), proc_from: dts(pf.value, 0), proc_to: dts(pt.value, 86400),
       sort:sortBy.k, dir:sortBy.d, paged:1, limit:pageSize, offset:(page - 1) * pageSize});
+    lastQuery = Object.fromEntries([...p].filter(([k]) => !['paged','limit','offset','sort','dir'].includes(k)));
     try {
       const r = await api('/prospects?' + p);
       const pages = pageSize ? Math.max(1, Math.ceil(r.total / pageSize)) : 1;
@@ -691,7 +766,7 @@ async function list(k) {
   [q, s, a?.el, g?.el, category.el, origin.el, rf, rt, pf, pt].forEach(e => e && e.addEventListener('change', () => load()));
   bar.classList.add('crm-filters');
   const head = h('div', {class:'crm-page-head'}, h('div', {}, h('h2', {}, K.t), h('p', {class:'muted'}, K.asc ? 'Du plus ancien au plus récent.' : 'Cliquez sur un client pour ouvrir sa fiche.')),
-    me.can.create ? h('div', {class:'crm-page-actions'}, h('button', {class:'primary', onclick: () => addForm()}, '+ Nouveau client')) : '');
+    (me.can.create || me.sms?.bulk) ? h('div', {class:'crm-page-actions'}, me.sms?.bulk ? h('button', {onclick: bulkSms}, '✉ SMS à la sélection') : '', me.can.create ? h('button', {class:'primary', onclick: () => addForm()}, '+ Nouveau client') : '') : '');
   head0 = rowHead(!!me.can.assign, sortCol);
   const listCard = h('div', {class:'card crm-list'}, head0, box, pagerB);
   show(head, dossierTabs(), me.can.assign && K.all ? distButtons() : '', bar, moreFilters, selBar, listCard); load();
@@ -894,6 +969,7 @@ async function detail(id) {
     h('div', {class:'crm-hero-main'}, h('div', {class:'crm-hero-title'}, h('h2', {}, nm(p)), badge(p.status)), h('div', {class:'crm-meta'}, ...meta)),
     h('div', {class:'crm-hero-actions'},
       h('button', {type:'button', class:'sim-open crm-btn-ghost', onclick: () => openSim(p)}, '🧮 Simulateur'),
+      p.phone && me.sms?.enabled ? h('button', {type:'button', class:'crm-btn-ghost crm-btn-sms', onclick: () => clientSms(p)}, '✉ SMS') : '',
       p.phone && me.can.call ? h('a', {class:'crm-btn crm-btn-wa', target:'_blank', rel:'noopener noreferrer', href:'https://wa.me/' + waNum(p.phone)}, 'WhatsApp') : '',
       p.phone && me.can.call ? h('a', {class:'crm-btn crm-btn-primary call', href:'tel:' + p.phone}, '☎ Appeler') : ''));
   const outcome = me.can.call ? h('section', {class:'card crm-outcome'},
@@ -2176,7 +2252,7 @@ function admin() {
       }}, 'Réattribuer aux commerciaux actuels')),
     orph,
     h('p', {class:'muted'}, 'Profils : définis par les groupes (AD ou Nextcloud) associés aux rôles administrateur, superviseur, commercial et lecture seule.'));
-  if(me.can.fields)root.querySelector('.crm-page')?.append(yeastarSettingsCard(),documentSettingsCard(),collectSettingsCard());
+  if(me.can.fields)root.querySelector('.crm-page')?.append(yeastarSettingsCard(),smsSettingsCard(),documentSettingsCard(),collectSettingsCard());
   if(me.can.assign)root.querySelector('.crm-page')?.append(documentsCard(),yeastarRecordingsCard());
   adminPanels();
   api('/recordings').then(rows => {

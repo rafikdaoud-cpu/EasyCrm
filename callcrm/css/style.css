@@ -604,3 +604,24 @@ body[data-themes*="dark"] #callcrm.crm-workspace,body[data-theme-dark] #callcrm.
 #callcrm .crm-multi-clear{min-height:0;padding:4px 10px;font-size:13px;background:none;border:0;color:var(--accent,#4A90E2);cursor:pointer}
 #callcrm .crm-multi-clear:disabled{color:var(--ui-muted,#94a3b8);cursor:default}
 #callcrm .crm-neglected-filters input[type=search]{flex:1;min-width:200px;max-width:320px}
+
+/* SMS ICOSNET */
+#callcrm .crm-sms-dialog textarea{min-height:120px;resize:vertical}
+#callcrm .crm-sms-dialog select{width:100%;margin:8px 0}
+#callcrm .crm-sms-counter{display:block;margin-top:6px;font-variant-numeric:tabular-nums}
+#callcrm .crm-sms-info{margin:6px 0;font-size:14px}
+#callcrm .crm-sms-actions{justify-content:flex-end;flex-wrap:wrap;gap:8px;margin-top:12px}
+#callcrm .crm-sms-settings .crm-sms-actions{justify-content:flex-start;align-items:center}
+#callcrm .crm-sms-text{white-space:pre-wrap;overflow-wrap:break-word;margin:0 0 4px}
+#callcrm .crm-sms-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:4px 16px;margin:8px 0}
+#callcrm label.crm-sms-field{display:flex;flex-direction:column;gap:4px;margin:8px 0;font-weight:400;color:inherit;font-size:14px}
+#callcrm label.crm-sms-field>span{font-weight:600;font-size:13px}
+#callcrm label.crm-sms-inline{flex-direction:row;align-items:center;flex-wrap:wrap}
+#callcrm label.crm-sms-check{display:flex;align-items:center;gap:8px;margin:8px 0;font-weight:400;color:inherit;font-size:14px}
+#callcrm label.crm-sms-check input{width:16px;height:16px;min-height:0;padding:0;margin:0;flex:none}
+#callcrm .crm-sms-state{padding:8px 12px;border-radius:8px;background:#f1f3f7;color:#4b5565;font-size:14px}
+#callcrm .crm-sms-state[data-on="1"]{background:#e3f5e9;color:#156b45}
+#callcrm .crm-sms-template{border:1px solid var(--color-border,#dfe4eb);border-radius:8px;padding:8px;margin:8px 0}
+#callcrm .crm-sms-template .bar{gap:6px}#callcrm .crm-sms-template input{flex:1;min-width:0}
+#callcrm .crm-sms-template textarea{width:100%;margin-top:6px;box-sizing:border-box}
+@media(max-width:760px){#callcrm .footer-sms{background:#fff4e0;color:#8a5300;border:0}}
