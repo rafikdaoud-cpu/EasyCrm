@@ -59,7 +59,10 @@ class ActivityController extends Controller {
  public function neglected(): JSONResponse {
   if(!$this->access->can('view'))return $this->error('Accès refusé',403);
   $type=$this->request->getParam('type','idle');if(!is_string($type))return $this->error('Filtre invalide',400);
-  try{$r=$this->activity->neglected($this->scope(),$type,(int)$this->request->getParam('days',7),(int)$this->request->getParam('offset',0));}catch(\InvalidArgumentException $e){return $this->error($e->getMessage(),400);}
+  $f=[];foreach(['assigned','product','changed','q','sort','dir'] as $k){$v=$this->request->getParam($k,'');if(!is_string($v))return $this->error('Filtre invalide',400);$f[$k]=mb_substr($v,0,120);}
+  $uids=$this->request->getParam('uids','');if(!is_string($uids))return $this->error('Filtre invalide',400);$f['uids']=array_slice(array_filter(explode('|',$uids)),0,200);
+  if($this->scope()!==null){$f['assigned']='';$f['uids']=[];}  // un commercial ne voit que ses dossiers : filtres d'équipe ignorés
+  try{$r=$this->activity->neglected($this->scope(),$type,(int)$this->request->getParam('days',7),(int)$this->request->getParam('offset',0),$f);}catch(\InvalidArgumentException $e){return $this->error($e->getMessage(),400);}
   if($this->access->can('mask'))foreach($r['rows'] as &$row)$row['phone']='';unset($row);return new JSONResponse($r);
  }
 }

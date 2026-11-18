@@ -162,19 +162,62 @@ class ClientActivity {
   foreach($rows as &$r){$r['owner']=$this->userName($r['assigned_to']);unset($r['remarque']);}unset($r);
   return ['rows'=>array_slice($rows,0,20),'has_more'=>count($rows)>20,'next_offset'=>$offset+20];
  }
- public function neglected(?string $scope, string $type='idle', int $days=7, int $offset=0): array {
+ /**
+  * Prospects à relancer, avec le dernier commercial qui a appelé et le commercial actuel.
+  * $f : assigned (uid), uids (liste d'uids : groupe de commerciaux), product (catégorie c2), changed ('yes'|'no'),
+  *      q (nom/téléphone), sort (name|status|product|last_call|days|owner|caller|changed|created), dir (asc|desc).
+  * Le tri et le filtre « changement de commercial » portent sur toute la liste (5 000 dossiers au plus), pas sur la page.
+  */
+ public const NEGLECTED_SORTS=['name','status','product','last_call','days','owner','caller','changed','created'];
+ public function neglected(?string $scope, string $type='idle', int $days=7, int $offset=0, array $f=[]): array {
   if(!in_array($type,['idle','callback','estimate'],true))throw new \InvalidArgumentException('Type de suivi invalide.');
+  $sort=(string)($f['sort']??'');if($sort!==''&&!in_array($sort,self::NEGLECTED_SORTS,true))throw new \InvalidArgumentException('Tri invalide.');
+  $dir=strtolower((string)($f['dir']??''))==='desc'?-1:1;$changed=(string)($f['changed']??'');
+  if(!in_array($changed,['','yes','no'],true))throw new \InvalidArgumentException('Filtre de changement invalide.');
   $days=max(1,min(365,$days));$now=time();$cutoff=$now-$days*86400;$q=$this->db->getQueryBuilder();
-  $q->select('p.id','p.lastname','p.firstname','p.phone','p.assigned_to','p.status','p.last_call_at','p.created_at','p.callback_at')->from('callcrm_prospects','p');
+  $cols=['p.id','p.lastname','p.firstname','p.phone','p.assigned_to','p.status','p.last_call_at','p.created_at','p.callback_at','p.c2','p.c5'];
+  $q->select(...$cols)->from('callcrm_prospects','p');
   if($type==='callback')$q->where($q->expr()->lt('p.callback_at',$q->createNamedParameter($now)))->andWhere($q->expr()->in('p.status',$q->createNamedParameter(Statuses::callbackKeys()?:['-'],IQueryBuilder::PARAM_STR_ARRAY)));
   elseif($type==='estimate'){
    $q->innerJoin('p','callcrm_audit','a',$q->expr()->eq('a.prospect_id','p.id'))->where($q->expr()->eq('a.action',$q->createNamedParameter('sim')))
-
     ->andWhere($q->expr()->orX($q->expr()->isNull('p.last_call_at'),$q->expr()->lt('p.last_call_at','a.created_at')));
-   $q->groupBy('p.id','p.lastname','p.firstname','p.phone','p.assigned_to','p.status','p.last_call_at','p.created_at','p.callback_at')->having('MAX(a.created_at) < '.$q->createNamedParameter($cutoff,IQueryBuilder::PARAM_INT));
+   $q->groupBy(...$cols)->having('MAX(a.created_at) < '.$q->createNamedParameter($cutoff,IQueryBuilder::PARAM_INT));
   }else $q->where($q->expr()->lt('p.created_at',$q->createNamedParameter($cutoff)))->andWhere($q->expr()->orX($q->expr()->isNull('p.last_call_at'),$q->expr()->lt('p.last_call_at',$q->createNamedParameter($cutoff))));
   if($type!=='callback')$q->andWhere($q->expr()->in('p.status',$q->createNamedParameter(array_unique(array_merge(['nouveau','interesse'],Statuses::callbackKeys())),IQueryBuilder::PARAM_STR_ARRAY)));
-  $this->scoped($q,$scope);$offset=max(0,min(10000,$offset));$q->orderBy('p.created_at','ASC')->addOrderBy('p.id','ASC')->setMaxResults(21)->setFirstResult($offset);$rows=$q->executeQuery()->fetchAll();foreach($rows as &$r)$r['owner']=$this->userName($r['assigned_to']);unset($r);
-  return ['rows'=>array_slice($rows,0,20),'has_more'=>count($rows)>20,'next_offset'=>$offset+20,'days'=>$days];
+  $this->scoped($q,$scope,(string)($f['assigned']??''),(string)($f['q']??''));
+  $uids=array_values(array_filter(array_map('strval',(array)($f['uids']??[])),fn($u)=>$u!==''));
+  if($uids)$q->andWhere($q->expr()->in('p.assigned_to',$q->createNamedParameter(array_slice($uids,0,200),IQueryBuilder::PARAM_STR_ARRAY)));
+  if(($f['product']??'')!=='')$q->andWhere($q->expr()->eq('p.c2',$q->createNamedParameter(mb_substr((string)$f['product'],0,120))));
+  $q->orderBy('p.created_at','ASC')->addOrderBy('p.id','ASC')->setMaxResults(5001);
+  $rows=$q->executeQuery()->fetchAll();$truncated=count($rows)>5000;$rows=array_slice($rows,0,5000);
+  $last=$this->lastCallers(array_map(fn($r)=>(int)$r['id'],$rows));$names=[];
+  $name=function(?string $uid)use(&$names){return $names[$uid??'']??=$this->userName($uid);};
+  foreach($rows as &$r){
+   $c=$last[(int)$r['id']]??null;$r['owner']=$name($r['assigned_to']);
+   $r['last_caller']=$c['user_id']??null;$r['last_caller_name']=$c?$name($c['user_id']):'';$r['last_result']=$c['result']??'';
+   $r['changed']=$c!==null&&(string)$c['user_id']!==(string)($r['assigned_to']??'');
+   $ref=(int)($r['last_call_at']?:$r['created_at']);$r['days_idle']=$ref?intdiv(max(0,$now-$ref),86400):null;
+  }unset($r);
+  // « Même commercial » suppose un appel : un client jamais appelé n'est ni « changé » ni « inchangé ».
+  if($changed!=='')$rows=array_values(array_filter($rows,fn($r)=>$changed==='yes'?$r['changed']:($r['last_caller']!==null&&!$r['changed'])));
+  if($sort!==''){
+   $key=fn($r)=>match($sort){'name'=>mb_strtolower(trim($r['lastname'].' '.$r['firstname'])),'status'=>(string)$r['status'],'product'=>mb_strtolower((string)$r['c2']),
+    'last_call'=>(int)$r['last_call_at'],'days'=>(int)($r['days_idle']??-1),'owner'=>mb_strtolower($r['owner']),'caller'=>mb_strtolower($r['last_caller_name']),
+    'changed'=>$r['changed']?1:0,'created'=>(int)$r['created_at']};
+   usort($rows,fn($a,$b)=>($dir*($key($a)<=>$key($b)))?:((int)$a['id']<=>(int)$b['id']));
+  }
+  $offset=max(0,min(10000,$offset));$page=array_slice($rows,$offset,50);
+  return ['rows'=>$page,'total'=>count($rows),'truncated'=>$truncated,'has_more'=>count($rows)>$offset+50,'next_offset'=>$offset+50,'days'=>$days];
+ }
+ /** Dernier appel saisi par prospect : [id => ['user_id','result','created_at']]. */
+ private function lastCallers(array $ids): array {
+  $out=[];
+  foreach(array_chunk(array_values(array_unique($ids)),500) as $chunk){
+   $q=$this->db->getQueryBuilder();
+   $q->select('prospect_id','user_id','result','created_at','id')->from('callcrm_calls')->where($q->expr()->in('prospect_id',$q->createNamedParameter($chunk,IQueryBuilder::PARAM_INT_ARRAY)))
+     ->orderBy('created_at','DESC')->addOrderBy('id','DESC');
+   foreach($q->executeQuery()->fetchAll() as $c)$out[(int)$c['prospect_id']]??=$c;
+  }
+  return $out;
  }
 }

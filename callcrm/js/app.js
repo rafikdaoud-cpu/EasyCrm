@@ -193,7 +193,55 @@ function agenda(){
  box.append(counts,tabs,h('div',{class:'bar'},search,type,me.can.all?assigned:''),msg,rows,more);show(h('h2',{},'Mon agenda'),h('p',{class:'muted'},'Vos rappels et rendez-vous, au même endroit. Créez un rendez-vous depuis la fiche du client.'),box);load();
 }
 
+/** À relancer : filtres (type, jours, commercial, groupe, produit, changement de commercial, recherche) et tableau triable. */
+function neglectedView(){
+ const all=me.can&&me.can.all,state={sort:'days',dir:'desc',offset:0};
+ const type=h('select',{'aria-label':'Type de relance'},h('option',{value:'idle'},'Sans appel récent'),h('option',{value:'callback'},'Rappels dépassés'),h('option',{value:'estimate'},'Estimation sans suivi'));
+ const days=h('input',{type:'number',min:1,max:365,value:7,inputmode:'numeric','aria-label':'Nombre de jours sans suivi'});
+ const dayControl=h('label',{class:'crm-filter'},'Depuis plus de ',days,' jours');
+ const assigned=h('select',{'aria-label':'Commercial actuel'},h('option',{value:''},'Tous les commerciaux'),(me.commerciaux||[]).map(u=>h('option',{value:u.uid},u.name)));
+ const team=h('select',{'aria-label':'Groupe de commerciaux'},h('option',{value:''},'Tous les groupes'),(me.groups||[]).map(g=>h('option',{value:g.id},g.name)));
+ const product=h('select',{'aria-label':'Produit demandé'},h('option',{value:''},'Tous les produits'),((me.options&&me.options.c2)||[]).map(c=>h('option',{value:c},c)));
+ const changed=h('select',{'aria-label':'Changement de commercial'},h('option',{value:''},'Avec ou sans changement de commercial'),h('option',{value:'yes'},'Commercial changé depuis le dernier appel'),h('option',{value:'no'},'Même commercial qu’au dernier appel'));
+ const q=h('input',{type:'search',placeholder:'Nom ou téléphone…','aria-label':'Rechercher un client',autocomplete:'off'});
+ const reset=h('button',{type:'button',onclick:()=>{type.value='idle';days.value=7;assigned.value='';team.value='';product.value='';changed.value='';q.value='';dayControl.hidden=false;load();}},'Réinitialiser');
+ const out=h('p',{class:'muted','aria-live':'polite'}),wrap=h('div',{class:'crm-table-wrap'}),more=h('button',{type:'button',onclick:()=>load(true)},'Afficher les suivants');let rows=[],seq=0;
+ const COLS=[['name','Client'],['product','Produit demandé'],['status','Statut'],['last_call','Dernier appel'],['days','Jours sans suivi'],['caller','Dernier commercial ayant appelé'],['owner','Commercial actuel'],['changed','Changement']];
+ const change=key=>{if(state.sort===key)state.dir=state.dir==='asc'?'desc':'asc';else{state.sort=key;state.dir=['days','changed'].includes(key)?'desc':'asc';}load();};
+ function render(){
+  const head=h('thead',{},h('tr',{},COLS.map(([k,l])=>sortableHeading(l,k,state.sort,state.dir,change)),h('th',{scope:'col'},'Actions')));
+  const body=h('tbody',{},rows.map(p=>h('tr',{class:p.changed?'crm-changed':''},
+   h('td',{},h('button',{type:'button',class:'crm-link',onclick:()=>detail(p.id)},nm(p)||'Sans nom'),p.c5?h('div',{class:'muted'},p.c5):''),
+   h('td',{},p.c2||h('span',{class:'muted'},'—')),
+   h('td',{},badge(p.status)),
+   h('td',{class:'crm-num'},p.last_call_at?fmt(p.last_call_at):h('span',{class:'muted'},'Jamais appelé'),p.last_result?h('div',{class:'muted'},ST[p.last_result]||p.last_result):''),
+   h('td',{class:'crm-num'},p.days_idle==null?'—':String(p.days_idle)),
+   h('td',{},p.last_caller_name||h('span',{class:'muted'},'—')),
+   h('td',{},p.owner),
+   h('td',{},p.changed?h('span',{class:'crm-flag',title:'Le dernier appel a été passé par '+p.last_caller_name+', le dossier est maintenant suivi par '+p.owner},'Changé'):h('span',{class:'muted'},p.last_caller?'Non':'—')),
+   h('td',{},h('div',{class:'bar'},h('button',{type:'button',onclick:()=>detail(p.id)},'Ouvrir la fiche'),p.phone&&me.can.call?h('a',{href:'tel:'+p.phone,class:'crm-agenda-call','aria-label':'Appeler '+nm(p)},'☎ '+p.phone):'')))));
+  wrap.replaceChildren(rows.length?h('table',{class:'t crm-neglected-table'},head,body):'');
+ }
+ async function load(append=false){
+  const n=++seq;if(!append)state.offset=0;more.disabled=true;out.textContent='Recherche…';
+  const uids=team.value?((me.teams||{})[team.value]||['-']):[];
+  const params={type:type.value,days:days.value,offset:state.offset,sort:state.sort,dir:state.dir,q:q.value.trim(),product:product.value,changed:changed.value};
+  if(all){params.assigned=assigned.value;if(uids.length)params.uids=uids.join('|');}
+  try{const r=await api('/neglected?'+new URLSearchParams(params));if(n!==seq)return;
+   rows=append?rows.concat(r.rows):r.rows;state.offset=r.next_offset;render();more.hidden=!r.has_more;
+   out.textContent=r.total?r.total+' dossier'+(r.total>1?'s':'')+' à relancer'+(r.truncated?' (5 000 premiers dossiers seulement : affinez les filtres)':''):'Aucun prospect correspondant.';
+  }catch(e){if(n===seq)out.textContent=e.message;}finally{if(n===seq)more.disabled=false;}
+ }
+ let timer;const later=()=>{clearTimeout(timer);timer=setTimeout(()=>load(),300);};
+ q.addEventListener('input',later);days.addEventListener('input',later);
+ [assigned,team,product,changed].forEach(el=>el.addEventListener('change',()=>load()));
+ type.addEventListener('change',()=>{dayControl.hidden=type.value==='callback';load();});
+ const filters=h('div',{class:'bar crm-filters'},type,dayControl,all?assigned:'',all?team:'',product,changed,q,reset);
+ show(h('h2',{},'Prospects à relancer'),h('p',{class:'muted'},'Repérez les dossiers sans suivi, voyez qui les a appelés en dernier et qui les suit aujourd’hui, puis appelez ou ouvrez la fiche.'),h('div',{},filters,out,wrap,more));load();
+}
+
 function discovery(mode='search',initial=''){
+ if(mode!=='search')return neglectedView();
  const q=h('input',{type:'search',placeholder:'Nom, téléphone, commentaire ou commercial…',value:initial,'aria-label':'Recherche globale'}),days=h('input',{type:'number',min:1,max:365,value:7,'aria-label':'Jours sans suivi'}),type=h('select',{'aria-label':'Type de relance'},h('option',{value:'idle'},'Sans appel récent'),h('option',{value:'callback'},'Rappels dépassés'),h('option',{value:'estimate'},'Estimation sans suivi'));
  const dayControl=h('label',{},'Depuis plus de ',days,' jours');
  const rows=h('div'),out=h('p',{class:'muted'}),box=h('div'),more=h('button',{onclick:()=>load(true)},'Afficher les suivants');let offset=0,seq=0;

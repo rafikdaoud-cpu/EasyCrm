@@ -64,6 +64,7 @@ namespace {
  $request->params=['result'=>'interesse','reason'=>'Prix trop élevé','note'=>'x'];check($api->call(1)->status===400,'server rejects a reason from another outcome');$request->params['reason']='Projet cuisine';check($api->call(1)->status===200,'server accepts configured optional reason and stores it');check($db->pdo->query("SELECT reason FROM {$app}_calls ORDER BY id DESC LIMIT 1")->fetchColumn()==='Projet cuisine','accepted reason is persisted for reporting');
  foreach(['saveAppointment'] as $method){$reflection=new ReflectionMethod('OCA\\'.$ns.'\\Controller\\ActivityController',$method);check(!$reflection->getAttributes('OCP\\AppFramework\\Http\\Attribute\\NoCSRFRequired'),'new write endpoint keeps Nextcloud CSRF protection');}
  $db->pdo->exec("ALTER TABLE {$app}_prospects ADD COLUMN created_at INTEGER;UPDATE {$app}_prospects SET created_at=".(time()-20*86400));
+ $db->pdo->exec("ALTER TABLE {$app}_prospects ADD COLUMN c2 TEXT");
  check(count($activity->globalSearch('alice','Note enrichie')['rows'])===1,'global search finds client comment in own scope');
  check(count($activity->globalSearch('bob','Note enrichie')['rows'])===0,'global search does not disclose another commercial comment');
  check(count($activity->globalSearch(null,'alice')['rows'])>=1,'manager search resolves a commercial display name');
@@ -74,5 +75,30 @@ namespace {
  check(count($activity->neglected('alice','estimate',7)['rows'])===0,'recent estimate is not flagged because an older estimate exists');
  $db->pdo->exec("DELETE FROM {$app}_audit WHERE created_at>".(time()-2*86400));check(count($activity->neglected('alice','estimate',7)['rows'])===1,'latest old estimate without follow-up is flagged');
  $db->pdo->exec("UPDATE {$app}_prospects SET last_call_at=".time()." WHERE id=1");check(count($activity->neglected('alice','estimate',7)['rows'])===0,'call after estimate clears missing follow-up alert');
+ // À relancer : dernier commercial ayant appelé, changement de commercial, filtres et tri sur toute la liste.
+ if($folder==='callcrm'){
+ $db->pdo->exec("UPDATE {$app}_prospects SET last_call_at=".(time()-30*86400).", status='interesse', c2='Motos', assigned_to='alice' WHERE id=1");
+ $store->insert($app.'_prospects',['lastname'=>'Zeta','firstname'=>'Client','phone'=>'0550000002','status'=>'nouveau','assigned_to'=>'bob','c2'=>'Cuisine équipée','created_at'=>time()-40*86400,'last_call_at'=>time()-9*86400]);
+ $zeta=(int)$db->pdo->query("SELECT MAX(id) FROM {$app}_prospects")->fetchColumn();
+ $db->pdo->exec("DELETE FROM {$app}_calls");
+ $store->insert($app.'_calls',['prospect_id'=>1,'user_id'=>'bob','result'=>'injoignable','created_at'=>time()-31*86400]);
+ $store->insert($app.'_calls',['prospect_id'=>1,'user_id'=>'carol','result'=>'injoignable','created_at'=>time()-30*86400]);
+ $store->insert($app.'_calls',['prospect_id'=>$zeta,'user_id'=>'bob','result'=>'injoignable','created_at'=>time()-9*86400]);
+ $all=$activity->neglected(null,'idle',7,0,['sort'=>'days','dir'=>'desc']);$byId=array_column($all['rows'],null,'id');
+ check(isset($byId[1],$byId[$zeta])&&$all['total']===count($all['rows']),'follow-up list returns total and rows for managers');
+ check($byId[1]['last_caller']==='carol'&&$byId[1]['changed']===true&&$byId[1]['owner']==='Nom alice','latest caller differs from current commercial: flagged as changed');
+ check($byId[$zeta]['last_caller']==='bob'&&$byId[$zeta]['changed']===false,'same commercial as last call is not flagged');
+ check($byId[1]['days_idle']===30&&$byId[1]['c2']==='Motos','days without follow-up and requested product are returned');
+ check(array_column($activity->neglected(null,'idle',7,0,['changed'=>'yes'])['rows'],'id')===[1],'filter keeps only clients whose commercial changed');
+ check(array_column($activity->neglected(null,'idle',7,0,['changed'=>'no'])['rows'],'id')===[$zeta],'filter keeps only clients with the same commercial');
+ check(array_column($activity->neglected(null,'idle',7,0,['product'=>'Cuisine équipée'])['rows'],'id')===[$zeta],'filter by requested product');
+ $rows=$activity->neglected(null,'idle',7,0,['assigned'=>'bob'])['rows'];check(in_array($zeta,array_column($rows,'id'))&&!array_diff(array_unique(array_column($rows,'assigned_to')),['bob']),'filter by current commercial');
+ $rows=$activity->neglected(null,'idle',7,0,['uids'=>['alice','nobody']])['rows'];check(in_array(1,array_column($rows,'id'))&&!in_array($zeta,array_column($rows,'id'))&&!array_diff(array_unique(array_column($rows,'assigned_to')),['alice','nobody']),'filter by group of commercials');
+ $ids=array_column($activity->neglected(null,'idle',15,0)['rows'],'id');check(in_array(1,$ids)&&!in_array($zeta,$ids),'number of days filters out recently called clients');
+ $names=array_map(fn($r)=>mb_strtolower(trim($r['lastname'].' '.$r['firstname'])),$activity->neglected(null,'idle',7,0,['sort'=>'name','dir'=>'desc'])['rows']);$expected=$names;rsort($expected);check($names===$expected,'sort by client name descending');
+ $d=array_map(fn($r)=>(int)($r['days_idle']??-1),$activity->neglected(null,'idle',7,0,['sort'=>'days','dir'=>'asc'])['rows']);$e=$d;sort($e);check($d===$e,'sort by days without follow-up, ascending');
+ $rows=$activity->neglected('alice','idle',7,0,['assigned'=>'bob'])['rows'];check(in_array(1,array_column($rows,'id'))&&!array_diff(array_unique(array_column($rows,'assigned_to')),['alice']),'a commercial only sees own clients whatever the filters');
+ try{$activity->neglected(null,'idle',7,0,['sort'=>'p.id;DROP']);check(false,'unknown sort key is rejected');}catch(\InvalidArgumentException $e){check(true,'unknown sort key is rejected');}
+ }
  echo "$folder: $count activity checks passed\n";
 }

@@ -16,6 +16,8 @@ node tests/yeastar-settings-ui.cjs
 node tests/callcrm-calls-ui.cjs
 node tests/callcrm-whatsapp-ui.cjs
 node tests/callcrm-missed-ui.cjs
+node tests/callcrm-neglected-ui.cjs
+"$PHP_BIN" tests/client-activity.php callcrm
 "$PHP_BIN" tests/yeastar-settings.php
 "$PHP_BIN" tests/yeastar-telephony.php
 node tests/simulator-history-ui.cjs

@@ -569,3 +569,14 @@ body[data-themes*="dark"] #callcrm.crm-workspace,body[data-theme-dark] #callcrm.
 #callcrm.crm-workspace .badge.crm-badge-bad{--bc:#c0392b}
 #callcrm .crm-incoming-group details{margin:4px 0}#callcrm .crm-incoming-group ul{margin:4px 0;padding-left:18px;font-size:13px}
 #callcrm .crm-col-main>*,#callcrm .crm-col-side>*{max-width:100%;min-width:0;box-sizing:border-box}
+
+#callcrm .crm-filters{flex-wrap:wrap;gap:8px;align-items:center}
+#callcrm .crm-filters select,#callcrm .crm-filters input[type=search]{min-width:0;max-width:100%}
+#callcrm .crm-filter{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+#callcrm .crm-filter input{width:5em}
+#callcrm .crm-neglected-table td{vertical-align:top}
+#callcrm .crm-neglected-table .crm-num{font-variant-numeric:tabular-nums;white-space:nowrap}
+#callcrm .crm-neglected-table tr.crm-changed td{background:color-mix(in srgb,#f59e0b 8%,transparent)}
+#callcrm .crm-flag{display:inline-block;padding:2px 8px;border-radius:999px;background:#fef3c7;color:#92400e;font-size:12px;font-weight:600}
+#callcrm .crm-link{background:none;border:0;padding:0;color:var(--color-primary-element,#2563eb);font-weight:600;cursor:pointer;text-align:start}
+#callcrm .crm-link:hover,#callcrm .crm-link:focus-visible{text-decoration:underline}
