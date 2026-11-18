@@ -32,6 +32,10 @@ const h = (t, a = {}, ...c) => {
   for (const x of c.flat()) e.append(x instanceof Node ? x : document.createTextNode(x ?? ''));
   return e;
 };
+/** Origine du prospect : libellés et pastille, partagés par la liste des dossiers, la fiche et « À relancer ». */
+const SOURCES = {formulaire:'Formulaire réseaux sociaux', appel:'Appel téléphonique', import:'Import Excel', manuel:'Saisie manuelle', whatsapp:'WhatsApp'};
+const sourceOf = r => r.source || (r.c1 === 'Facebook /prospects' ? 'formulaire' : '');
+const srcBadge = r => { const k = sourceOf(r); return k ? h('span', {class:'crm-source crm-source-' + k, title:'Source du prospect'}, SOURCES[k] || k) : ''; };
 async function api(path, opt = {}) {
   const o = {method: opt.method || 'GET', headers: {requesttoken: tok(), Accept: 'application/json'}};
   if (opt.body instanceof FormData) o.body = opt.body;
@@ -202,7 +206,6 @@ function neglectedView(){
  const assigned=h('select',{'aria-label':'Commercial actuel'},h('option',{value:''},'Tous les commerciaux'),(me.commerciaux||[]).map(u=>h('option',{value:u.uid},u.name)));
  const team=h('select',{'aria-label':'Groupe de commerciaux'},h('option',{value:''},'Tous les groupes'),(me.groups||[]).map(g=>h('option',{value:g.id},g.name)));
  const product=h('select',{'aria-label':'Produit demandé'},h('option',{value:''},'Tous les produits'),((me.options&&me.options.c2)||[]).map(c=>h('option',{value:c},c)));
- const SOURCES={formulaire:'Formulaire réseaux sociaux',appel:'Appel téléphonique',import:'Import Excel',manuel:'Saisie manuelle',whatsapp:'WhatsApp'};
  const source=h('select',{'aria-label':'Source du prospect'},h('option',{value:''},'Toutes les sources'),Object.entries(SOURCES).map(([k,l])=>h('option',{value:k},l)));
  const changed=h('select',{'aria-label':'Changement de commercial'},h('option',{value:''},'Avec ou sans changement de commercial'),h('option',{value:'yes'},'Commercial changé depuis le dernier appel'),h('option',{value:'no'},'Même commercial qu’au dernier appel'));
  const q=h('input',{type:'search',placeholder:'Nom ou téléphone…','aria-label':'Rechercher un client',autocomplete:'off'});
@@ -239,7 +242,7 @@ function neglectedView(){
  q.addEventListener('input',later);days.addEventListener('input',later);
  [assigned,team,product,source,changed].forEach(el=>el.addEventListener('change',()=>load()));
  type.addEventListener('change',()=>{dayControl.hidden=type.value==='callback';load();});
- const filters=h('div',{class:'bar crm-filters'},type,dayControl,all?assigned:'',all?team:'',product,source,changed,q,reset);
+ const filters=h('div',{class:'bar crm-filters crm-neglected-filters'},type,dayControl,all?assigned:'',all?team:'',product,source,changed,q,reset);
  show(h('h2',{},'Prospects à relancer'),h('p',{class:'muted'},'Repérez les dossiers sans suivi, voyez qui les a appelés en dernier et qui les suit aujourd’hui, puis appelez ou ouvrez la fiche.'),h('div',{},filters,out,wrap,more));load();
 }
 
@@ -617,12 +620,14 @@ async function list(k) {
   if (me.can.all) {
     a = multi('Commerciaux', me.commerciaux.map(u => ({v:u.uid, t:u.name})), (filt.user || filt.assigned || '').split('|'));
     g = multi('Groupes de commerciaux', (me.groups || []).map(group => ({v:group.id, t:group.name})), (filt.group || '').split('|'));
-    bar.append(a.el, g.el, h('button', {type:'button', onclick:() => { a.clear(); g.clear(); load(); }}, 'Tous les commerciaux / groupes'));
+    bar.append(a.el, g.el);
   }
   const category = multi('Produits demandés', (me.options.c2 || []).map(c => ({v:c, t:c})), (filt.cat || '').split('|'));
-  bar.append(category.el, h('button', {type:'button', onclick:() => { category.clear(); load(); }}, 'Tous les produits'));
+  bar.append(category.el);
+  const origin = multi('Sources', Object.entries(SOURCES).map(([v, t]) => ({v, t})), (filt.src || '').split('|'));
+  bar.append(origin.el);
   let page = 1;
-  const SORTS = [['', 'Tri par défaut'], ['nom', 'Nom'], ['date', 'Date d’enregistrement'], ['statut', 'Statut'], ['wilaya', 'Wilaya'], ['categorie', 'Catégorie'], ['appel', 'Dernier appel'], ['rappel', 'Date de rappel']];
+  const SORTS = [['', 'Tri par défaut'], ['nom', 'Nom'], ['date', 'Date d’enregistrement'], ['statut', 'Statut'], ['wilaya', 'Wilaya'], ['categorie', 'Catégorie'], ['source', 'Source'], ['appel', 'Dernier appel'], ['rappel', 'Date de rappel']];
   const so = h('select', {title:'Trier par'}, SORTS.map(([v, l]) => h('option', {value:v, selected: sortBy.k === v}, l)));
   const sd = h('button', {title:'Sens du tri', onclick: () => { sortBy.d = sortBy.d === 'asc' ? 'desc' : 'asc'; syncSort(); load(); }}, sortBy.d === 'asc' ? '↑ Croissant' : '↓ Décroissant');
   const syncSort = () => { so.value = sortBy.k; sd.textContent = sortBy.d === 'asc' ? '↑ Croissant' : '↓ Décroissant'; const nh = rowHead(!!me.can.assign, sortCol); head0?.replaceWith(nh); head0 = nh; };
@@ -661,8 +666,8 @@ async function list(k) {
   const pager = h('div', {class:'bar', style:pst}), pagerB = h('div', {class:'bar', style:pst});
   const load = async (keep) => {
     if (keep !== true) { page = 1; sel.clear(); }
-    filt = {q:q.value, status: s ? s.value : '', user:a ? a.values().join('|') : '', group:g ? g.values().join('|') : '', cat:category.values().join('|')};
-    const p = new URLSearchParams({q:filt.q, status: K.status || filt.status, user:filt.user, group:filt.group, cat:filt.cat, rappels: K.rappels ? 1 : '', asc: K.asc ? 1 : '',
+    filt = {q:q.value, status: s ? s.value : '', user:a ? a.values().join('|') : '', group:g ? g.values().join('|') : '', cat:category.values().join('|'), src:origin.values().join('|')};
+    const p = new URLSearchParams({q:filt.q, status: K.status || filt.status, user:filt.user, group:filt.group, cat:filt.cat, src:filt.src, rappels: K.rappels ? 1 : '', asc: K.asc ? 1 : '',
       reg_from: dts(rf.value, 0), reg_to: dts(rt.value, 86400), proc_from: dts(pf.value, 0), proc_to: dts(pt.value, 86400),
       sort:sortBy.k, dir:sortBy.d, paged:1, limit:pageSize, offset:(page - 1) * pageSize});
     try {
@@ -683,7 +688,7 @@ async function list(k) {
       pager.replaceChildren(...mk()); pagerB.replaceChildren(...mk());
     } catch (e) { box.replaceChildren(h('p', {class:'err'}, e.message)); }
   };
-  [q, s, a?.el, g?.el, category.el, rf, rt, pf, pt].forEach(e => e && e.addEventListener('change', () => load()));
+  [q, s, a?.el, g?.el, category.el, origin.el, rf, rt, pf, pt].forEach(e => e && e.addEventListener('change', () => load()));
   bar.classList.add('crm-filters');
   const head = h('div', {class:'crm-page-head'}, h('div', {}, h('h2', {}, K.t), h('p', {class:'muted'}, K.asc ? 'Du plus ancien au plus récent.' : 'Cliquez sur un client pour ouvrir sa fiche.')),
     me.can.create ? h('div', {class:'crm-page-actions'}, h('button', {class:'primary', onclick: () => addForm()}, '+ Nouveau client')) : '');
@@ -728,7 +733,7 @@ function row(r, onSel) {
   return h('div', {class:'row' + (late ? ' overdue' : ''), onclick: e => { if (e.target.closest('input, a.wa')) return; detail(r.id); }},
     ck ? h('div', {class:'cell-ck'}, ck) : '',
     h('div', {class:'cell-who'}, h('div', {class:'av'}, (nm(r).match(/[\p{L}\p{N}]+/gu) || ['?']).slice(0, 2).map(w => w[0]).join('').toUpperCase()),
-      h('div', {class:'main'}, h('strong', {}, nm(r)), h('div', {class:'muted'}, r.phone || 'Sans numéro'))),
+      h('div', {class:'main'}, h('strong', {}, nm(r)), h('div', {class:'muted'}, r.phone || 'Sans numéro'), srcBadge(r))),
     h('div', {class:'cell cell-w'}, r.c5 || '—'),
     h('div', {class:'cell cell-c muted'}, r.c2 || '—'),
     h('div', {class:'cell cell-s side'}, badge(r.status)),
@@ -881,7 +886,7 @@ async function detail(id) {
       h('button', {class:'crm-icon-btn', 'aria-label':'Dossier suivant', disabled: pos >= ficheList.ids.length - 1, onclick: () => stepTo(1)}, '›')) : '');
   const initials = (nm(p).match(/[\p{L}\p{N}]+/gu) || ['?']).slice(0, 2).map(w => w[0]).join('').toUpperCase();
   const late = p.callback_at && Number(p.callback_at) < Date.now() / 1000;
-  const meta = [p.phone ? h('span', {}, '☎ ' + p.phone) : h('span', {class:'muted'}, 'Aucun numéro'), p.c5 ? h('span', {}, p.c5) : '', p.c2 ? h('span', {}, shown(p.c2)) : '',
+  const meta = [p.phone ? h('span', {}, '☎ ' + p.phone) : h('span', {class:'muted'}, 'Aucun numéro'), p.c5 ? h('span', {}, p.c5) : '', p.c2 ? h('span', {}, shown(p.c2)) : '', srcBadge(p),
     h('span', {}, 'Inscrit le ' + fmtD(p.created_at)), h('span', {}, 'Traité le ' + (Number(p.last_call_at) ? fmt(Number(p.last_call_at)) : '—')),
     p.callback_at ? h('span', {class: late ? 'crm-late' : 'crm-callback'}, (late ? 'Rappel en retard · ' : 'Rappel ') + fmt(Number(p.callback_at))) : ''];
   const hero = h('section', {class:'card crm-hero'},
@@ -1213,13 +1218,19 @@ function simCard() {
 }
 
 function multi(label, opts, selected = []) {
-  const boxes = opts.map(o => h('label', {style:'display:block;padding:3px 10px;white-space:nowrap'}, h('input', {type:'checkbox', value:o.v, checked:selected.includes(o.v)}), ' ' + o.t));
-  const sum = h('summary', {style:'cursor:pointer;padding:6px 10px;border:1px solid var(--color-border);border-radius:6px'}, label);
-  const el = h('details', {style:'position:relative;display:inline-block'}, sum,
-    h('div', {style:'position:absolute;z-index:50;background:var(--color-main-background);border:1px solid var(--color-border);border-radius:6px;padding:4px 0;max-height:260px;overflow:auto;min-width:210px'}, boxes));
+  // Menu à cases compact ; « Effacer » dans le menu ; un changement déclenche l'événement change du menu (rechargement).
+  const boxes = opts.map(o => h('label', {class:'crm-multi-opt'}, h('input', {type:'checkbox', value:o.v, checked:selected.includes(o.v)}), h('span', {}, o.t)));
+  const sum = h('summary', {class:'crm-multi-sum'});
+  const notify = () => el.dispatchEvent(new Event('change', {bubbles:true}));
+  const clearBtn = h('button', {type:'button', class:'crm-multi-clear', onclick:() => { boxes.forEach(l => { l.firstChild.checked = false; }); update(); notify(); }}, 'Effacer');
+  const el = h('details', {class:'crm-multi'}, sum, h('div', {class:'crm-multi-panel', role:'group', 'aria-label':label}, boxes, h('div', {class:'crm-multi-foot'}, clearBtn)));
   const values = () => boxes.map(l => l.firstChild).filter(i => i.checked).map(i => i.value);
-  const update = () => { const n = values().length; sum.textContent = (n ? label + ' (' + n + ')' : label + ' : tous') + ' ▾'; };
+  const update = () => { const n = values().length; sum.replaceChildren(h('span', {}, label), h('b', {class:n ? 'crm-multi-n' : 'crm-multi-all'}, n ? String(n) : 'tous')); clearBtn.disabled = !n; };
   boxes.forEach(l => l.firstChild.addEventListener('change', update));
+  // Un seul menu ouvert à la fois ; fermeture au clic extérieur et avec Échap.
+  el.addEventListener('toggle', () => { if (el.open) document.querySelectorAll('details.crm-multi[open]').forEach(d => { if (d !== el) d.open = false; }); });
+  document.addEventListener('click', e => { if (el.open && !el.contains(e.target)) el.open = false; });
+  el.addEventListener('keydown', e => { if (e.key === 'Escape' && el.open) { el.open = false; sum.focus(); } });
   update();
   return {el, values, clear:() => { boxes.forEach(l => { l.firstChild.checked = false; }); update(); }};
 }

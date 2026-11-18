@@ -11,6 +11,7 @@ class Store {
 		if (!empty($f['status'])) { $qb->andWhere($qb->expr()->eq('status', $qb->createNamedParameter($f['status']))); }
 		if (!empty($f['assigned'])) { $qb->andWhere($qb->expr()->eq('assigned_to', $qb->createNamedParameter($f['assigned']))); }
 		if (!empty($f['cat'])) { $qb->andWhere($qb->expr()->in('c2', $qb->createNamedParameter((array)$f['cat'], IQueryBuilder::PARAM_STR_ARRAY))); }
+		if (!empty($f['src'])) { $qb->andWhere($qb->expr()->in('source', $qb->createNamedParameter((array)$f['src'], IQueryBuilder::PARAM_STR_ARRAY))); }
 		if (isset($f['users']) && is_array($f['users'])) { $qb->andWhere($qb->expr()->in('assigned_to', $qb->createNamedParameter($f['users'] ?: ['-'], IQueryBuilder::PARAM_STR_ARRAY))); }
 		if (!empty($f['rappels'])) {
 			$qb->andWhere($qb->expr()->isNotNull('callback_at'));
@@ -31,7 +32,7 @@ class Store {
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('*')->from('callcrm_prospects');
 		$this->where($qb, $uid, $f);
-		$cols = ['nom' => 'lastname', 'date' => 'created_at', 'statut' => 'status', 'wilaya' => 'c5', 'categorie' => 'c2', 'appel' => 'last_call_at', 'rappel' => 'callback_at'];
+		$cols = ['nom' => 'lastname', 'date' => 'created_at', 'statut' => 'status', 'wilaya' => 'c5', 'categorie' => 'c2', 'source' => 'source', 'appel' => 'last_call_at', 'rappel' => 'callback_at'];
 		if (!empty($f['sort']) && isset($cols[$f['sort']])) {
 			$qb->orderBy($cols[$f['sort']], ($f['dir'] ?? '') === 'desc' ? 'DESC' : 'ASC')->addOrderBy('id', 'DESC');
 		} elseif (!empty($f['rappels'])) { $qb->orderBy('callback_at', 'ASC'); } else { $qb->orderBy('id', !empty($f['asc']) ? 'ASC' : 'DESC'); }

@@ -194,6 +194,7 @@ class ApiController extends Controller {
 		$selected = $this->filters();
 		$f['users'] = $selected['users'];
 		$f['cat'] = $selected['cat'];
+		$f['src'] = array_values(array_intersect(array_filter(explode('|', (string)$this->request->getParam('src', ''))), \OCA\CallCrm\Service\ClientActivity::SOURCES));
 		$off = max(0, (int)$this->request->getParam('offset', 0));
 		$f['sort'] = (string)$this->request->getParam('sort', ''); $f['dir'] = (string)$this->request->getParam('dir', '');
 		if ($this->a->can('mask')) { $f['nophone'] = true; }
