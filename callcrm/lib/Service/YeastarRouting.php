@@ -38,12 +38,19 @@ class YeastarRouting {
 	public function status(): array {
 		$s = $this->state();
 		return ['enabled' => ($s['enabled'] ?? false) === true, 'last_sync' => (int)($s['last_sync'] ?? 0), 'last_error' => (string)($s['last_error'] ?? ''),
-			'summary' => $s['summary'] ?? null, 'fallback_queue' => (string)($s['fallback_queue'] ?? '1'), 'queues' => $s['queues'] ?? []];
+			'summary' => $s['summary'] ?? null, 'fallback_queue' => (string)($s['fallback_queue'] ?? '1'), 'queues' => $s['queues'] ?? [],
+			'excluded' => array_values($s['excluded'] ?? []), 'extensions' => $this->mappedExtensions()];
 	}
 
-	public function setEnabled(bool $on, ?string $queue = null): array {
+	private function mappedExtensions(): array {
+		try { $rows = $this->settings->settings()['extensions'] ?? []; } catch (\Throwable $e) { return []; }
+		$out = array_values(array_filter(array_map(fn($r) => (string)($r['extension'] ?? ''), $rows))); sort($out); return $out;
+	}
+
+	public function setEnabled(bool $on, ?string $queue = null, ?array $excluded = null): array {
 		$s = $this->state(); $s['enabled'] = $on;
 		if ($queue !== null && preg_match('/^\d{1,6}$/D', $queue)) $s['fallback_queue'] = $queue;
+		if ($excluded !== null) $s['excluded'] = array_values(array_unique(array_filter(array_map('strval', $excluded), fn($x) => preg_match('/^\d{1,10}$/D', $x))));
 		$this->saveState($s);
 		return $on ? $this->sync(true) : $this->removeAll();
 	}
@@ -127,11 +134,19 @@ class YeastarRouting {
 			$extensions = [];
 			foreach ($this->ok($this->client->call('GET', 'extension/list', ['page' => 1, 'page_size' => 1000]), 'Lecture des postes')['data'] ?? [] as $e) $extensions[(string)$e['number']] = $e;
 			$want = $this->desired($extensions);
+			// Postes exclus par l'administrateur : ni route, ni renvoi ; réglage d'origine du poste remis en place.
+			$excluded = array_flip($this->state()['excluded'] ?? []);
+			$want = array_diff_key($want, $excluded);
+			$this->restoreForwards(array_values(array_filter(array_map(fn($x) => (int)($extensions[$x]['id'] ?? 0), array_keys($excluded)))));
 			$this->forwards($want);
 
+			$this->resumeSwap();
 			$all = $this->routes(); $managed = []; $general = null; $details = [];
 			foreach ($all as $r) {
-				if (preg_match(self::NAME, (string)$r['name'], $m)) { $managed[$m[1] . '_' . (int)$m[2]] = $r; continue; }
+				if (preg_match(self::NAME, (string)$r['name'], $m)) {
+					if (isset($excluded[$m[1]])) { $this->ok($this->client->call('GET', 'inbound_route/delete', ['id' => (int)$r['id']]), 'Suppression de ' . $r['name']); unset($s['hashes'][(int)$r['id']]); continue; }
+					$managed[$m[1] . '_' . (int)$m[2]] = $r; continue;
+				}
 				$d = $details[(int)$r['id']] = $this->route((int)$r['id']);
 				if (self::catchAll($d)) {
 					if ($general) throw new \RuntimeException('Le standard a plusieurs routes générales : synchronisation arrêtée par précaution.');
@@ -237,11 +252,30 @@ class YeastarRouting {
 		$this->saveState($s);
 	}
 
-	private function restoreForwards(): void {
+	private function restoreForwards(?array $only = null): void {
 		$s = $this->state();
 		foreach ($s['forward_backup'] ?? [] as $id => $orig) {
+			if ($only !== null && !in_array((int)$id, $only, true)) continue;
 			$this->ok($this->client->call('POST', 'extension/update', [], ['id' => (int)$id, 'presence_list' => [['status' => 'available'] + array_intersect_key($orig, array_flip(self::FORWARD_KEYS))]]), 'Restauration du poste ' . $id);
 			unset($s['forward_backup'][$id], $s['forward_done'][$id]); $this->saveState($s);
+		}
+	}
+
+	/**
+	 * Reprise d'un déplacement de la route générale interrompu (coupure, disque plein…) : il reste l'originale « X » et sa copie
+	 * « X_tmp ». Si elles sont identiques, l'originale est supprimée et la copie reprend son nom ; sinon on ne touche à rien.
+	 */
+	private function resumeSwap(): void {
+		$all = $this->routes(); $by = [];
+		foreach ($all as $r) $by[(string)$r['name']] = $r;
+		foreach ($by as $name => $r) {
+			if (!str_ends_with($name, '_tmp') || !isset($by[substr($name, 0, -4)])) continue;
+			$orig = $this->route((int)$by[substr($name, 0, -4)]['id']); $copy = $this->route((int)$r['id']);
+			if (!self::catchAll($orig) || !self::catchAll($copy)) continue;
+			$a = self::body($orig); $b = self::body($copy); unset($a['name'], $b['name']); ksort($a); ksort($b);
+			if ($a !== $b) continue;
+			$this->ok($this->client->call('GET', 'inbound_route/delete', ['id' => (int)$orig['id']]), 'Reprise : suppression de l’ancienne route générale');
+			$this->ok($this->client->call('POST', 'inbound_route/update', [], ['id' => (int)$copy['id'], 'name' => substr($name, 0, -4)]), 'Reprise : renommage de la route générale');
 		}
 	}
 

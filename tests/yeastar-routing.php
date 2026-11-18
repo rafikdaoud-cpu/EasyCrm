@@ -92,6 +92,19 @@ ok(count($pbx->routes[$before[0]]['cid_pattern_list'])===250&&count($pbx->routes
 try{$r->setEnabled(true);ok(false,'copie différente doit échouer');}catch(\RuntimeException $e){ok(str_contains($e->getMessage(),'ne correspond pas'),'copie différente : arrêt');}
 ok(isset($pbx->routes[3])&&count(array_filter($pbx->routes,fn($x)=>str_ends_with($x['name'],'_tmp')))===0,'route générale originale conservée, copie supprimée');
 
+// Déplacement interrompu : originale + copie « _tmp » identiques → reprise automatique
+[$pbx,$cfg,$r]=$setup();$pbx->routes[20]=['id'=>20,'name'=>'CRM_1004_1','cid_pattern_list'=>[['cid_pattern'=>'0550000001']]]+$general;$pbx->routes[21]=['id'=>21]+array_merge($general,['name'=>'Inbound_Route_tmp']);
+$r->want=['1004'=>['uid'=>'u4','ext_id'=>7,'reachable'=>true,'why'=>'','numbers'=>['0550000001']]];$r->setEnabled(true);
+$names=array_map(fn($x)=>$x['name'],array_values($pbx->routes));
+ok(!in_array('Inbound_Route_tmp',$names,true)&&end($names)==='Inbound_Route'&&count(array_keys($names,'Inbound_Route'))===1,'reprise : une seule route générale, en dernier : '.json_encode($names));
+// Poste exclu (ex. DSI) : sa route est supprimée, son renvoi d'origine restauré, et il n'est plus recréé
+[$pbx,$cfg,$r]=$setup();$r->want=['1029'=>['uid'=>'d','ext_id'=>20,'reachable'=>true,'why'=>'','numbers'=>['0782240723']],'1004'=>['uid'=>'u4','ext_id'=>7,'reachable'=>true,'why'=>'','numbers'=>['0550000001']]];
+$r->setEnabled(true);ok(in_array('CRM_1029_1',array_column($pbx->routes,'name'),true)&&$pbx->ext[20][0]['ring_timeout']===15,'avant exclusion : 1029 routé');
+$st=$r->setEnabled(true,null,['1029']);
+ok(!in_array('CRM_1029_1',array_column($pbx->routes,'name'),true)&&in_array('CRM_1004_1',array_column($pbx->routes,'name'),true),'1029 exclu : route supprimée, les autres restent');
+ok($pbx->ext[20][0]['ring_timeout']===30&&$pbx->ext[20][0]['ex_no_answer_forward_dest']==='ext_vm','1029 exclu : poste remis comme avant');
+ok($st['excluded']===['1029'],'exclusion mémorisée');
+$r->sync(true);ok(!in_array('CRM_1029_1',array_column($pbx->routes,'name'),true),'1029 jamais recréé');
 // Deux routes générales : arrêt par précaution
 [$pbx,$cfg,$r]=$setup();$pbx->routes[4]=['id'=>4]+$general;$r->want=['1029'=>['uid'=>'u','ext_id'=>20,'reachable'=>true,'why'=>'','numbers'=>['0782240723']]];
 try{$r->setEnabled(true);ok(false,'deux générales');}catch(\RuntimeException $e){ok(str_contains($e->getMessage(),'plusieurs routes générales'),'deux routes générales : arrêt');}

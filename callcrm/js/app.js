@@ -359,6 +359,7 @@ function yeastarRoutingCard(){
  const when=t=>t?new Intl.DateTimeFormat('fr-FR',{dateStyle:'short',timeStyle:'medium'}).format(new Date(t*1000)):'jamais';
  const paint=s=>{
   const on=h('input',{type:'checkbox',checked:s.enabled});
+  const ex=new Set((s.excluded||[]).map(String)),exBoxes=(s.extensions||[]).map(x=>({x,cb:h('input',{type:'checkbox',checked:ex.has(String(x))})}));
   const qs=Object.entries(s.queues||{});const queue=h('select',{'aria-label':'File d’attente de secours'},(qs.length?qs:[['1','6400 · CSM_AR']]).map(([v,t])=>h('option',{value:v,selected:v===String(s.fallback_queue||'1')},t)));
   const state=h('p',{class:'crm-sms-state','data-on':s.enabled?'1':'0'},s.enabled?'✔ Activé : les clients attribués tombent directement sur leur commercial.':'Désactivé : tous les appels suivent le circuit habituel (SVI puis file d’attente).');
   const sum=s.summary;
@@ -368,6 +369,7 @@ function yeastarRoutingCard(){
    h('label',{class:'crm-sms-check'},on,' Envoyer les appels des clients attribués directement à leur commercial'),
    h('label',{class:'crm-sms-field crm-sms-inline'},h('span',{},'Si le commercial ne répond pas (15 s) ou est déjà en ligne : '),queue),
    h('p',{class:'muted'},'Ce renvoi ne concerne que les appels venant de l’extérieur ; les appels entre collègues gardent la messagerie. Le réglage d’origine des postes est remis en place si vous désactivez l’option.'),
+   exBoxes.length?h('fieldset',{class:'crm-routing-excluded'},h('legend',{},'Ne jamais router vers ces postes (ex. DSI, direction) :'),exBoxes.map(o=>h('label',{class:'crm-sms-check'},o.cb,' '+o.x+((routingNames[o.x])?' · '+routingNames[o.x]:'')))):'',
    s.enabled?h('ul',{class:'crm-routing-summary'},
     h('li',{},'Dernière mise à jour : '+when(s.last_sync)),
     sum?h('li',{},sum.commercials+' commercial(aux) joignable(s) · '+sum.numbers+' numéro(s) de clients routé(s) · '+sum.routes+' route(s) gérée(s)'):'',
@@ -375,10 +377,11 @@ function yeastarRoutingCard(){
     s.last_error?h('li',{class:'err'},'Dernière erreur : '+s.last_error):''):'',
    h('div',{class:'bar crm-sms-actions'},
     h('button',{class:'primary',onclick:async e=>{e.currentTarget.disabled=true;out.textContent=on.checked?'Activation et création des routes… (jusqu’à une minute)':'Désactivation et suppression des routes…';
-     try{const r=await api('/yeastar/routing',{method:'POST',body:{enabled:on.checked,fallback_queue:queue.value}});paint(r);out.textContent='Enregistré.';}catch(x){out.textContent=x.message;}finally{e.currentTarget.disabled=false;}}},'Enregistrer'),
+     try{const r=await api('/yeastar/routing',{method:'POST',body:{enabled:on.checked,fallback_queue:queue.value,excluded:exBoxes.filter(o=>o.cb.checked).map(o=>o.x)}});paint(r);out.textContent='Enregistré.';}catch(x){out.textContent=x.message;}finally{e.currentTarget.disabled=false;}}},'Enregistrer'),
     s.enabled?h('button',{onclick:async e=>{e.currentTarget.disabled=true;out.textContent='Synchronisation…';try{paint(await api('/yeastar/routing/sync',{method:'POST'}));out.textContent='Routes à jour.';}catch(x){out.textContent=x.message;}finally{e.currentTarget.disabled=false;}}},'Synchroniser maintenant'):''));
  };
- api('/yeastar/routing').then(paint).catch(e=>{out.textContent=e.message;});
+ const routingNames={};
+ api('/yeastar/settings').then(y=>{for(const r of y.extensions||[]){const u=(me.commerciaux||[]).find(c=>c.uid===r.uid);routingNames[r.extension]=u?u.name:(r.uid===me.uid?(me.name||''):'');}}).catch(()=>{}).finally(()=>api('/yeastar/routing').then(paint).catch(e=>{out.textContent=e.message;}));
  return box;
 }
 /** Administration : accès à l'API SMS ICOSNET, activation de l'option, modèles de messages. */
