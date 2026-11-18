@@ -625,3 +625,11 @@ body[data-themes*="dark"] #callcrm.crm-workspace,body[data-theme-dark] #callcrm.
 #callcrm .crm-sms-template .bar{gap:6px}#callcrm .crm-sms-template input{flex:1;min-width:0}
 #callcrm .crm-sms-template textarea{width:100%;margin-top:6px;box-sizing:border-box}
 @media(max-width:760px){#callcrm .footer-sms{background:#fff4e0;color:#8a5300;border:0}}
+/* Barres d'actions : cases à cocher et libellés compacts (la règle générale des champs les étirait). */
+#callcrm .bar input[type=checkbox],#callcrm .bar input[type=radio]{flex:none;min-width:0;width:18px;height:18px;min-height:0;padding:0;margin:0;accent-color:var(--ui-accent,#2461a0)}
+#callcrm .bar>label{display:inline-flex;align-items:center;gap:6px;margin:0;font-size:13px;font-weight:500;color:var(--color-main-text,#182237);white-space:nowrap;cursor:pointer}
+#callcrm .crm-more-filters .bar{align-items:center;gap:8px 14px;flex-wrap:wrap}
+#callcrm .crm-more-filters .bar>label input[type=date]{flex:none;min-width:0;width:150px;margin:0}
+#callcrm .selbar select{flex:0 1 auto;min-width:180px}
+#callcrm .selbar>span{font-size:13px;color:var(--color-text-maxcontrast,#5b6475);white-space:nowrap;font-variant-numeric:tabular-nums}
+@media(max-width:760px){#callcrm .selbar select,#callcrm .selbar button{flex:1 1 100%}#callcrm .crm-more-filters .bar>label{flex:1 1 45%}#callcrm .crm-more-filters .bar>label input[type=date]{flex:1;width:auto}}
