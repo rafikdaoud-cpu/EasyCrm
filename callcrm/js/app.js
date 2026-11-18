@@ -2532,6 +2532,197 @@ async function checkReminders() {
   } catch (e) {}
 }
 
+/* ---- Discussion interne (popup) : tout le monde peut écrire à tout le monde, avec pièces jointes.
+   S'appuie sur Nextcloud Talk : les messages se retrouvent aussi dans l'application Talk (ordinateur, téléphone). ---- */
+const talkBase = () => (window.OC && OC.webroot) || '';
+async function talk(path, opt = {}) {
+  const o = {method: opt.method || 'GET', headers: {requesttoken: tok(), 'OCS-APIRequest': 'true', Accept: 'application/json'}, signal: opt.signal};
+  if (opt.body) { o.headers['Content-Type'] = 'application/json'; o.body = JSON.stringify(opt.body); }
+  let r;
+  try { r = await fetch(talkBase() + '/ocs/v2.php/' + path + (path.includes('?') ? '&' : '?') + 'format=json', o); }
+  catch (e) { if (e.name === 'AbortError') throw e; throw new Error('Connexion indisponible'); }
+  if (r.status === 304) return {status: 304, data: [], headers: r.headers};
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j?.ocs?.data?.error ? 'Discussion : ' + j.ocs.data.error : 'Discussion indisponible (' + r.status + ')');
+  return {status: r.status, data: j?.ocs?.data, headers: r.headers};
+}
+const chatInitials = n => (String(n || '?').match(/[\p{L}\p{N}]+/gu) || ['?']).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+const chatTime = t => { if (!t) return ''; const d = new Date(t * 1000), now = new Date();
+  return d.toDateString() === now.toDateString() ? d.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'}) : d.toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit'}) + ' ' + d.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'}); };
+const chatSize = n => n > 1048576 ? (n / 1048576).toFixed(1).replace('.', ',') + ' Mo' : Math.max(1, Math.round(n / 1024)) + ' Ko';
+/** Texte d'un message Talk : « {file} », « {mention-user1} »… remplacés par leur libellé, sans jamais interpréter de HTML. */
+function chatText(m) {
+  const p = m.messageParameters || {};
+  return String(m.message || '').replace(/\{([a-z0-9_-]+)\}/gi, (all, k) => p[k] ? (p[k].type === 'user' || p[k].type === 'guest' || p[k].type === 'call' ? '@' : '') + (p[k].name || '') : all);
+}
+const CHAT_ROOM_TYPES = [1, 2, 3, 5];
+let chatState = null;
+
+function crmChat() {
+  if (chatState || !me || me.role === 'none') return;
+  const st = chatState = {rooms: [], people: null, open: false, room: null, last: 0, seen: new Map(), first: true, poll: null, view: 'list'};
+  const badge = h('span', {class:'crm-chat-badge', hidden:true});
+  const fab = h('button', {type:'button', class:'crm-chat-fab', 'aria-label':'Discussions', title:'Discussions', onclick: () => toggle()}, h('span', {'aria-hidden':'true'}, '💬'), badge);
+  const panel = h('section', {class:'crm-chat-panel', role:'dialog', 'aria-label':'Discussions', hidden:true});
+  const toasts = h('div', {class:'crm-chat-toasts', 'aria-live':'polite'});
+  document.body.append(h('div', {id:'callcrm-chat', class:'crm-chat'}, toasts, panel, fab));
+  panel.addEventListener('keydown', e => { if (e.key === 'Escape') toggle(false); });
+
+  const toggle = (open = !st.open) => { st.open = open; panel.hidden = !open; fab.classList.toggle('on', open); if (open) { if (st.view === 'list') showList(); } else stopPoll(); };
+  const stopPoll = () => { if (st.poll) { st.poll.abort(); st.poll = null; } };
+  const paintBadge = () => { const n = st.rooms.reduce((t, r) => t + (r.unreadMessages || 0), 0); badge.hidden = !n; badge.textContent = n > 99 ? '99+' : String(n); fab.setAttribute('aria-label', n ? 'Discussions, ' + n + ' message(s) non lu(s)' : 'Discussions'); };
+
+  async function refreshRooms() {
+    try {
+      const r = await talk('apps/spreed/api/v4/room');
+      st.rooms = (r.data || []).filter(x => CHAT_ROOM_TYPES.includes(x.type)).sort((a, b) => (b.lastActivity || 0) - (a.lastActivity || 0));
+      for (const room of st.rooms) {
+        const lm = room.lastMessage || {}, id = Number(lm.id || 0), before = st.seen.get(room.token);
+        if (!st.first && before !== undefined && id > before && room.unreadMessages > 0 && lm.actorId !== me.uid && !st.open) toast(room, lm);
+        st.seen.set(room.token, id);
+      }
+      st.first = false; paintBadge();
+      if (st.open && st.view === 'list') paintList();
+    } catch (e) {}
+  }
+  function toast(room, lm) {
+    const t = h('button', {type:'button', class:'crm-chat-toast', onclick: () => { t.remove(); toggle(true); openRoom(room); }},
+      h('span', {class:'crm-avatar', 'aria-hidden':'true'}, chatInitials(room.displayName)),
+      h('span', {}, h('strong', {}, room.displayName), h('small', {}, (room.type === 1 ? '' : (lm.actorDisplayName || '') + ' : ') + chatText(lm).slice(0, 120))));
+    toasts.append(t); while (toasts.children.length > 3) toasts.firstChild.remove();
+    setTimeout(() => t.remove(), 12000);
+  }
+
+  // ---- Liste des conversations et des collègues ----
+  const search = h('input', {type:'search', placeholder:'Rechercher une personne ou une discussion…', 'aria-label':'Rechercher', autocomplete:'off'});
+  const listBox = h('div', {class:'crm-chat-list'});
+  search.addEventListener('input', () => paintList());
+  async function showList() {
+    stopPoll(); st.view = 'list'; st.room = null;
+    panel.replaceChildren(h('header', {class:'crm-chat-head'}, h('strong', {}, 'Discussions'),
+      h('span', {class:'bar'}, h('button', {type:'button', class:'crm-chat-icon', title:'Nouveau groupe', 'aria-label':'Nouveau groupe', onclick: groupForm}, '👥'),
+        h('button', {type:'button', class:'crm-chat-icon', 'aria-label':'Fermer', onclick: () => toggle(false)}, '×'))), search, listBox);
+    paintList(); search.focus();
+    if (!st.people) { try { st.people = await api('/chat/people'); paintList(); } catch (e) { st.people = []; } }
+    refreshRooms();
+  }
+  function paintList() {
+    const q = search.value.trim().toLocaleLowerCase('fr');
+    const match = s => !q || String(s || '').toLocaleLowerCase('fr').normalize('NFD').replace(/\p{M}/gu, '').includes(q.normalize('NFD').replace(/\p{M}/gu, ''));
+    const rooms = st.rooms.filter(r => match(r.displayName));
+    const inRoom = new Set(st.rooms.filter(r => r.type === 1).map(r => r.name));
+    const people = (st.people || []).filter(p => !inRoom.has(p.uid) && match(p.name));
+    const row = (name, sub, unread, onclick, time) => h('button', {type:'button', class:'crm-chat-row' + (unread ? ' unread' : ''), onclick},
+      h('span', {class:'crm-avatar', 'aria-hidden':'true'}, chatInitials(name)),
+      h('span', {class:'crm-chat-row-main'}, h('span', {class:'bar'}, h('strong', {}, name), time ? h('small', {}, time) : ''), h('small', {class:'muted'}, sub)),
+      unread ? h('span', {class:'crm-chat-badge'}, String(unread)) : '');
+    listBox.replaceChildren(
+      ...(rooms.length ? [h('h4', {}, 'Conversations')] : []),
+      ...rooms.map(r => row(r.displayName, r.lastMessage ? ((r.type !== 1 && r.lastMessage.actorDisplayName ? r.lastMessage.actorDisplayName + ' : ' : '') + chatText(r.lastMessage)).slice(0, 80) : 'Aucun message', r.unreadMessages, () => openRoom(r), chatTime(r.lastActivity))),
+      ...(people.length ? [h('h4', {}, 'Écrire à un collègue')] : []),
+      ...people.map(p => row(p.name, p.role, 0, () => startWith(p))),
+      !rooms.length && !people.length ? h('p', {class:'muted crm-chat-empty'}, st.people ? 'Personne ne correspond à cette recherche.' : 'Chargement…') : '');
+  }
+  async function startWith(p) {
+    try { const r = await talk('apps/spreed/api/v4/room', {method:'POST', body:{roomType:1, invite:p.uid}}); await refreshRooms(); openRoom(r.data); }
+    catch (e) { listBox.prepend(h('p', {class:'err'}, e.message)); }
+  }
+  function groupForm() {
+    stopPoll(); st.view = 'group';
+    const name = h('input', {maxlength:60, placeholder:'Nom du groupe…', 'aria-label':'Nom du groupe', autocomplete:'off'}), msg = h('p', {class:'muted', role:'status'});
+    const boxes = (st.people || []).map(p => ({p, cb: h('input', {type:'checkbox'})}));
+    panel.replaceChildren(h('header', {class:'crm-chat-head'}, h('button', {type:'button', class:'crm-chat-icon', 'aria-label':'Retour', onclick: showList}, '‹'), h('strong', {}, 'Nouveau groupe'), h('span')),
+      h('div', {class:'crm-chat-group'}, name, h('div', {class:'crm-chat-people'}, boxes.map(x => h('label', {class:'crm-chat-check'}, x.cb, ' ' + x.p.name, h('small', {class:'muted'}, ' · ' + x.p.role)))), msg,
+        h('button', {type:'button', class:'primary', onclick: async e => {
+          const uids = boxes.filter(x => x.cb.checked).map(x => x.p.uid);
+          if (!name.value.trim() || !uids.length) { msg.textContent = 'Donnez un nom et cochez au moins une personne.'; return; }
+          e.currentTarget.disabled = true; msg.textContent = 'Création…';
+          try { const r = await talk('apps/spreed/api/v4/room', {method:'POST', body:{roomType:2, roomName:name.value.trim()}});
+            for (const uid of uids) await talk('apps/spreed/api/v4/room/' + r.data.token + '/participants', {method:'POST', body:{newParticipant:uid, source:'users'}});
+            await refreshRooms(); openRoom(r.data); }
+          catch (x) { msg.textContent = x.message; e.currentTarget.disabled = false; } }}, 'Créer le groupe')));
+    name.focus();
+  }
+
+  // ---- Conversation ----
+  function messageNode(m) {
+    if (m.systemMessage) return h('div', {class:'crm-chat-system'}, chatText(m));
+    const mine = m.actorType === 'users' && m.actorId === me.uid, p = m.messageParameters || {};
+    const files = Object.values(p).filter(x => x && x.type === 'file');
+    const text = files.length && /^\{file\}$/.test(String(m.message).trim()) ? '' : chatText(m);
+    return h('article', {class:'crm-chat-msg' + (mine ? ' mine' : '')},
+      mine || st.room?.type === 1 ? '' : h('small', {class:'crm-chat-author'}, m.actorDisplayName || ''),
+      ...files.map(f => h('a', {class:'crm-chat-file', href:f.link || '#', target:'_blank', rel:'noopener noreferrer'},
+        f['preview-available'] === 'yes' ? h('img', {src: talkBase() + '/index.php/core/preview?fileId=' + encodeURIComponent(f.id) + '&x=240&y=240&a=1', alt:f.name, loading:'lazy', width:120, height:120}) : h('span', {'aria-hidden':'true'}, '📎'),
+        h('span', {}, f.name, f.size ? h('small', {}, ' · ' + chatSize(Number(f.size))) : ''))),
+      text ? h('p', {}, text) : '', h('time', {}, chatTime(m.timestamp)));
+  }
+  async function openRoom(room) {
+    stopPoll(); st.view = 'room'; st.room = room; st.last = 0;
+    const msgs = h('div', {class:'crm-chat-msgs', 'aria-live':'polite'}), status = h('p', {class:'muted crm-chat-status', role:'status'});
+    const input = h('textarea', {rows:1, placeholder:'Votre message…', 'aria-label':'Votre message', maxlength:32000});
+    const file = h('input', {type:'file', multiple:true, hidden:true});
+    const send = h('button', {type:'button', class:'primary crm-chat-send', 'aria-label':'Envoyer'}, 'Envoyer');
+    panel.replaceChildren(h('header', {class:'crm-chat-head'}, h('button', {type:'button', class:'crm-chat-icon', 'aria-label':'Retour aux discussions', onclick: showList}, '‹'),
+      h('strong', {}, room.displayName), h('button', {type:'button', class:'crm-chat-icon', 'aria-label':'Fermer', onclick: () => toggle(false)}, '×')),
+      msgs, status, h('footer', {class:'crm-chat-compose'}, h('button', {type:'button', class:'crm-chat-icon', title:'Joindre un fichier', 'aria-label':'Joindre un fichier', onclick: () => file.click()}, '📎'), input, send), file);
+    const add = list => { const atEnd = msgs.scrollHeight - msgs.scrollTop - msgs.clientHeight < 60;
+      for (const m of list) { if (m.id <= st.last) continue; st.last = m.id; msgs.append(messageNode(m)); }
+      if (atEnd || list.length) msgs.scrollTop = msgs.scrollHeight; };
+    const autosize = () => { input.style.height = '38px'; input.style.height = Math.min(120, Math.max(38, input.scrollHeight + 2)) + 'px'; };
+    input.addEventListener('input', autosize); requestAnimationFrame(autosize);
+    input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendText(); } });
+    send.addEventListener('click', () => sendText());
+    async function sendText() {
+      const text = input.value.trim(); if (!text) return;
+      send.disabled = true; status.textContent = '';
+      try { const r = await talk('apps/spreed/api/v1/chat/' + room.token, {method:'POST', body:{message:text}}); input.value = ''; autosize(); if (r.data) add([r.data]); }
+      catch (e) { status.textContent = e.message + ' Votre message est conservé.'; }
+      finally { send.disabled = false; input.focus(); }
+    }
+    file.addEventListener('change', async () => {
+      const files = [...file.files]; file.value = '';
+      for (const f of files) {
+        if (f.size > 100 * 1048576) { status.textContent = '« ' + f.name + ' » dépasse 100 Mo.'; continue; }
+        status.textContent = 'Envoi de « ' + f.name + ' »…';
+        try { await shareFile(room.token, f); status.textContent = ''; }
+        catch (e) { status.textContent = '« ' + f.name + ' » : ' + e.message; }
+      }
+      pollOnce();
+    });
+    status.textContent = 'Chargement…';
+    try {
+      const r = await talk('apps/spreed/api/v1/chat/' + room.token + '?lookIntoFuture=0&limit=60&setReadMarker=1');
+      if (st.room !== room) return;
+      status.textContent = ''; add((r.data || []).slice().reverse());
+      if (!(r.data || []).length) msgs.append(h('p', {class:'muted crm-chat-empty'}, 'Aucun message. Écrivez le premier !'));
+    } catch (e) { status.textContent = e.message; }
+    room.unreadMessages = 0; paintBadge(); input.focus();
+    const loop = async () => {
+      while (st.room === room && st.open) {
+        const ctrl = st.poll = new AbortController();
+        try { const r = await talk('apps/spreed/api/v1/chat/' + room.token + '?lookIntoFuture=1&timeout=30&setReadMarker=1&lastKnownMessageId=' + st.last, {signal: ctrl.signal});
+          if (st.room !== room) return; if (r.status === 200) add(r.data || []); }
+        catch (e) { if (e.name === 'AbortError') return; await new Promise(res => setTimeout(res, 5000)); }
+      }
+    };
+    const pollOnce = () => { stopPoll(); loop(); };
+    loop();
+  }
+  /** Pièce jointe : déposée dans le dossier « Talk » de l'utilisateur, puis partagée dans la conversation (comme l'application Talk). */
+  async function shareFile(token, f) {
+    const dav = talkBase() + '/remote.php/dav/files/' + encodeURIComponent(me.uid) + '/Talk';
+    await fetch(dav, {method:'MKCOL', headers:{requesttoken: tok()}}).catch(() => {});
+    const safe = f.name.replace(/[\\/:*?"<>|#%]+/g, '_').slice(0, 150) || 'fichier';
+    const name = Date.now().toString(36) + '-' + safe;
+    const put = await fetch(dav + '/' + encodeURIComponent(name), {method:'PUT', headers:{requesttoken: tok(), 'Content-Type': f.type || 'application/octet-stream'}, body:f});
+    if (!put.ok) throw new Error(put.status === 507 ? 'espace de stockage insuffisant.' : 'dépôt du fichier impossible (' + put.status + ').');
+    await talk('apps/files_sharing/api/v1/shares', {method:'POST', body:{shareType:10, shareWith:token, path:'/Talk/' + name, talkMetaData: JSON.stringify({messageType:'comment'})}});
+  }
+
+  refreshRooms(); setInterval(() => { if (document.visibilityState !== 'hidden') refreshRooms(); }, 15000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshRooms(); });
+}
 (async () => {
   try { me = await api('/me'); }
   catch (e) { root.textContent = e.offline ? 'Connexion indisponible : rechargez la page quand le réseau revient.' : 'Accès refusé : demandez à l’administrateur de vous ajouter à un groupe callcrm_*.'; return; }
@@ -2546,6 +2737,7 @@ async function checkReminders() {
     }
   }
   go(me.role === 'commercial' ? 'journee' : 'dossiers');
+  try { crmChat(); } catch (e) {}
   refreshYeastarRuntime().then(pollYeastar);setInterval(pollYeastar,3000);setInterval(refreshYeastarRuntime,30000);
   setInterval(() => updateMyPresence(), 30000);
   setInterval(refreshPresenceBoard, 15000);

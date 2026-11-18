@@ -25,6 +25,7 @@ return ['routes' => [
 	['name'=>'collect#list','url'=>'/api/prospects/{id}/collect','verb'=>'GET'],
 	['name'=>'collect#create','url'=>'/api/prospects/{id}/collect','verb'=>'POST'],
 	['name'=>'collect#revoke','url'=>'/api/collect/{id}/revoke','verb'=>'POST'],
+	['name'=>'chat#people','url'=>'/api/chat/people','verb'=>'GET'],
 	['name'=>'sms#settings','url'=>'/api/sms/settings','verb'=>'GET'],
 	['name'=>'sms#configure','url'=>'/api/sms/settings','verb'=>'POST'],
 	['name'=>'sms#credit','url'=>'/api/sms/credit','verb'=>'GET'],
