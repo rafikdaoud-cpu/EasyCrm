@@ -2670,7 +2670,7 @@ function crmChat() {
       for (const m of list) { if (m.id <= st.last) continue; st.last = m.id; msgs.append(messageNode(m)); }
       if (atEnd || list.length) msgs.scrollTop = msgs.scrollHeight; };
     const autosize = () => { input.style.height = '38px'; input.style.height = Math.min(120, Math.max(38, input.scrollHeight + 2)) + 'px'; };
-    input.addEventListener('input', autosize); requestAnimationFrame(autosize);
+    input.addEventListener('input', autosize); setTimeout(autosize, 0);
     input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendText(); } });
     send.addEventListener('click', () => sendText());
     async function sendText() {
