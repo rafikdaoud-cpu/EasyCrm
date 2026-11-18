@@ -72,6 +72,7 @@ ok($st['summary']['commercials']===1&&$st['summary']['numbers']===600&&$st['summ
 
 // Renvois du poste : appels externes non répondus / occupé → file choisie ; internes et autres statuts inchangés
 $p=$pbx->ext[7][0];ok($p['ex_no_answer_forward_dest']==='queue'&&$p['ex_no_answer_forward_value']==='1'&&$p['ex_busy_forward_dest']==='queue'&&$p['in_no_answer_forward_dest']==='ext_vm'&&$pbx->ext[7][1]['ex_no_answer_forward_dest']==='ext_vm','renvoi externe vers la file, interne et autres statuts intacts');
+ok($p['ring_timeout']===15,'sonnerie du poste réduite à 15 s');
 ok(isset($pbx->ext[8])&&$pbx->ext[8][0]['ex_no_answer_forward_dest']==='queue','renvoi aussi pour un commercial hors ligne (prêt quand il revient)');
 // Deuxième passage sans changement : aucune écriture
 $pbx->log=[];$r->sync();ok(!array_intersect($pbx->log,['inbound_route/update','inbound_route/create','inbound_route/delete','extension/update']),'rien de changé : aucune écriture');
@@ -103,6 +104,7 @@ ok(count(array_filter($pbx->routes,fn($x)=>preg_match(YeastarRouting::NAME,$x['n
 ok($pbx->ext[20][0]['ex_no_answer_forward_dest']==='queue','activé : renvoi posé');
 $r->setEnabled(false);
 ok($pbx->ext[20][0]['ex_no_answer_forward_dest']==='ext_vm'&&$pbx->ext[20][0]['ex_busy_forward_dest']==='ext_vm','désactivé : renvoi d’origine (messagerie) restauré');
+ok($pbx->ext[20][0]['ring_timeout']===30,'désactivé : sonnerie d’origine (30 s) restaurée');
 ok(count(array_filter($pbx->routes,fn($x)=>preg_match(YeastarRouting::NAME,$x['name'])))===0&&isset($pbx->routes[2])&&in_array('Inbound_Route',array_column($pbx->routes,'name'),true),'désactivé : routes gérées supprimées, le reste intact');
 
 echo $fail?"$fail/$n routing checks FAILED\n":"callcrm: $n Yeastar routing checks passed\n";exit($fail?1:0);

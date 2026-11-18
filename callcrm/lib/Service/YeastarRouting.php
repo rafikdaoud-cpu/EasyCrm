@@ -23,7 +23,9 @@ class YeastarRouting {
 	public const PLACEHOLDER = '0000000000';
 	public const NAME = '/^CRM_(\d{1,10})_(\d{1,3})$/D';
 	private const FORWARD_KEYS = ['enb_ex_no_answer_forward', 'ex_no_answer_forward_dest', 'ex_no_answer_forward_prefix', 'ex_no_answer_forward_value', 'ex_no_answer_forward_num',
-		'enb_ex_busy_forward', 'ex_busy_forward_dest', 'ex_busy_forward_prefix', 'ex_busy_forward_value', 'ex_busy_forward_num'];
+		'enb_ex_busy_forward', 'ex_busy_forward_dest', 'ex_busy_forward_prefix', 'ex_busy_forward_value', 'ex_busy_forward_num', 'ring_timeout'];
+	/** Sonnerie du poste avant de basculer vers la file (s'applique aussi aux appels internes vers ce poste). */
+	public const RING_SECONDS = 15;
 
 	public function __construct(private YeastarClient $client, private YeastarSettings $settings, private IConfig $config, private IDBConnection $db, private Presence $presence) {}
 
@@ -215,18 +217,19 @@ class YeastarRouting {
 		$s['queues'] = $queues;
 		if (!isset($queues[$queue])) { $s['last_error'] = 'File d’attente de secours introuvable : renvoi non modifié.'; $this->saveState($s); return; }
 		foreach ($want as $w) {
-			$id = (int)($w['ext_id'] ?? 0); if (!$id || ($done[$id] ?? '') === $queue) continue;
+			$id = (int)($w['ext_id'] ?? 0); $mark = $queue . '|' . self::RING_SECONDS; if (!$id || ($done[$id] ?? '') === $mark) continue;
 			$e = $this->ok($this->client->call('GET', 'extension/get', ['id' => $id]), 'Lecture d’un poste')['data'] ?? [];
 			$available = null;
 			foreach ($e['presence_list'] ?? [] as $p) if (($p['status'] ?? '') === 'available') $available = $p;
 			if ($available) {
 				// Le standard refuse qu'on lui renvoie certains champs (mobile_prefix…) : on n'envoie que ceux du renvoi externe.
 				$backup[$id] ??= array_intersect_key($available, array_flip(self::FORWARD_KEYS));
-				$set = ['status' => 'available'];
+				if (!isset($backup[$id]['ring_timeout'])) $backup[$id]['ring_timeout'] = (int)($available['ring_timeout'] ?? 30) === self::RING_SECONDS ? 30 : (int)($available['ring_timeout'] ?? 30);
+				$set = ['status' => 'available', 'ring_timeout' => self::RING_SECONDS];
 				foreach (['no_answer', 'busy'] as $k) $set += ['enb_ex_' . $k . '_forward' => 1, 'ex_' . $k . '_forward_dest' => 'queue', 'ex_' . $k . '_forward_value' => $queue];
 				$this->ok($this->client->call('POST', 'extension/update', [], ['id' => $id, 'presence_list' => [$set]]), 'Renvoi du poste ' . ($e['number'] ?? $id));
 			}
-			$done[$id] = $queue;
+			$done[$id] = $mark;
 			$s['forward_backup'] = $backup; $s['forward_done'] = $done; $this->saveState($s);
 		}
 		$this->saveState($s);

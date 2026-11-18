@@ -342,7 +342,7 @@ function yeastarRoutingCard(){
    h('p',{class:'muted'},'Quand un client attribué appelle, son commercial sonne directement (aux heures d’ouverture du standard). Un commercial hors ligne, indisponible dans Yeastar ou en pause dans le CRM ne reçoit rien : ses clients passent par le circuit habituel. Mise à jour automatique toutes les 2 à 5 minutes.'),
    state,
    h('label',{class:'crm-sms-check'},on,' Envoyer les appels des clients attribués directement à leur commercial'),
-   h('label',{class:'crm-sms-field crm-sms-inline'},h('span',{},'Si le commercial ne répond pas (30 s) ou est déjà en ligne : '),queue),
+   h('label',{class:'crm-sms-field crm-sms-inline'},h('span',{},'Si le commercial ne répond pas (15 s) ou est déjà en ligne : '),queue),
    h('p',{class:'muted'},'Ce renvoi ne concerne que les appels venant de l’extérieur ; les appels entre collègues gardent la messagerie. Le réglage d’origine des postes est remis en place si vous désactivez l’option.'),
    s.enabled?h('ul',{class:'crm-routing-summary'},
     h('li',{},'Dernière mise à jour : '+when(s.last_sync)),
