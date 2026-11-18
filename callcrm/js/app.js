@@ -382,7 +382,7 @@ function smsSettingsCard(){
   body.replaceChildren(
    h('p',{class:'muted'},'Accès fournis par ICOSNET (API HTTP Notif+). L’adresse IP du serveur (197.140.142.231) doit être autorisée chez ICOSNET. Le mot de passe est enregistré chiffré et n’est jamais renvoyé au navigateur.'),
    status,h('label',{class:'crm-sms-check'},enabled,' Activer l’envoi de SMS dans le CRM'),
-   h('div',{class:'crm-sms-grid'},field('Adresse du serveur API',url,'Sans /bulksms à la fin.'),field('Identifiant',user),field('Mot de passe',pass),field('Expéditeur',sender,'Nom validé par ICOSNET : 11 caractères maximum.')),
+   h('div',{class:'crm-sms-grid'},field('Adresse du serveur API',url,'Sans /bulksms à la fin.'),field('Identifiant',user,'Respectez exactement les majuscules et minuscules (ex. CSM).'),field('Mot de passe',pass),field('Expéditeur',sender,'Nom validé par ICOSNET : 11 caractères maximum.')),
    h('label',{class:'crm-sms-check'},comm,' Les commerciaux peuvent envoyer un SMS à leurs propres clients'),
    h('label',{class:'crm-sms-check'},dlr,' Demander les accusés de réception'),
    h('label',{class:'crm-sms-field crm-sms-inline'},h('span',{},'Envoi groupé : '),max,h('span',{},' clients au maximum par envoi (administrateurs et superviseurs)')),
