@@ -21,6 +21,7 @@ node tests/callcrm-neglected-ui.cjs
 "$PHP_BIN" tests/sms.php
 "$PHP_BIN" tests/sms-bulk.php
 "$PHP_BIN" tests/yeastar-routing.php
+"$PHP_BIN" tests/inactive-owners.php
 node tests/callcrm-sms-ui.cjs
 node tests/callcrm-chat-ui.cjs
 "$PHP_BIN" tests/yeastar-settings.php
