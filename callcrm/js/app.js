@@ -202,7 +202,7 @@ function neglectedView(){
  const assigned=h('select',{'aria-label':'Commercial actuel'},h('option',{value:''},'Tous les commerciaux'),(me.commerciaux||[]).map(u=>h('option',{value:u.uid},u.name)));
  const team=h('select',{'aria-label':'Groupe de commerciaux'},h('option',{value:''},'Tous les groupes'),(me.groups||[]).map(g=>h('option',{value:g.id},g.name)));
  const product=h('select',{'aria-label':'Produit demandé'},h('option',{value:''},'Tous les produits'),((me.options&&me.options.c2)||[]).map(c=>h('option',{value:c},c)));
- const SOURCES={formulaire:'Formulaire réseaux sociaux',import:'Import Excel',manuel:'Saisie manuelle',whatsapp:'WhatsApp'};
+ const SOURCES={formulaire:'Formulaire réseaux sociaux',appel:'Appel téléphonique',import:'Import Excel',manuel:'Saisie manuelle',whatsapp:'WhatsApp'};
  const source=h('select',{'aria-label':'Source du prospect'},h('option',{value:''},'Toutes les sources'),Object.entries(SOURCES).map(([k,l])=>h('option',{value:k},l)));
  const changed=h('select',{'aria-label':'Changement de commercial'},h('option',{value:''},'Avec ou sans changement de commercial'),h('option',{value:'yes'},'Commercial changé depuis le dernier appel'),h('option',{value:'no'},'Même commercial qu’au dernier appel'));
  const q=h('input',{type:'search',placeholder:'Nom ou téléphone…','aria-label':'Rechercher un client',autocomplete:'off'});
@@ -358,7 +358,7 @@ function answeredInbound(row){
  // Ne jamais faire perdre une saisie en cours : la notification garde alors son bouton « Ouvrir la fiche ».
  if([...dirtyChecks.values()].some(v=>v.check())||root.querySelector('.crm-new-client'))return;
  if(row.prospect_id){callBusy={pid:String(row.prospect_id),until:Date.now()+20*60000};detail(row.prospect_id);}
- else if(!row.known&&me.can.create&&/^\+?\d{6,20}$/.test(row.phone||''))addForm({phone:row.phone},'Appel entrant d’un numéro inconnu : complétez la fiche puis enregistrez.');
+ else if(!row.known&&me.can.create&&/^\+?\d{6,20}$/.test(row.phone||''))addForm({phone:row.phone},'Appel entrant d’un numéro inconnu : complétez la fiche puis enregistrez.','appel');
 }
 function yeastarHistory(pid){
  const box=h('details',{class:'card'}),body=h('div');box.append(h('summary',{},'Journal technique Yeastar'),body);
@@ -691,7 +691,7 @@ async function list(k) {
   const listCard = h('div', {class:'card crm-list'}, head0, box, pagerB);
   show(head, dossierTabs(), me.can.assign && K.all ? distButtons() : '', bar, moreFilters, selBar, listCard); load();
 }
-async function addForm(preset = {}, note = '') {
+async function addForm(preset = {}, note = '', origin = '') {
   const msg = h('div', {class:'err'});
   const asg = me.can.assign ? h('label', {style:'display:block;margin:5px 0'}, h('span', {class:'muted'}, 'Assigner à'),
     h('select', {'data-k':'assigned_to', style:'width:100%;box-sizing:border-box'}, h('option', {value:''}, 'Non assigné'), me.commerciaux.map(u => h('option', {value:u.uid}, u.name)))) : '';
@@ -700,7 +700,7 @@ async function addForm(preset = {}, note = '') {
     fieldsGrid(preset, false), asg,
     h('button', {class:'primary', style:'margin-top:8px', onclick: async e => {
       msg.textContent = ''; e.target.disabled = true;
-      try { const r = await api('/prospects', {method:'POST', body: collect(box)}); detail(r.id); }
+      try { const r = await api('/prospects', {method:'POST', body: origin ? {...collect(box), origin} : collect(box)}); detail(r.id); }
       catch (x) { msg.textContent = x.message; e.target.disabled = false; }
     }}, 'Enregistrer'), msg);
   const phIn = box.querySelector('[data-k="phone"]');
@@ -917,7 +917,7 @@ let missedCache = null;
 /** Rappeler : le lien ☎ garde son comportement (Yeastar ou tel:), puis la fiche s'ouvre, ou le formulaire de création. */
 function missedCallLink(r) {
   return h('a', {class:'crm-btn crm-btn-primary', href:'tel:' + r.phone, onclick: () => setTimeout(() => r.prospect_id ? detail(r.prospect_id)
-    : addForm({phone:r.phone}, 'Appel manqué du ' + fmt(r.last_at) + ' : complétez la fiche pendant ou après l’appel.'), 0)}, '☎ Rappeler');
+    : addForm({phone:r.phone}, 'Appel manqué du ' + fmt(r.last_at) + ' : complétez la fiche pendant ou après l’appel.', 'appel'), 0)}, '☎ Rappeler');
 }
 function missedRow(r, opt) {
   const mine = r.assigned_to === me.uid, pool = !r.assigned_to;

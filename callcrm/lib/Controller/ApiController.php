@@ -629,7 +629,7 @@ class ApiController extends Controller {
 		[$v, $extra, $err] = $this->buildFields(null);
 		if ($err) { return $this->err($err); }
 		if (!empty($v['phone']) && ($dup = $this->s->prospectByPhone($v['phone']))) { return $this->err($this->dupMsg($dup)); }
-		$v += ['source' => 'manuel', 'firstname' => '', 'email' => '', 'c1' => '', 'status' => 'nouveau', 'created_at' => time(), 'extra' => $extra ? json_encode($extra, JSON_UNESCAPED_UNICODE) : null];
+		$v += ['source' => $this->request->getParam('origin') === 'appel' ? 'appel' : 'manuel', 'firstname' => '', 'email' => '', 'c1' => '', 'status' => 'nouveau', 'created_at' => time(), 'extra' => $extra ? json_encode($extra, JSON_UNESCAPED_UNICODE) : null];
 		if ($this->a->role() === 'commercial') { $v['assigned_to'] = $this->a->uid(); }
 		else {
 			$to = trim((string)$this->request->getParam('assigned_to', ''));

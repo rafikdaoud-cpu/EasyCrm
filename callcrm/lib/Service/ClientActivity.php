@@ -169,7 +169,7 @@ class ClientActivity {
   * Le tri et le filtre « changement de commercial » portent sur toute la liste (5 000 dossiers au plus), pas sur la page.
   */
  public const NEGLECTED_SORTS=['name','status','product','source','last_call','days','owner','caller','changed','created'];
- public const SOURCES=['formulaire','import','manuel','whatsapp'];
+ public const SOURCES=['formulaire','appel','import','manuel','whatsapp'];
  /** Origine d'une fiche ; celles du formulaire public créées depuis la dernière mise à jour sont reconnues à leur trace. */
  public static function sourceOf(array $r): string { $s=(string)($r['source']??''); if($s!=='')return $s; return ($r['c1']??'')==='Facebook /prospects'?'formulaire':''; }
  public function neglected(?string $scope, string $type='idle', int $days=7, int $offset=0, array $f=[]): array {
