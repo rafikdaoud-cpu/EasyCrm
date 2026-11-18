@@ -580,3 +580,7 @@ body[data-themes*="dark"] #callcrm.crm-workspace,body[data-theme-dark] #callcrm.
 #callcrm .crm-flag{display:inline-block;padding:2px 8px;border-radius:999px;background:#fef3c7;color:#92400e;font-size:12px;font-weight:600}
 #callcrm .crm-link{background:none;border:0;padding:0;color:var(--color-primary-element,#2563eb);font-weight:600;cursor:pointer;text-align:start}
 #callcrm .crm-link:hover,#callcrm .crm-link:focus-visible{text-decoration:underline}
+#callcrm .crm-source{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap;background:#eef2f7;color:#334155}
+#callcrm .crm-source-formulaire{background:#e0ecff;color:#1d4ed8}
+#callcrm .crm-source-whatsapp{background:#dcfce7;color:#166534}
+#callcrm .crm-source-import{background:#f1f5f9;color:#475569}

@@ -169,7 +169,7 @@ class WaController extends Controller {
 		}
 		$name = trim((string)$this->request->getParam('name', '')) ?: (trim((string)$c['name']) ?: 'Client WhatsApp ' . $phone);
 		$cat = trim((string)$this->request->getParam('c2', ''));
-		$pid = $this->s->insert('callcrm_prospects', ['lastname' => mb_substr($name, 0, 255), 'firstname' => '', 'email' => '', 'phone' => $phone, 'c1' => '', 'c2' => mb_substr($cat, 0, 255),
+		$pid = $this->s->insert('callcrm_prospects', ['source' => 'whatsapp', 'lastname' => mb_substr($name, 0, 255), 'firstname' => '', 'email' => '', 'phone' => $phone, 'c1' => '', 'c2' => mb_substr($cat, 0, 255),
 			'status' => 'nouveau', 'created_at' => time(), 'assigned_to' => $uid !== '' ? $uid : null, 'last_note' => 'Fiche créée depuis WhatsApp']);
 		$this->wa->updateConv($id, ['prospect_id' => $pid]);
 		$this->s->audit($this->a->uid(), 'wa_prospect', $pid, $phone . ' → ' . ($uid !== '' ? $uid : 'non assigné'));

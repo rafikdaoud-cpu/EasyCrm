@@ -202,16 +202,19 @@ function neglectedView(){
  const assigned=h('select',{'aria-label':'Commercial actuel'},h('option',{value:''},'Tous les commerciaux'),(me.commerciaux||[]).map(u=>h('option',{value:u.uid},u.name)));
  const team=h('select',{'aria-label':'Groupe de commerciaux'},h('option',{value:''},'Tous les groupes'),(me.groups||[]).map(g=>h('option',{value:g.id},g.name)));
  const product=h('select',{'aria-label':'Produit demandé'},h('option',{value:''},'Tous les produits'),((me.options&&me.options.c2)||[]).map(c=>h('option',{value:c},c)));
+ const SOURCES={formulaire:'Formulaire réseaux sociaux',import:'Import Excel',manuel:'Saisie manuelle',whatsapp:'WhatsApp'};
+ const source=h('select',{'aria-label':'Source du prospect'},h('option',{value:''},'Toutes les sources'),Object.entries(SOURCES).map(([k,l])=>h('option',{value:k},l)));
  const changed=h('select',{'aria-label':'Changement de commercial'},h('option',{value:''},'Avec ou sans changement de commercial'),h('option',{value:'yes'},'Commercial changé depuis le dernier appel'),h('option',{value:'no'},'Même commercial qu’au dernier appel'));
  const q=h('input',{type:'search',placeholder:'Nom ou téléphone…','aria-label':'Rechercher un client',autocomplete:'off'});
- const reset=h('button',{type:'button',onclick:()=>{type.value='idle';days.value=7;assigned.value='';team.value='';product.value='';changed.value='';q.value='';dayControl.hidden=false;load();}},'Réinitialiser');
+ const reset=h('button',{type:'button',onclick:()=>{type.value='idle';days.value=7;assigned.value='';team.value='';product.value='';source.value='';changed.value='';q.value='';dayControl.hidden=false;load();}},'Réinitialiser');
  const out=h('p',{class:'muted','aria-live':'polite'}),wrap=h('div',{class:'crm-table-wrap'}),more=h('button',{type:'button',onclick:()=>load(true)},'Afficher les suivants');let rows=[],seq=0;
- const COLS=[['name','Client'],['product','Produit demandé'],['status','Statut'],['last_call','Dernier appel'],['days','Jours sans suivi'],['caller','Dernier commercial ayant appelé'],['owner','Commercial actuel'],['changed','Changement']];
+ const COLS=[['name','Client'],['source','Source'],['product','Produit demandé'],['status','Statut'],['last_call','Dernier appel'],['days','Jours sans suivi'],['caller','Dernier commercial ayant appelé'],['owner','Commercial actuel'],['changed','Changement']];
  const change=key=>{if(state.sort===key)state.dir=state.dir==='asc'?'desc':'asc';else{state.sort=key;state.dir=['days','changed'].includes(key)?'desc':'asc';}load();};
  function render(){
   const head=h('thead',{},h('tr',{},COLS.map(([k,l])=>sortableHeading(l,k,state.sort,state.dir,change)),h('th',{scope:'col'},'Actions')));
   const body=h('tbody',{},rows.map(p=>h('tr',{class:p.changed?'crm-changed':''},
    h('td',{},h('button',{type:'button',class:'crm-link',onclick:()=>detail(p.id)},nm(p)||'Sans nom'),p.c5?h('div',{class:'muted'},p.c5):''),
+   h('td',{},p.source?h('span',{class:'crm-source crm-source-'+p.source},SOURCES[p.source]||p.source):h('span',{class:'muted'},'—')),
    h('td',{},p.c2||h('span',{class:'muted'},'—')),
    h('td',{},badge(p.status)),
    h('td',{class:'crm-num'},p.last_call_at?fmt(p.last_call_at):h('span',{class:'muted'},'Jamais appelé'),p.last_result?h('div',{class:'muted'},ST[p.last_result]||p.last_result):''),
@@ -225,7 +228,7 @@ function neglectedView(){
  async function load(append=false){
   const n=++seq;if(!append)state.offset=0;more.disabled=true;out.textContent='Recherche…';
   const uids=team.value?((me.teams||{})[team.value]||['-']):[];
-  const params={type:type.value,days:days.value,offset:state.offset,sort:state.sort,dir:state.dir,q:q.value.trim(),product:product.value,changed:changed.value};
+  const params={type:type.value,days:days.value,offset:state.offset,sort:state.sort,dir:state.dir,q:q.value.trim(),product:product.value,source:source.value,changed:changed.value};
   if(all){params.assigned=assigned.value;if(uids.length)params.uids=uids.join('|');}
   try{const r=await api('/neglected?'+new URLSearchParams(params));if(n!==seq)return;
    rows=append?rows.concat(r.rows):r.rows;state.offset=r.next_offset;render();more.hidden=!r.has_more;
@@ -234,9 +237,9 @@ function neglectedView(){
  }
  let timer;const later=()=>{clearTimeout(timer);timer=setTimeout(()=>load(),300);};
  q.addEventListener('input',later);days.addEventListener('input',later);
- [assigned,team,product,changed].forEach(el=>el.addEventListener('change',()=>load()));
+ [assigned,team,product,source,changed].forEach(el=>el.addEventListener('change',()=>load()));
  type.addEventListener('change',()=>{dayControl.hidden=type.value==='callback';load();});
- const filters=h('div',{class:'bar crm-filters'},type,dayControl,all?assigned:'',all?team:'',product,changed,q,reset);
+ const filters=h('div',{class:'bar crm-filters'},type,dayControl,all?assigned:'',all?team:'',product,source,changed,q,reset);
  show(h('h2',{},'Prospects à relancer'),h('p',{class:'muted'},'Repérez les dossiers sans suivi, voyez qui les a appelés en dernier et qui les suit aujourd’hui, puis appelez ou ouvrez la fiche.'),h('div',{},filters,out,wrap,more));load();
 }
 

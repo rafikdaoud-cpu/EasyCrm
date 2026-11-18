@@ -442,7 +442,7 @@ class ApiController extends Controller {
 			if ($to === null) { $na++; }
 			$extra = [];
 			foreach ($exKeys as $xi => $xk) { $xv = trim((string)$row[7 + $xi]); if ($xk && $xv !== '') { $extra[$xk] = mb_substr($xv, 0, 4000); } }
-			$this->s->insert('callcrm_prospects', ['extra' => $extra ? json_encode($extra, JSON_UNESCAPED_UNICODE) : null, 'lastname' => $row[0], 'firstname' => '', 'email' => '', 'phone' => $phone,
+			$this->s->insert('callcrm_prospects', ['source' => 'import', 'extra' => $extra ? json_encode($extra, JSON_UNESCAPED_UNICODE) : null, 'lastname' => $row[0], 'firstname' => '', 'email' => '', 'phone' => $phone,
 				'c1' => '', 'c2' => $cat, 'c3' => $job, 'c4' => Lookup::latin($row[5]), 'c5' => $wil, 'remarque' => $rem,
 				'assigned_to' => $to, 'status' => 'nouveau', 'created_at' => $now]);
 			$n++;
@@ -629,7 +629,7 @@ class ApiController extends Controller {
 		[$v, $extra, $err] = $this->buildFields(null);
 		if ($err) { return $this->err($err); }
 		if (!empty($v['phone']) && ($dup = $this->s->prospectByPhone($v['phone']))) { return $this->err($this->dupMsg($dup)); }
-		$v += ['firstname' => '', 'email' => '', 'c1' => '', 'status' => 'nouveau', 'created_at' => time(), 'extra' => $extra ? json_encode($extra, JSON_UNESCAPED_UNICODE) : null];
+		$v += ['source' => 'manuel', 'firstname' => '', 'email' => '', 'c1' => '', 'status' => 'nouveau', 'created_at' => time(), 'extra' => $extra ? json_encode($extra, JSON_UNESCAPED_UNICODE) : null];
 		if ($this->a->role() === 'commercial') { $v['assigned_to'] = $this->a->uid(); }
 		else {
 			$to = trim((string)$this->request->getParam('assigned_to', ''));

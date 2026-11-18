@@ -64,7 +64,7 @@ namespace {
  $request->params=['result'=>'interesse','reason'=>'Prix trop élevé','note'=>'x'];check($api->call(1)->status===400,'server rejects a reason from another outcome');$request->params['reason']='Projet cuisine';check($api->call(1)->status===200,'server accepts configured optional reason and stores it');check($db->pdo->query("SELECT reason FROM {$app}_calls ORDER BY id DESC LIMIT 1")->fetchColumn()==='Projet cuisine','accepted reason is persisted for reporting');
  foreach(['saveAppointment'] as $method){$reflection=new ReflectionMethod('OCA\\'.$ns.'\\Controller\\ActivityController',$method);check(!$reflection->getAttributes('OCP\\AppFramework\\Http\\Attribute\\NoCSRFRequired'),'new write endpoint keeps Nextcloud CSRF protection');}
  $db->pdo->exec("ALTER TABLE {$app}_prospects ADD COLUMN created_at INTEGER;UPDATE {$app}_prospects SET created_at=".(time()-20*86400));
- $db->pdo->exec("ALTER TABLE {$app}_prospects ADD COLUMN c2 TEXT");
+ $db->pdo->exec("ALTER TABLE {$app}_prospects ADD COLUMN c2 TEXT");$db->pdo->exec("ALTER TABLE {$app}_prospects ADD COLUMN c1 TEXT");$db->pdo->exec("ALTER TABLE {$app}_prospects ADD COLUMN source TEXT");
  check(count($activity->globalSearch('alice','Note enrichie')['rows'])===1,'global search finds client comment in own scope');
  check(count($activity->globalSearch('bob','Note enrichie')['rows'])===0,'global search does not disclose another commercial comment');
  check(count($activity->globalSearch(null,'alice')['rows'])>=1,'manager search resolves a commercial display name');
@@ -98,6 +98,14 @@ namespace {
  $names=array_map(fn($r)=>mb_strtolower(trim($r['lastname'].' '.$r['firstname'])),$activity->neglected(null,'idle',7,0,['sort'=>'name','dir'=>'desc'])['rows']);$expected=$names;rsort($expected);check($names===$expected,'sort by client name descending');
  $d=array_map(fn($r)=>(int)($r['days_idle']??-1),$activity->neglected(null,'idle',7,0,['sort'=>'days','dir'=>'asc'])['rows']);$e=$d;sort($e);check($d===$e,'sort by days without follow-up, ascending');
  $rows=$activity->neglected('alice','idle',7,0,['assigned'=>'bob'])['rows'];check(in_array(1,array_column($rows,'id'))&&!array_diff(array_unique(array_column($rows,'assigned_to')),['alice']),'a commercial only sees own clients whatever the filters');
+ // Source du prospect : enregistrée, ou reconnue pour le formulaire public ; filtre et tri.
+ $db->pdo->exec("UPDATE {$app}_prospects SET source='import' WHERE id=$zeta");$db->pdo->exec("UPDATE {$app}_prospects SET source=NULL, c1='Facebook /prospects' WHERE id=1");
+ $byId=array_column($activity->neglected(null,'idle',7,0)['rows'],null,'id');
+ check($byId[1]['source']==='formulaire'&&!array_key_exists('c1',$byId[1]),'public form prospect is recognised as such without a stored source');
+ check($byId[$zeta]['source']==='import','stored source is returned');
+ check(array_column($activity->neglected(null,'idle',7,0,['source'=>'formulaire'])['rows'],'id')===[1],'filter by source');
+ $s=array_column($activity->neglected(null,'idle',7,0,['sort'=>'source','dir'=>'asc'])['rows'],'source');$e=$s;sort($e);check($s===$e,'sort by source');
+ try{$activity->neglected(null,'idle',7,0,['source'=>'pirate']);check(false,'unknown source is rejected');}catch(\InvalidArgumentException $e){check(true,'unknown source is rejected');}
  try{$activity->neglected(null,'idle',7,0,['sort'=>'p.id;DROP']);check(false,'unknown sort key is rejected');}catch(\InvalidArgumentException $e){check(true,'unknown sort key is rejected');}
  }
  echo "$folder: $count activity checks passed\n";

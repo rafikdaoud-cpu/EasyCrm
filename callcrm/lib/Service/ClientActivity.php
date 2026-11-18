@@ -168,14 +168,18 @@ class ClientActivity {
   *      q (nom/téléphone), sort (name|status|product|last_call|days|owner|caller|changed|created), dir (asc|desc).
   * Le tri et le filtre « changement de commercial » portent sur toute la liste (5 000 dossiers au plus), pas sur la page.
   */
- public const NEGLECTED_SORTS=['name','status','product','last_call','days','owner','caller','changed','created'];
+ public const NEGLECTED_SORTS=['name','status','product','source','last_call','days','owner','caller','changed','created'];
+ public const SOURCES=['formulaire','import','manuel','whatsapp'];
+ /** Origine d'une fiche ; celles du formulaire public créées depuis la dernière mise à jour sont reconnues à leur trace. */
+ public static function sourceOf(array $r): string { $s=(string)($r['source']??''); if($s!=='')return $s; return ($r['c1']??'')==='Facebook /prospects'?'formulaire':''; }
  public function neglected(?string $scope, string $type='idle', int $days=7, int $offset=0, array $f=[]): array {
   if(!in_array($type,['idle','callback','estimate'],true))throw new \InvalidArgumentException('Type de suivi invalide.');
   $sort=(string)($f['sort']??'');if($sort!==''&&!in_array($sort,self::NEGLECTED_SORTS,true))throw new \InvalidArgumentException('Tri invalide.');
   $dir=strtolower((string)($f['dir']??''))==='desc'?-1:1;$changed=(string)($f['changed']??'');
   if(!in_array($changed,['','yes','no'],true))throw new \InvalidArgumentException('Filtre de changement invalide.');
+  $source=(string)($f['source']??'');if($source!==''&&!in_array($source,self::SOURCES,true))throw new \InvalidArgumentException('Source invalide.');
   $days=max(1,min(365,$days));$now=time();$cutoff=$now-$days*86400;$q=$this->db->getQueryBuilder();
-  $cols=['p.id','p.lastname','p.firstname','p.phone','p.assigned_to','p.status','p.last_call_at','p.created_at','p.callback_at','p.c2','p.c5'];
+  $cols=['p.id','p.lastname','p.firstname','p.phone','p.assigned_to','p.status','p.last_call_at','p.created_at','p.callback_at','p.c2','p.c5','p.c1','p.source'];
   $q->select(...$cols)->from('callcrm_prospects','p');
   if($type==='callback')$q->where($q->expr()->lt('p.callback_at',$q->createNamedParameter($now)))->andWhere($q->expr()->in('p.status',$q->createNamedParameter(Statuses::callbackKeys()?:['-'],IQueryBuilder::PARAM_STR_ARRAY)));
   elseif($type==='estimate'){
@@ -196,12 +200,14 @@ class ClientActivity {
    $c=$last[(int)$r['id']]??null;$r['owner']=$name($r['assigned_to']);
    $r['last_caller']=$c['user_id']??null;$r['last_caller_name']=$c?$name($c['user_id']):'';$r['last_result']=$c['result']??'';
    $r['changed']=$c!==null&&(string)$c['user_id']!==(string)($r['assigned_to']??'');
+   $r['source']=self::sourceOf($r);unset($r['c1']);
    $ref=(int)($r['last_call_at']?:$r['created_at']);$r['days_idle']=$ref?intdiv(max(0,$now-$ref),86400):null;
   }unset($r);
   // « Même commercial » suppose un appel : un client jamais appelé n'est ni « changé » ni « inchangé ».
+  if($source!=='')$rows=array_values(array_filter($rows,fn($r)=>$r['source']===$source));
   if($changed!=='')$rows=array_values(array_filter($rows,fn($r)=>$changed==='yes'?$r['changed']:($r['last_caller']!==null&&!$r['changed'])));
   if($sort!==''){
-   $key=fn($r)=>match($sort){'name'=>mb_strtolower(trim($r['lastname'].' '.$r['firstname'])),'status'=>(string)$r['status'],'product'=>mb_strtolower((string)$r['c2']),
+   $key=fn($r)=>match($sort){'name'=>mb_strtolower(trim($r['lastname'].' '.$r['firstname'])),'status'=>(string)$r['status'],'product'=>mb_strtolower((string)$r['c2']),'source'=>(string)$r['source'],
     'last_call'=>(int)$r['last_call_at'],'days'=>(int)($r['days_idle']??-1),'owner'=>mb_strtolower($r['owner']),'caller'=>mb_strtolower($r['last_caller_name']),
     'changed'=>$r['changed']?1:0,'created'=>(int)$r['created_at']};
    usort($rows,fn($a,$b)=>($dir*($key($a)<=>$key($b)))?:((int)$a['id']<=>(int)$b['id']));
