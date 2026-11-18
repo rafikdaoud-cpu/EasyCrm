@@ -37,6 +37,29 @@ class YeastarClient {
         return $result;
     }
 
+    /**
+     * Appel générique authentifié (GET avec paramètres, ou POST JSON). Renvoie la réponse décodée sans juger « errcode » :
+     * l'appelant décide. Une erreur réseau lève une exception sans URL ni jeton.
+     */
+    public function call(string $verb, string $path, array $query = [], ?array $body = null): array {
+        if (!preg_match('#^[a-z_]+/[a-z_]+$#D', $path)) throw new \InvalidArgumentException('Chemin Yeastar invalide.');
+        $s = $this->settings->credentials();
+        $url = $s['url'].'/openapi/v1.0/'.$path.'?'.http_build_query($query + ['access_token' => $this->token()], '', '&', PHP_QUERY_RFC3986);
+        try {
+            $opt = ['headers' => ['User-Agent'=>'CallCRM-OpenAPI', 'Content-Type'=>'application/json'], 'timeout'=>30, 'connect_timeout'=>5,
+                'allow_redirects'=>false, 'verify'=>!$s['allow_self_signed'], 'http_errors'=>false];
+            $client = $this->http->newClient();
+            $response = $verb === 'POST' ? $client->post($url, $opt + ['body' => json_encode($body ?? [], JSON_THROW_ON_ERROR)]) : $client->get($url, $opt);
+            $raw = (string)$response->getBody();
+            if ($response->getStatusCode() !== 200 || strlen($raw) > 4194304) throw new \RuntimeException();
+            $result = json_decode($raw, true, 64, JSON_THROW_ON_ERROR);
+        } catch (\Throwable $e) {
+            throw new \RuntimeException('Connexion Yeastar impossible : vérifiez l’adresse, le réseau et le certificat HTTPS.');
+        }
+        if (!is_array($result)) throw new \RuntimeException('Réponse Yeastar illisible.');
+        return $result;
+    }
+
     private function token(): string {
         $s=$this->settings->credentials();
         $key=hash('sha256',json_encode([$s['url'],$s['client_id'],$s['secret'],$s['allow_self_signed']]));

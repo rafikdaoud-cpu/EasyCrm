@@ -20,6 +20,7 @@ node tests/callcrm-neglected-ui.cjs
 "$PHP_BIN" tests/client-activity.php callcrm
 "$PHP_BIN" tests/sms.php
 "$PHP_BIN" tests/sms-bulk.php
+"$PHP_BIN" tests/yeastar-routing.php
 node tests/callcrm-sms-ui.cjs
 "$PHP_BIN" tests/yeastar-settings.php
 "$PHP_BIN" tests/yeastar-telephony.php
