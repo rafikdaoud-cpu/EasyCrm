@@ -1949,6 +1949,25 @@ function responseKeys(observed = []) {
   return keys;
 }
 let responseSortKey = 'name', responseSortDirection = 'asc';
+/** Administrateurs : groupes gérés par chaque superviseur (aucun coché = il voit tous les groupes). */
+function supervisorTeamsForm() {
+  const list = me.supervisors || [];
+  if (!list.length) return h('div', {class:'team-move'}, h('strong', {}, 'Groupes des superviseurs'), h('p', {class:'muted'}, 'Aucun superviseur dans le groupe des superviseurs.'));
+  return h('div', {class:'team-move supervisor-teams'}, h('strong', {}, 'Groupes des superviseurs'),
+    h('p', {class:'muted'}, 'Un superviseur peut gérer plusieurs groupes : il ne voit alors que les commerciaux, prospects, appels, statistiques et conversations de ces groupes (et les prospects non attribués à répartir). Aucun groupe coché : il voit tout, comme avant.'),
+    list.map(sv => {
+      const out = h('span', {role:'status', class:'muted'});
+      const boxes = (me.groups || []).map(g => { const c = h('input', {type:'checkbox', value:g.id, checked:(sv.teams || []).includes(g.id)}); return [c, h('label', {class:'supervisor-team'}, c, ' ' + g.name)]; });
+      const save = async () => {
+        out.textContent = 'Enregistrement…';
+        try { const r = await api('/teams/supervisor', {method:'POST', body:{uid:sv.uid, teams:boxes.filter(([c]) => c.checked).map(([c]) => c.value)}}); me.supervisors = r.supervisors;
+          const now = (r.supervisors.find(x => x.uid === sv.uid) || {}).teams || []; out.textContent = now.length ? '✔ ' + now.length + ' groupe(s)' : '✔ tous les groupes'; }
+        catch (e) { out.textContent = e.message; }
+      };
+      boxes.forEach(([c]) => c.addEventListener('change', save));
+      return h('fieldset', {class:'supervisor-row'}, h('legend', {}, sv.name), h('div', {class:'bar'}, boxes.map(([, l]) => l), out));
+    }));
+}
 /** Administrateurs : déplacer un commercial vers un autre groupe d'équipe (groupes de l'AD). */
 function teamMoveForm() {
   const nameOf = uid => (me.commerciaux.find(u => u.uid === uid) || {name:uid}).name;
@@ -2330,6 +2349,7 @@ function admin() {
     h('div', {class:'card'}, h('h3', {}, 'Groupes de commerciaux'),
       h('p', {class:'muted'}, 'Les commerciaux sont les membres du groupe des commerciaux ; chaque commercial est placé dans le groupe de son équipe, ci-dessous.'),
       me.can.teams ? teamMoveForm() : '',
+      me.can.teams ? supervisorTeamsForm() : '',
       (() => { const placed = new Set(Object.values(me.teams || {}).flat()); const none = me.commerciaux.filter(u => !placed.has(u.uid)).map(u => u.name).sort((a, b) => a.localeCompare(b, 'fr'));
         return none.length ? h('div', {class:'team-group'}, h('strong', {}, 'Sans groupe'), h('span', {class:'muted'}, ' · ' + none.length + ' commercial(aux) : non proposés dans la répartition par catégorie'), h('ul', {class:'team-members'}, none.map(n => h('li', {}, n)))) : ''; })(),
       me.groups.map(g => {

@@ -70,7 +70,7 @@ class SmsController extends Controller {
 	#[NoAdminRequired]
 	public function send(int $id): JSONResponse {
 		$p = $this->store->get($id);
-		if (!$p || !$this->access->can('view') || (!$this->access->can('all') && ($p['assigned_to'] ?? null) !== $this->access->uid())) return $this->error('Client introuvable', 404);
+		if (!$p || !$this->access->can('view') || ((!$this->access->can('all') || !\OCA\CallCrm\Service\TeamScope::canSee($p['assigned_to'] ?? null)) && ($p['assigned_to'] ?? null) !== $this->access->uid())) return $this->error('Client introuvable', 404);
 		if (!$this->canSend($p)) return $this->error('L’envoi de SMS n’est pas disponible pour votre compte.', 403);
 		$n = Sms::number((string)($p['phone'] ?? ''));
 		if (!$n) return $this->error('Le numéro de ce client n’est pas un mobile algérien valide.');

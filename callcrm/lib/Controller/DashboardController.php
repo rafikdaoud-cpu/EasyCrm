@@ -18,7 +18,7 @@ class DashboardController extends Controller {
     public function report(): JSONResponse {
         if (!$this->manager() && $this->access->role()!=='commercial') return new JSONResponse(['error'=>'Accès refusé'],403);
         $users=[];
-        if ($this->manager()) foreach ($this->gm->get(Access::groups()['commercial'])?->getUsers()??[] as $u) $users[$u->getUID()]=$u->getDisplayName();
+        if ($this->manager()) foreach ($this->gm->get(Access::groups()['commercial'])?->getUsers()??[] as $u) if (\OCA\CallCrm\Service\TeamScope::canTarget($u->getUID())) $users[$u->getUID()]=$u->getDisplayName();
         else $users[$this->access->uid()]='Moi';
         try {
             $filter=['period'=>$this->request->getParam('period','day'),'from'=>$this->request->getParam('from'),'to'=>$this->request->getParam('to')];
@@ -37,7 +37,7 @@ class DashboardController extends Controller {
         $tz=new \DateTimeZone(Prefs::all()['tz']);$d=(new \DateTime('now',$tz))->setTime(0,0,0);$w=(clone $d)->modify('monday this week');
         $out=[];
         foreach ($this->gm->get(Access::groups()['commercial'])?->getUsers()??[] as $u) {
-            $uid=$u->getUID();$g=Prefs::goalFor($uid);
+            $uid=$u->getUID();if(!\OCA\CallCrm\Service\TeamScope::canTarget($uid))continue;$g=Prefs::goalFor($uid);
             $out[]=['uid'=>$uid,'name'=>$u->getDisplayName(),'day'=>$g['day'],'week'=>$g['week'],'personal'=>$g['personal'],
                 'today'=>$this->calls($uid,$d->getTimestamp()),'this_week'=>$this->calls($uid,$w->getTimestamp())];
         }
@@ -47,7 +47,7 @@ class DashboardController extends Controller {
     public function setGoal(): JSONResponse {
         if (!$this->manager()) return new JSONResponse(['error'=>'Accès refusé'],403);
         $uid=(string)$this->request->getParam('uid','');
-        $known=false;foreach ($this->gm->get(Access::groups()['commercial'])?->getUsers()??[] as $u) if ($u->getUID()===$uid) $known=true;
+        $known=false;foreach ($this->gm->get(Access::groups()['commercial'])?->getUsers()??[] as $u) if ($u->getUID()===$uid && \OCA\CallCrm\Service\TeamScope::canTarget($uid)) $known=true;
         if (!$known) return new JSONResponse(['error'=>'Commercial inconnu'],400);
         Prefs::setGoal($uid,(int)$this->request->getParam('day',0),(int)$this->request->getParam('week',0));
         return new JSONResponse(['ok'=>true]+Prefs::goalFor($uid));

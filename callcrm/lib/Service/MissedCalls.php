@@ -182,6 +182,7 @@ class MissedCalls {
             ->from('callcrm_missed', 'm')->leftJoin('m', 'callcrm_prospects', 'p', $q->expr()->eq('m.prospect_id', 'p.id'))
             ->where($q->expr()->eq('m.state', $q->createNamedParameter('open')));
         if ($uid !== null) $q->andWhere($q->expr()->orX($q->expr()->eq('m.assigned_to', $q->createNamedParameter($uid)), $q->expr()->isNull('m.assigned_to')));
+        else TeamScope::prospects($q, 'm.assigned_to');
         $rows = $q->orderBy('m.last_at', 'DESC')->setMaxResults(500)->executeQuery()->fetchAll();
         $names = $this->commercials();
         return array_map(function ($r) use ($uid, $names) {
@@ -215,6 +216,7 @@ class MissedCalls {
         $q = $this->db->getQueryBuilder();
         $q->select('state', 'first_at', 'first_attempt_at', 'done_how', 'assigned_to')->from('callcrm_missed')->where($q->expr()->gte('first_at', $q->createNamedParameter($since, IQueryBuilder::PARAM_INT)));
         if ($uid !== null) $q->andWhere($q->expr()->eq('assigned_to', $q->createNamedParameter($uid)));
+        else TeamScope::prospects($q);
         $n = 0; $done = 0; $open = 0; $delays = []; $by = [];
         foreach ($q->executeQuery()->fetchAll() as $r) {
             $n++; $r['state'] === 'open' ? $open++ : $done++;

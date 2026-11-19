@@ -10,7 +10,7 @@ use OCP\IRequest;
 class TelephonyController extends Controller {
  public function __construct(IRequest $request,private Access $access,private Store $store,private YeastarSettings $settings,private YeastarClient $client,private YeastarEvents $events){parent::__construct(Application::APP_ID,$request);}
  private function error(string $text,int $status=400):JSONResponse{return new JSONResponse(['error'=>$text],$status);}
- private function visible(?array $p):bool{return $p&&$this->access->can('view')&&($this->access->can('all')||$p['assigned_to']===$this->access->uid());}
+ private function visible(?array $p):bool{return $p&&$this->access->can('view')&&(($this->access->can('all')&&\OCA\CallCrm\Service\TeamScope::canSee($p['assigned_to']))||$p['assigned_to']===$this->access->uid());}
  private function extension():string{foreach($this->settings->settings()['extensions'] as $m)if($m['uid']===$this->access->uid())return $m['extension'];return '';}
  #[NoAdminRequired]
  public function runtime():JSONResponse{

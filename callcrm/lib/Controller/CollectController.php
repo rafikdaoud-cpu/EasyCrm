@@ -7,7 +7,7 @@ class CollectController extends Controller {
  public function __construct(IRequest $request,private Access $access,private Store $store,private Collect $collect,private ClientActivity $activity,private IURLGenerator $url){parent::__construct(Application::APP_ID,$request);}
  private function error(string $m,int $s=400):JSONResponse{return new JSONResponse(['error'=>$m],$s);}
  private function manager():bool{return in_array($this->access->role(),['admin','superviseur'],true);}
- private function prospect(int $id):?array{$p=$this->store->get($id);return $p&&$this->access->can('view')&&($this->access->can('all')||$p['assigned_to']===$this->access->uid())?$p:null;}
+ private function prospect(int $id):?array{$p=$this->store->get($id);return $p&&$this->access->can('view')&&(($this->access->can('all')&&\OCA\CallCrm\Service\TeamScope::canSee($p['assigned_to']))||$p['assigned_to']===$this->access->uid())?$p:null;}
  private function canSend():bool{return $this->manager()||$this->access->can('call');}
  #[NoAdminRequired]
  /** Liste et validité : réservées à l'administrateur (le commercial ne les voit pas). */

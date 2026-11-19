@@ -6,7 +6,7 @@ class DocumentController extends Controller {
  public function __construct(IRequest $request,private Access $access,private Store $store,private Documents $documents,private DocumentMailbox $mailbox){parent::__construct(Application::APP_ID,$request);}
  private function error(string $message,int $status=400):JSONResponse{return new JSONResponse(['error'=>$message],$status);}
  private function manager():bool{return in_array($this->access->role(),['admin','superviseur'],true);}
- private function visible(int $id):bool{$p=$this->store->get($id);return $p&&$this->access->can('view')&&($this->access->can('all')||$p['assigned_to']===$this->access->uid());}
+ private function visible(int $id):bool{$p=$this->store->get($id);return $p&&$this->access->can('view')&&(($this->access->can('all')&&\OCA\CallCrm\Service\TeamScope::canSee($p['assigned_to']))||$p['assigned_to']===$this->access->uid());}
  private function canDocument(array $row):bool{return $row['prospect_id']?$this->visible((int)$row['prospect_id']):$this->manager();}
  #[NoAdminRequired]
  public function list(int $id):JSONResponse{if(!$this->visible($id))return $this->error('Dossier introuvable',404);return new JSONResponse($this->documents->list($id,(int)$this->request->getParam('offset',0)));}

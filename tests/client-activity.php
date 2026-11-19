@@ -5,7 +5,7 @@ namespace OCP\AppFramework { class App {} class Controller { protected $request;
 namespace OCP\AppFramework\Http { class JSONResponse {public function __construct(public $data,public $status=200){} } }
 namespace {
  $folder=$argv[1]??'callcrm';$app=$folder==='callcrm'?'callcrm':'easycrm';$ns=$folder==='callcrm'?'CallCrm':'EasyCrm';$root=__DIR__.'/../'.$folder;
- foreach(['Access','Prefs','Statuses','Store','ClientActivity','Lookup'] as $file)require $root.'/lib/Service/'.$file.'.php';
+ foreach(['Access','TeamScope','Prefs','Statuses','Store','ClientActivity','Lookup'] as $file)if(is_file($root.'/lib/Service/'.$file.'.php'))require $root.'/lib/Service/'.$file.'.php';
  require $root.'/lib/AppInfo/Application.php';require $root.'/lib/Controller/ActivityController.php';require $root.'/lib/Controller/ApiController.php';
  class Config implements \OCP\IConfig {public array $values=[];public function getAppValue($app,$key,$default=''){return $this->values[$key]??$default;}public function setAppValue($app,$key,$value){$this->values[$key]=$value;}}
  class User {public function __construct(private string $uid){}public function getUID(){return $this->uid;}public function getDisplayName(){return 'Nom '.$this->uid;}}

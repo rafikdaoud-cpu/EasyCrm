@@ -44,7 +44,7 @@ class PresenceController extends Controller {
 	public function roster(): JSONResponse {
 		if (!in_array($this->a->role(), ['admin', 'superviseur'], true)) { return $this->denied(); }
 		$users = $this->gm->get(Access::groups()['commercial'])?->getUsers() ?? [];
-		$users = array_values($users);
+		$users = array_values(array_filter($users, fn($u) => \OCA\CallCrm\Service\TeamScope::canTarget($u->getUID())));
 		try { $report = $this->presence->report(array_map(fn($u) => $u->getUID(), $users),null,$this->filter()); }
 		catch (\InvalidArgumentException $e) { return new JSONResponse(['error'=>$e->getMessage()],400); }
 		$report['rows'] = array_map(fn($u) => ['uid'=>$u->getUID(), 'name'=>$u->getDisplayName()] + $report['rows'][$u->getUID()], $users);

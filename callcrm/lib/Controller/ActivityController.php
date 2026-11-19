@@ -12,7 +12,7 @@ class ActivityController extends Controller {
  public function __construct(IRequest $request, private Access $access, private ClientActivity $activity, private Store $store) { parent::__construct(Application::APP_ID,$request); }
  private function error(string $message,int $status): JSONResponse { return new JSONResponse(['error'=>$message],$status); }
  private function scope(): ?string { return $this->access->can('all')?null:$this->access->uid(); }
- private function visible(int $id): bool { $p=$this->store->get($id);return $p && ($this->scope()===null || $p['assigned_to']===$this->scope()); }
+ private function visible(int $id): bool { $p=$this->store->get($id);return $p && (($this->scope()===null && \OCA\CallCrm\Service\TeamScope::canSee($p['assigned_to'])) || $p['assigned_to']===$this->scope()); }
  #[NoAdminRequired]
  public function agenda(): JSONResponse {
   if (!$this->access->can('view')) return $this->error('Accès refusé',403);

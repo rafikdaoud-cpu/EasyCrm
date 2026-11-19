@@ -3,7 +3,7 @@
 namespace OCP { interface IConfig {} interface IDBConnection {} interface IUserManager {} }
 namespace OCP\DB\QueryBuilder { interface IQueryBuilder { const PARAM_INT=1,PARAM_STR=2,PARAM_NULL=0,PARAM_STR_ARRAY=102,PARAM_INT_ARRAY=101; } }
 namespace {
-require __DIR__.'/../callcrm/lib/Service/Store.php';require __DIR__.'/../callcrm/lib/Service/InactiveOwners.php';
+require_once __DIR__.'/../callcrm/lib/Service/TeamScope.php';require __DIR__.'/../callcrm/lib/Service/Store.php';require __DIR__.'/../callcrm/lib/Service/InactiveOwners.php';
 use OCA\CallCrm\Service\{InactiveOwners,Store};
 $fail=0;$n=0;function ok($c,$m){global $fail,$n;$n++;if(!$c){$fail++;echo "FAIL $m\n";}}
 class Config implements \OCP\IConfig {public array $v=[];public function getAppValue($a,$k,$d=''){return $this->v[$k]??$d;}public function setAppValue($a,$k,$x){$this->v[$k]=$x;}}

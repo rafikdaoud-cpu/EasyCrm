@@ -121,7 +121,7 @@ class WaController extends Controller {
 	public function forProspect(int $pid): JSONResponse {
 		if (!$this->a->can('view')) { return $this->deny(); }
 		$p = $this->s->get($pid);
-		if (!$p || ($this->scope() !== null && $p['assigned_to'] !== $this->a->uid())) { return $this->err('Introuvable', Http::STATUS_NOT_FOUND); }
+		if (!$p || ($this->scope() !== null && $p['assigned_to'] !== $this->a->uid()) || !\OCA\CallCrm\Service\TeamScope::canSee($p['assigned_to'])) { return $this->err('Introuvable', Http::STATUS_NOT_FOUND); }
 		$c = $this->wa->convForProspect($pid, $p['phone'] ?? null);
 		if ($c && !$c['linked'] && !empty($p['phone'])) { $this->wa->relinkPhone($p['phone'], $pid); $c = $this->wa->conv((int)$c['id']); }
 		return new JSONResponse(['conv' => $c ? $this->out($c) : null]);
@@ -201,7 +201,7 @@ class WaController extends Controller {
 	public function sendProspect(int $pid): JSONResponse {
 		if (!$this->canReply()) { return $this->deny(); }
 		$p = $this->s->get($pid);
-		if (!$p || ($this->scope() !== null && $p['assigned_to'] !== $this->a->uid())) { return $this->err('Introuvable', Http::STATUS_NOT_FOUND); }
+		if (!$p || ($this->scope() !== null && $p['assigned_to'] !== $this->a->uid()) || !\OCA\CallCrm\Service\TeamScope::canSee($p['assigned_to'])) { return $this->err('Introuvable', Http::STATUS_NOT_FOUND); }
 		if ($this->a->role() === 'commercial' && $p['assigned_to'] !== $this->a->uid()) { return $this->deny(); }
 		$phone = Wa::localPhone((string)($p['phone'] ?? ''));
 		if (!$phone) { return $this->err('Numéro de téléphone absent ou non algérien : envoi WhatsApp impossible.'); }

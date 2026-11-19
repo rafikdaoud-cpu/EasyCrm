@@ -11,7 +11,7 @@ namespace OCP\AppFramework\Http { class JSONResponse {public function __construc
 namespace OCP\AppFramework\Http\Attribute { #[\Attribute] class NoAdminRequired {} #[\Attribute] class NoCSRFRequired {} }
 namespace {
 $root=__DIR__.'/../callcrm';
-foreach(['Access','Store','Sms','ClientActivity','Statuses','Lookup','Fields','Prefs','Sim'] as $f) if(is_file("$root/lib/Service/$f.php")) require_once "$root/lib/Service/$f.php";
+foreach(['Access','TeamScope','Store','Sms','ClientActivity','Statuses','Lookup','Fields','Prefs','Sim'] as $f) if(is_file("$root/lib/Service/$f.php")) require_once "$root/lib/Service/$f.php";
 require_once "$root/lib/AppInfo/Application.php";require_once "$root/lib/Controller/ApiController.php";
 use OCA\CallCrm\Service\{Access,Store,Sms};
 $fail=0;$n=0;function ok($c,$m){global $fail,$n;$n++;if(!$c){$fail++;echo "FAIL $m\n";}}

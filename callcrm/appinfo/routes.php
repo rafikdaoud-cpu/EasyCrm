@@ -86,6 +86,7 @@ return ['routes' => [
 	['name' => 'api#journal', 'url' => '/api/journal', 'verb' => 'GET'],
 	['name' => 'api#transfer', 'url' => '/api/transfer', 'verb' => 'POST'],
 	['name' => 'api#teamMove', 'url' => '/api/teams/move', 'verb' => 'POST'],
+	['name' => 'api#supervisorTeams', 'url' => '/api/teams/supervisor', 'verb' => 'POST'],
 	['name' => 'api#bulkStatus', 'url' => '/api/bulkstatus', 'verb' => 'POST'],
 	['name' => 'api#saveCallPrefs', 'url' => '/api/callprefs', 'verb' => 'POST'],
 	['name' => 'api#counters', 'url' => '/api/counters', 'verb' => 'GET'],

@@ -765,3 +765,6 @@ body.crm-glass-on #callcrm-chat .crm-chat-panel,body.crm-glass-on #callcrm-chat 
 #callcrm .team-members li{padding:3px 10px;border-radius:999px;background:var(--color-background-dark);font-size:13px}
 #callcrm .team-move{margin:10px 0 14px;padding:12px;border-radius:10px;background:var(--color-background-dark)}
 #callcrm .team-move .bar{align-items:center;margin:8px 0 4px}
+#callcrm .supervisor-row{border:1px solid var(--color-border);border-radius:8px;padding:6px 12px;margin:8px 0}
+#callcrm .supervisor-row legend{font-weight:600;padding:0 4px}
+#callcrm .supervisor-team{display:inline-flex;align-items:center;gap:4px;min-height:32px;cursor:pointer}

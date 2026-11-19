@@ -84,6 +84,11 @@ class Wa {
 		$owner = fn(string $u) => $e->orX($e->andX($e->isNotNull('p.id'), $e->eq('p.assigned_to', $qb->createNamedParameter($u))),
 			$e->andX($e->isNull('p.id'), $e->eq('c.assigned_to', $qb->createNamedParameter($u))));
 		if ($uid !== null) { $qb->andWhere($owner($uid)); }
+		elseif (($scopeUsers = TeamScope::users()) !== null) {
+			// Superviseur limité à ses groupes : conversations de son périmètre ou sans propriétaire.
+			$in = fn($col) => $e->orX($e->in($col, $qb->createNamedParameter($scopeUsers ?: ['-'], IQueryBuilder::PARAM_STR_ARRAY)), $e->isNull($col));
+			$qb->andWhere($e->orX($e->andX($e->isNotNull('p.id'), $in('p.assigned_to')), $e->andX($e->isNull('p.id'), $in('c.assigned_to'))));
+		}
 		if ($box === 'queue') {
 			$qb->andWhere($e->orX($e->andX($e->isNotNull('p.id'), $e->isNull('p.assigned_to')), $e->andX($e->isNull('p.id'), $e->isNull('c.assigned_to'))));
 		}

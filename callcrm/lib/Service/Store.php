@@ -8,6 +8,7 @@ class Store {
 
 	private function where(IQueryBuilder $qb, ?string $uid, array $f): void {
 		if ($uid !== null) { $qb->andWhere($qb->expr()->eq('assigned_to', $qb->createNamedParameter($uid))); }
+		TeamScope::prospects($qb);
 		if (!empty($f['status'])) { $qb->andWhere($qb->expr()->eq('status', $qb->createNamedParameter($f['status']))); }
 		if (!empty($f['assigned'])) { $qb->andWhere($qb->expr()->eq('assigned_to', $qb->createNamedParameter($f['assigned']))); }
 		if (!empty($f['cat'])) { $qb->andWhere($qb->expr()->in('c2', $qb->createNamedParameter((array)$f['cat'], IQueryBuilder::PARAM_STR_ARRAY))); }
@@ -140,6 +141,7 @@ class Store {
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('*')->from('callcrm_recordings')->where($qb->expr()->eq('prospect_id', $qb->createNamedParameter($prospectId)))->orderBy('recorded_at', 'DESC');
 		if ($uid !== null) { $qb->andWhere($qb->expr()->eq('user_id', $qb->createNamedParameter($uid))); }
+		TeamScope::actors($qb);
 		return $qb->executeQuery()->fetchAll();
 	}
 	public function unmatchedRecordings(int $limit): array {
@@ -154,6 +156,7 @@ class Store {
 	}
 	private function logWhere(IQueryBuilder $qb, ?string $uid, array $f): void {
 		if ($uid !== null) { $qb->andWhere($qb->expr()->eq('c.user_id', $qb->createNamedParameter($uid))); }
+		TeamScope::actors($qb, 'c.user_id');
 		if (!empty($f['user'])) { $qb->andWhere($qb->expr()->eq('c.user_id', $qb->createNamedParameter($f['user']))); }
 		if (!empty($f['result'])) { $qb->andWhere($qb->expr()->eq('c.result', $qb->createNamedParameter($f['result']))); }
 		if (!empty($f['cat'])) { $qb->andWhere($qb->expr()->in('p.c2', $qb->createNamedParameter((array)$f['cat'], IQueryBuilder::PARAM_STR_ARRAY))); }
@@ -321,6 +324,7 @@ class Store {
 			->where($qb->expr()->isNotNull('callback_at'))->andWhere($qb->expr()->lt('callback_at', $qb->createNamedParameter($now, IQueryBuilder::PARAM_INT)))
 			->andWhere($qb->expr()->in('status', $qb->createNamedParameter($keys, IQueryBuilder::PARAM_STR_ARRAY)));
 		if ($uid !== null) { $qb->andWhere($qb->expr()->eq('assigned_to', $qb->createNamedParameter($uid))); }
+		TeamScope::prospects($qb);
 		return (int)$qb->executeQuery()->fetchOne();
 	}
 	/** Nombre d'appels passés depuis $since, par commercial (user_id => n). */
@@ -329,6 +333,7 @@ class Store {
 		$qb->select('user_id')->selectAlias($qb->func()->count('*'), 'n')->from('callcrm_calls')->groupBy('user_id')
 			->where($qb->expr()->gte('created_at', $qb->createNamedParameter($since, IQueryBuilder::PARAM_INT)));
 		if ($uid !== null) { $qb->andWhere($qb->expr()->eq('user_id', $qb->createNamedParameter($uid))); }
+		TeamScope::actors($qb);
 		$o = []; foreach ($qb->executeQuery()->fetchAll() as $r) { $o[$r['user_id']] = (int)$r['n']; }
 		return $o;
 	}
@@ -360,6 +365,7 @@ class Store {
 		$qb->select('c.user_id', 'c.result')->selectAlias($qb->func()->count('*'), 'n')->from('callcrm_calls', 'c')
 			->innerJoin('c', 'callcrm_prospects', 'p', $qb->expr()->eq('c.prospect_id', 'p.id'))->groupBy('c.user_id', 'c.result');
 		if ($uid !== null) { $qb->andWhere($qb->expr()->eq('c.user_id', $qb->createNamedParameter($uid))); }
+		TeamScope::actors($qb, 'c.user_id');
 		if (!empty($f['user'])) { $qb->andWhere($qb->expr()->eq('c.user_id', $qb->createNamedParameter($f['user']))); }
 		if (!empty($f['result'])) { $qb->andWhere($qb->expr()->eq('c.result', $qb->createNamedParameter($f['result']))); }
 		if (!empty($f['cat'])) { $qb->andWhere($qb->expr()->in('p.c2', $qb->createNamedParameter((array)$f['cat'], IQueryBuilder::PARAM_STR_ARRAY))); }

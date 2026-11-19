@@ -4,6 +4,7 @@ namespace {
  require __DIR__ . '/announcements.php';
  require __DIR__ . '/../lib/Service/PresenceRange.php';
  require __DIR__ . '/../lib/Service/Presence.php';
+ require __DIR__ . '/../lib/Service/TeamScope.php';
  require __DIR__ . '/../lib/Controller/PresenceController.php';
  class PresenceConfig implements \OCP\IConfig {
   public array $values = [];

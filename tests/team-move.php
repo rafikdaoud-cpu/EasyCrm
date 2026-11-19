@@ -12,7 +12,7 @@ namespace OCP\AppFramework\Http { class JSONResponse {public function __construc
 namespace OCP\AppFramework\Http\Attribute { #[\Attribute] class NoAdminRequired {} #[\Attribute] class NoCSRFRequired {} }
 namespace {
 $root=__DIR__.'/../callcrm';
-foreach(['Access','Store','Sms','ClientActivity','Statuses','Lookup','Fields','Prefs','Sim'] as $f) if(is_file("$root/lib/Service/$f.php")) require_once "$root/lib/Service/$f.php";
+foreach(['Access','TeamScope','Store','Sms','ClientActivity','Statuses','Lookup','Fields','Prefs','Sim'] as $f) if(is_file("$root/lib/Service/$f.php")) require_once "$root/lib/Service/$f.php";
 require_once "$root/lib/AppInfo/Application.php";require_once "$root/lib/Controller/ApiController.php";
 use OCA\CallCrm\Service\{Access,Store};
 $fail=0;$n=0;function ok($c,$m){global $fail,$n;$n++;if(!$c){$fail++;echo "FAIL $m\n";}}
@@ -29,11 +29,11 @@ class MemBackend {public array $skip=[];public function __construct(public Group
 class Users implements \OCP\IUserManager {public function get($u){return new User($u);}}
 class Config implements \OCP\IConfig {public array $v=[];public function getAppValue($a,$k,$d=''){return $this->v[$k]??$d;}public function setAppValue($a,$k,$x){$this->v[$k]=$x;}}
 class Req implements \OCP\IRequest {public array $p=[];public function getParam($k,$d=null){return $this->p[$k]??$d;}}
-class FakeStore extends Store {public array $audits=[];public function __construct(){}public function audit(?string $uid,string $action,?int $pid=null,string $detail=''):void{$this->audits[]=[$action,$detail];}}
+class FakeStore extends Store {public array $audits=[];public array $rows=[];public array $updates=[];public function __construct(){}public function get(int $id):?array{return $this->rows[$id]??null;}public function update(int $id,array $v,?string $actor=null,?array $expected=null):void{$this->updates[]=[$id,$v];$this->rows[$id]=array_merge($this->rows[$id],$v);}public function audit(?string $uid,string $action,?int $pid=null,string $detail=''):void{$this->audits[]=[$action,$detail];}}
 class Cache {public array $v=[];public function get($k){return $this->v[$k]??null;}public function set($k,$x,$t){$this->v[$k]=$x;}public function remove($k){unset($this->v[$k]);}}
 class CacheFactory {public Cache $c;public function __construct(){$this->c=new Cache;}public function createDistributed($p){return $this->c;}}
 $cfg=new Config;$cf=new CacheFactory;
-\OCP\Server::$map=[\OCP\IConfig::class=>$cfg,'OCP\ICacheFactory'=>$cf];
+\OCP\Server::$map=[\OCP\IConfig::class=>$cfg,'OCP\ICacheFactory'=>$cf,'OCA\CallCrm\Service\Sms'=>new class{public function runtime(){return ['enabled'=>false];}}];
 $groups=new Groups;$session=new Session;$store=new FakeStore;$req=new Req;
 $groups->g=['callcrm_commercial'=>new Group('callcrm_commercial',['alice','bob']),'callcrm_motos'=>new Group('callcrm_motos',['alice']),
  'callcrm_electro_media'=>new Group('callcrm_electro_media',['bob']),'callcrm_amenagement'=>new Group('callcrm_amenagement',[])];
@@ -62,5 +62,28 @@ $req->p=['uid'=>'alice','to'=>'callcrm_electro_media'];$r=$ctl()->teamMove();
 ok($r->status===502&&str_contains($r->data['error'],'refusé la modification')&&$groups->g['callcrm_amenagement']->m===['alice'],'refus silencieux de l’AD détecté');
 $req->p=['uid'=>'alice','to'=>'callcrm_motos'];
 $groups->g['callcrm_motos']->throw=false;$groups->g['callcrm_motos']->writable=false;$r=$ctl()->teamMove();ok($r->status===400&&$groups->g['callcrm_amenagement']->m===['alice'],'groupe en lecture seule');
+
+// ---- Superviseurs limités à leurs groupes ----
+use OCA\CallCrm\Service\TeamScope;
+$groups->g['callcrm_superviseur']=new Group('callcrm_superviseur',['sup']);
+$req->p=['uid'=>'sup','teams'=>['callcrm_motos','callcrm_inconnu']];$groups->role='superviseur';ok($ctl()->supervisorTeams()->status===403,'superviseur : ne peut pas se donner des groupes');
+$groups->role='admin';$r=$ctl()->supervisorTeams();
+ok($r->status===200&&TeamScope::config($cfg)===['sup'=>['callcrm_motos']],'admin : groupes du superviseur enregistrés (groupe inconnu ignoré)');
+ok(end($store->audits)[0]==='supervisor_teams','audit des groupes du superviseur');
+$req->p=['uid'=>'alice','teams'=>['callcrm_motos']];ok($ctl()->supervisorTeams()->status===400,'non superviseur refusé');
+$me=$ctl()->me()->data;ok(array_column($me['supervisors'],'uid')===['sup']&&$me['supervisors'][0]['teams']===['callcrm_motos'],'/me : superviseurs pour l’admin');
+// Périmètre forcé (superviseur de Motos : alice) ; bob est dans une autre équipe
+TeamScope::force(['sup','alice']);$groups->role='superviseur';$session->uid='sup';
+$m=new ReflectionMethod(\OCA\CallCrm\Controller\ApiController::class,'visible');
+$store->rows=[1=>['id'=>1,'assigned_to'=>'alice'],2=>['id'=>2,'assigned_to'=>'bob'],3=>['id'=>3,'assigned_to'=>null]];
+ok($m->invoke($ctl(),1)!==null&&$m->invoke($ctl(),2)===null&&$m->invoke($ctl(),3)!==null,'fiche visible : son équipe et non attribuées, pas les autres');
+$req->p=['uid'=>'alice'];ok($ctl()->assign(2)->status===404,'ne réattribue pas une fiche hors de ses groupes');
+$req->p=['uid'=>'bob'];ok($ctl()->assign(3)->status===400,'n’attribue pas à un commercial hors de ses groupes');
+$req->p=['uid'=>'alice'];ok($ctl()->assign(3)->status===200&&$store->rows[3]['assigned_to']==='alice','attribue une fiche non attribuée à son équipe');
+$sid=new ReflectionMethod(\OCA\CallCrm\Controller\ApiController::class,'scopedIds');ok($sid->invoke($ctl(),[1,2,3])===[1,3],'sélection filtrée sur son périmètre');
+$me=$ctl()->me()->data;ok(array_column($me['commerciaux'],'uid')===['alice']&&$me['scope_teams']===true&&$me['supervisors']===[],'/me : seulement ses commerciaux');
+ok(TeamScope::canTarget('alice')&&!TeamScope::canTarget('bob')&&TeamScope::canSee(null),'règles canSee / canTarget');
+TeamScope::force(null);ok($m->invoke($ctl(),2)!==null,'sans groupe attribué : voit tout');
+TeamScope::reset();
 echo "callcrm: $n team move checks".($fail?", $fail FAILED":' passed')."\n";exit($fail?1:0);
 }

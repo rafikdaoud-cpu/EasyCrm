@@ -8,6 +8,7 @@ use OCA\CallCrm\Service\Sim;
 use OCA\CallCrm\Service\Statuses;
 use OCA\CallCrm\Service\Lookup;
 use OCA\CallCrm\Service\Store;
+use OCA\CallCrm\Service\TeamScope;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
@@ -54,8 +55,20 @@ class ApiController extends Controller {
 		return '';
 	}
 	private function getTeams(): array { return $this->memoTeams ??= $this->cached('teams', fn() => $this->computeTeams()); }
+	/** Groupes d'équipe affichés : tous, ou ceux du superviseur limité. */
+	private function visibleTeams(): array {
+		$all = $this->getTeams();
+		if (TeamScope::users() === null) { return $all; }
+		$mine = TeamScope::config()[$this->a->uid()] ?? [];
+		return array_intersect_key($all, array_flip($mine));
+	}
+	/** Ne garde que les fiches visibles (superviseur limité à ses groupes). */
+	private function scopedIds(array $ids): array {
+		if (TeamScope::users() === null || !$ids) { return $ids; }
+		return array_values(array_filter($ids, fn($id) => ($p = $this->s->get((int)$id)) && TeamScope::canSee($p['assigned_to'])));
+	}
 	private function computeTeams(): array {
-		$com = array_column($this->commerciaux(), 'uid'); $out = [];
+		$com = array_column($this->allCommerciaux(), 'uid'); $out = [];
 		foreach (Access::teams() as $gid => $name) {
 			$g = $this->gm->get($gid);
 			$out[$gid] = $g ? array_values(array_intersect(array_map(fn($u) => $u->getUID(), array_values($g->getUsers())), $com)) : [];
@@ -152,7 +165,12 @@ class ApiController extends Controller {
 		if ($c) { $c->set($key, json_encode($a), 120); }
 		return $a;
 	}
+	/** Commerciaux visibles : tous, ou ceux des groupes du superviseur (TeamScope). */
 	private function commerciaux(): array {
+		$all = $this->allCommerciaux(); $scope = TeamScope::users();
+		return $scope === null ? $all : array_values(array_filter($all, fn($c) => in_array($c['uid'], $scope, true)));
+	}
+	private function allCommerciaux(): array {
 		return $this->memoCom ??= $this->cached('commerciaux', function () {
 			$g = $this->gm->get(Access::groups()['commercial']);
 			if (!$g) { return []; }
@@ -172,7 +190,7 @@ class ApiController extends Controller {
 		$p = $this->s->get($id);
 		if (!$p) { return null; }
 		$sc = $this->scope();
-		return ($sc === null || $p['assigned_to'] === $sc) ? $p : null;
+		return (($sc === null && TeamScope::canSee($p['assigned_to'])) || $p['assigned_to'] === $sc) ? $p : null;
 	}
 
 	#[NoAdminRequired]
@@ -180,7 +198,7 @@ class ApiController extends Controller {
 		if (!$this->a->can('view')) { return $this->deny(); }
 		$can = [];
 		foreach (['call', 'assign', 'create', 'import', 'invite', 'teams', 'fields', 'labels', 'delete', 'all', 'audit', 'export', 'export_phone'] as $k) { $can[$k] = $this->a->can($k); }
-		return new JSONResponse(['statuses' => Statuses::all(), 'fields' => Fields::all(), 'role' => $this->a->role(), 'uid' => $this->a->uid(), 'name' => $this->um->get($this->a->uid())?->getDisplayName() ?: $this->a->uid(), 'labels' => $this->getLabels(), 'options' => self::OPT + ['c5' => array_keys(Lookup::WILAYAS)], 'teams' => $this->getTeams(), 'groups' => array_map(fn($g, $n) => ['id' => $g, 'name' => $n, 'cats' => array_keys(array_filter(Access::cats(), fn($x) => $x === $g))], array_keys(Access::teams()), array_values(Access::teams())), 'commerciaux' => $this->commerciaux(), 'max_callbacks' => $this->maxCallbacks(), 'prefs' => Prefs::all(), 'can' => $can, 'sms' => $this->smsRuntime()]);
+		return new JSONResponse(['statuses' => Statuses::all(), 'fields' => Fields::all(), 'role' => $this->a->role(), 'uid' => $this->a->uid(), 'name' => $this->um->get($this->a->uid())?->getDisplayName() ?: $this->a->uid(), 'labels' => $this->getLabels(), 'options' => self::OPT + ['c5' => array_keys(Lookup::WILAYAS)], 'teams' => $this->visibleTeams(), 'groups' => array_values(array_filter(array_map(fn($g, $n) => ['id' => $g, 'name' => $n, 'cats' => array_keys(array_filter(Access::cats(), fn($x) => $x === $g))], array_keys(Access::teams()), array_values(Access::teams())), fn($x) => isset($this->visibleTeams()[$x['id']]))), 'scope_teams' => TeamScope::users() !== null, 'supervisors' => $this->a->can('teams') ? $this->supervisors() : [], 'commerciaux' => $this->commerciaux(), 'max_callbacks' => $this->maxCallbacks(), 'prefs' => Prefs::all(), 'can' => $can, 'sms' => $this->smsRuntime()]);
 	}
 
 	#[NoAdminRequired]
@@ -321,8 +339,8 @@ class ApiController extends Controller {
 		if (!$this->a->can('assign')) { return $this->deny(); }
 		$uid = trim((string)$this->request->getParam('uid', ''));
 		if ($uid !== '' && !in_array($uid, array_column($this->commerciaux(), 'uid'), true)) { return $this->err('Utilisateur non commercial'); }
-		if (!$this->s->get($id)) { return $this->err('Introuvable', Http::STATUS_NOT_FOUND); }
 		$old = $this->s->get($id);
+		if (!$old || !TeamScope::canSee($old['assigned_to'])) { return $this->err('Introuvable', Http::STATUS_NOT_FOUND); }
 		$this->s->update($id, ['assigned_to' => $uid === '' ? null : $uid], $this->a->uid());
 		$this->s->audit($this->a->uid(), 'assign', $id, ($old['assigned_to'] ?? '—') . ' → ' . ($uid === '' ? '—' : $uid));
 		return new JSONResponse(['ok' => true]);
@@ -366,7 +384,7 @@ class ApiController extends Controller {
 		if ($ph === null) { return new JSONResponse(['exists' => false]); }
 		$r = $this->s->prospectByPhone($ph);
 		if (!$r || ($ex !== null && (int)$ex === (int)$r['id'])) { return new JSONResponse(['exists' => false]); }
-		$mine = $this->scope() === null || $r['assigned_to'] === $this->a->uid();
+		$mine = ($this->scope() === null && TeamScope::canSee($r['assigned_to'])) || $r['assigned_to'] === $this->a->uid();
 		return new JSONResponse(['exists' => true, 'id' => $mine ? (int)$r['id'] : null, 'name' => $mine ? trim(($r['lastname'] ?? '') . ' ' . ($r['firstname'] ?? '')) : null,
 			'assigned' => $mine && $r['assigned_to'] ? ($this->um->getDisplayName($r['assigned_to']) ?: $r['assigned_to']) : null, 'status' => $mine ? $r['status'] : null]);
 	}
@@ -426,6 +444,33 @@ class ApiController extends Controller {
 		return new JSONResponse(['teams' => $this->computeTeams(), 'from' => $before, 'to' => $to]);
 	}
 
+	/** Superviseurs (membres du groupe superviseur) et leurs groupes d'équipe attribués. */
+	private function supervisors(): array {
+		$cfg = TeamScope::config($this->cfg); $out = [];
+		foreach ($this->gm->get(Access::groups()['superviseur'])?->getUsers() ?? [] as $u) {
+			$out[] = ['uid' => $u->getUID(), 'name' => $u->getDisplayName(), 'teams' => $cfg[$u->getUID()] ?? []];
+		}
+		usort($out, fn($a, $b) => strcasecmp($a['name'], $b['name']));
+		return $out;
+	}
+
+	/** Administrateurs : groupes d'équipe gérés par un superviseur (aucun = il voit tout, comme avant). */
+	#[NoAdminRequired]
+	public function supervisorTeams(): JSONResponse {
+		if (!$this->a->can('teams')) { return $this->deny(); }
+		$uid = trim((string)$this->request->getParam('uid', ''));
+		$teams = $this->request->getParam('teams', []);
+		$teams = is_array($teams) ? array_values(array_unique(array_intersect(array_map('strval', $teams), array_keys(Access::teams())))) : [];
+		if (!in_array($uid, array_column($this->supervisors(), 'uid'), true)) { return $this->err('Superviseur inconnu'); }
+		$cfg = TeamScope::config($this->cfg);
+		$before = $cfg[$uid] ?? [];
+		if ($teams) { $cfg[$uid] = $teams; } else { unset($cfg[$uid]); }
+		$this->cfg->setAppValue(Application::APP_ID, TeamScope::CONFIG, json_encode($cfg, JSON_UNESCAPED_UNICODE));
+		$names = fn($l) => $l ? implode(', ', array_map(fn($g) => Access::teams()[$g] ?? $g, $l)) : 'tous les groupes';
+		$this->s->audit($this->a->uid(), 'supervisor_teams', null, $uid . ' : ' . $names($before) . ' → ' . $names($teams));
+		return new JSONResponse(['supervisors' => $this->supervisors()]);
+	}
+
 	/**
 	 * Écrit l'appartenance via le moteur du groupe et vérifie sa réponse : Group::addUser() ignore le résultat,
 	 * or ldap_write_support renvoie false (sans exception) quand l'AD refuse (« Insufficient access »).
@@ -463,6 +508,7 @@ class ApiController extends Controller {
 			if (count($ids) > 2000) { return $this->err('Sélection trop grande (2000 maximum)'); }
 			if (!$ids) { return $this->err('Aucun prospect sélectionné'); }
 		} else { $ids = $this->s->idsFor($from, $st, $limit); }
+		$ids = $this->scopedIds($ids);
 		if ($dry) { return new JSONResponse(['count' => count($ids)]); }
 		$n = $ids ? $this->s->reassign($ids, $to === '__none' ? null : $to, $this->a->uid()) : 0;
 		$this->s->audit($this->a->uid(), 'transfer', null, $n . ' prospect(s) → ' . ($to === '__none' ? 'Non assigné' : $to) . (is_array($sel) ? ' (sélection dans la liste)' : ' depuis ' . ($from === '' ? 'non assignés' : $from) . ($st !== '' ? ', statut ' . $st : '')) . ' · ids : ' . implode(',', array_slice($ids, 0, 30)) . (count($ids) > 30 ? '…' : ''));
@@ -498,6 +544,7 @@ class ApiController extends Controller {
 			$ids = $this->s->idsByStatus($fs, $who, max(0, (int)$this->request->getParam('limit', 0)));
 			$from = ($fs ? implode('+', $fs) : 'tous statuts') . ', ' . ($who === '__all' ? 'tous commerciaux' : ($who === '' ? 'non assignés' : $who));
 		}
+		$ids = $this->scopedIds($ids);
 		if ($dry) { return new JSONResponse(['count' => count($ids)]); }
 		$n = $ids ? $this->s->setStatus($ids, $to, $assign, $this->a->uid()) : 0;
 		$this->s->audit($this->a->uid(), 'status', null, $n . ' prospect(s) → statut ' . $to . ($assign === false ? '' : ($assign === null ? ', rendus non assignés' : ', affectés à ' . $assign)) . (is_array($sel) ? ' (sélection dans la liste)' : ' depuis ' . $from) . ' · ids : ' . implode(',', array_slice($ids, 0, 30)) . (count($ids) > 30 ? '…' : ''));

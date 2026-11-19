@@ -7,6 +7,7 @@ namespace {
 require __DIR__.'/yeastar-settings.php';
 require __DIR__.'/../callcrm/lib/Service/YeastarClient.php';
 require __DIR__.'/../callcrm/lib/Service/YeastarEvents.php';
+require_once __DIR__.'/../callcrm/lib/Service/TeamScope.php';
 require __DIR__.'/../callcrm/lib/Controller/TelephonyController.php';
 class CacheFactory implements \OCP\ICacheFactory {public array $rows=[];public function createDistributed($name){return $this;}public function get($k){return $this->rows[$k]??null;}public function set($k,$v,$ttl){$this->rows[$k]=$v;}}
 class Locks implements \OCP\Lock\ILockingProvider {public int $held=0;public bool $busy=false;public array $resources=[];public function acquireLock($r,$type){if(strlen($r)>64)throw new \OCP\Lock\LockedException('SQL key too long');if($this->busy)throw new \OCP\Lock\LockedException('busy');$this->resources[]=$r;$this->held++;}public function releaseLock($r,$type){$this->held--;}}

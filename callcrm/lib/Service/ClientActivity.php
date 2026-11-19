@@ -22,7 +22,8 @@ class ClientActivity {
  }
  private function scoped($q, ?string $scope, string $assigned='', string $search=''): void {
   if ($scope!==null) $q->andWhere($q->expr()->eq('p.assigned_to',$q->createNamedParameter($scope)));
-  elseif ($assigned!=='') $q->andWhere($q->expr()->eq('p.assigned_to',$q->createNamedParameter($assigned)));
+  else TeamScope::prospects($q,'p.assigned_to');
+  if ($scope===null && $assigned!=='') $q->andWhere($q->expr()->eq('p.assigned_to',$q->createNamedParameter($assigned)));
   if ($search!=='') {
    $term='%'.$this->db->escapeLikeParameter(mb_substr($search,0,120)).'%';
    $or=$q->expr()->orX();foreach (['p.lastname','p.firstname','p.phone'] as $col) $or->add($q->expr()->iLike($col,$q->createNamedParameter($term)));
@@ -73,6 +74,7 @@ class ClientActivity {
  private function client(int $id, ?string $scope): array {
   $q=$this->db->getQueryBuilder();$q->select('*')->from('callcrm_prospects')->where($q->expr()->eq('id',$q->createNamedParameter($id)));
   if ($scope!==null) $q->andWhere($q->expr()->eq('assigned_to',$q->createNamedParameter($scope)));
+  else TeamScope::prospects($q);
   $p=$q->executeQuery()->fetch();if (!$p) throw new \OutOfBoundsException('Dossier introuvable.');return $p;
  }
  public function saveAppointment(int $pid, ?string $scope, string $actor, array $in): array {
