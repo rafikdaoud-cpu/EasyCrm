@@ -53,6 +53,10 @@ class YeastarEvents {
   $event=json_decode($raw,true,32,JSON_THROW_ON_ERROR);
   if(!is_array($event))throw new \InvalidArgumentException('Événement invalide.');
   if(($event['event']??'')==='test')return;
+  // Diagnostic temporaire (occ config:app:set callcrm yeastar_debug_until --value=<horodatage>) : 20 derniers événements d'appel.
+  try{$cfg=\OCP\Server::get(\OCP\IConfig::class);if((int)$cfg->getAppValue('callcrm','yeastar_debug_until','0')>time()&&(int)($event['type']??0)!==30012){
+   $log=json_decode($cfg->getAppValue('callcrm','yeastar_debug_log','[]'),true)?:[];$log[]=['at'=>time(),'type'=>$event['type']??null,'msg'=>is_string($event['msg']??null)?mb_substr($event['msg'],0,3000):$event['msg']??null];
+   $cfg->setAppValue('callcrm','yeastar_debug_log',json_encode(array_slice($log,-20),JSON_UNESCAPED_UNICODE));}}catch(\Throwable $e){}
   if((int)($event['type']??0)===30012){$this->receiveCdr($event);return;}
   foreach(self::parse($event) as $row){
    foreach($s['extensions'] as $mapping)if($mapping['extension']===$row['extension']){
