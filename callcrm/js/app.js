@@ -59,7 +59,8 @@ function smsDialog({title,intro,preview,send}){
 function clientSms(p){smsDialog({title:'SMS à '+([p.firstname,p.lastname].filter(Boolean).join(' ')||p.phone),intro:'Envoyé au '+p.phone+' avec l’expéditeur de l’entreprise. Le message est enregistré dans la chronologie du client.',
  send:async text=>{const r=await api('/prospects/'+p.id+'/sms',{method:'POST',body:{text}});return '✔ SMS envoyé ('+r.segments+' SMS facturé'+(r.segments>1?'s':'')+').';}});}
 /** Effet verre (clair et sombre selon le thème Nextcloud), mémorisé sur ce poste. */
-const glassOn = () => { try { return localStorage.getItem('callcrm_glass') === '1'; } catch (e) { return false; } };
+// Effet verre actif par défaut ; seul un choix explicite « désactivé » (0) le coupe.
+const glassOn = () => { try { return localStorage.getItem('callcrm_glass') !== '0'; } catch (e) { return true; } };
 function setGlass(on) {
   try { localStorage.setItem('callcrm_glass', on ? '1' : '0'); } catch (e) {}
   root.classList.toggle('crm-glass', on); document.body.classList.toggle('crm-glass-on', on);
