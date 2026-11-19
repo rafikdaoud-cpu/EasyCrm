@@ -2308,7 +2308,13 @@ function admin() {
   show(h('h2', {}, 'Administration'),
     h('div', {class:'card'}, h('h3', {}, 'Groupes de commerciaux'),
       h('p', {class:'muted'}, 'Les commerciaux sont les membres du groupe des commerciaux ; chaque commercial doit aussi être dans le groupe de son équipe (groupes de l’AD ou de Nextcloud).'),
-      me.groups.map(g => h('div', {style:'margin:6px 0'}, h('strong', {}, g.name), ' — ' + g.id + ' : ' + ((me.teams[g.id] || []).length) + ' commercial(aux)', h('div', {class:'muted'}, 'Catégories : ' + g.cats.join(', '))))),
+      me.groups.map(g => {
+        // Membres affichés par leur nom (repli sur l'identifiant d'un compte inconnu), triés par ordre alphabétique.
+        const members = ((me.teams || {})[g.id] || []).map(uid => (me.commerciaux.find(u => u.uid === uid) || {name:uid}).name).sort((a, b) => a.localeCompare(b, 'fr'));
+        return h('div', {class:'team-group'}, h('div', {}, h('strong', {}, g.name), h('span', {class:'muted'}, ' — ' + g.id + ' · ' + members.length + ' commercial(aux)')),
+          members.length ? h('ul', {class:'team-members'}, members.map(n => h('li', {}, n))) : h('div', {class:'muted'}, 'Aucun commercial dans ce groupe.'),
+          h('div', {class:'muted'}, 'Catégories : ' + (g.cats.join(', ') || '—')));
+      })),
     me.can.fields ? fieldsEditor() : '',
     me.can.fields ? statusesEditor() : '',
     me.can.fields ? settingsCard() : '',
