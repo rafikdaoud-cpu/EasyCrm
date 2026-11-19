@@ -446,6 +446,38 @@ class ApiController extends Controller {
 		return new JSONResponse(['teams' => $this->computeTeams(), 'from' => $before, 'to' => $to]);
 	}
 
+	/**
+	 * Demande de documents : envoie aussi le message (texte du modèle + lien) à l'e-mail du client s'il est connu.
+	 * Le texte vient du navigateur (le lien en clair n'est connu qu'à sa création) : il doit contenir un lien de dépôt de ce serveur.
+	 */
+	#[NoAdminRequired]
+	public function collectMail(int $id): JSONResponse {
+		if (!$this->a->can('call') && !$this->a->can('assign')) { return $this->deny(); }
+		$p = $this->visible($id);
+		if (!$p) { return $this->err('Introuvable', Http::STATUS_NOT_FOUND); }
+		$mail = trim((string)($p['email'] ?? ''));
+		if ($mail === '' || !$this->mailer->validateMailAddress($mail)) { return $this->err('Pas d’adresse e-mail valide sur la fiche.'); }
+		$text = str_replace("\r", '', (string)$this->request->getParam('text', ''));
+		$host = preg_quote((string)parse_url($this->urlGen->getAbsoluteURL('/'), PHP_URL_HOST), '#');
+		if ($text === '' || mb_strlen($text) > 2000 || !preg_match('#https://' . $host . '/(?:d/|(?:index\.php/)?apps/callcrm/collecte/)[A-Za-z0-9_-]{20,64}#', $text)) {
+			return $this->err('Message de demande de documents invalide.');
+		}
+		$name = trim(($p['firstname'] ?? '') . ' ' . ($p['lastname'] ?? ''));
+		try {
+			$msg = $this->mailer->createMessage();
+			$msg->setTo([$mail => $name !== '' ? $name : $mail]);
+			$msg->setSubject('Vos documents · وثائقكم — CSM Taksit');
+			$msg->setPlainBody($text . "\n\n— CSM Taksit");
+			$bad = $this->mailer->send($msg);
+			if ($bad) { return $this->err('Le serveur e-mail a refusé l’envoi.', Http::STATUS_BAD_GATEWAY); }
+		} catch (\Throwable $e) {
+			return $this->err('Envoi de l’e-mail impossible : vérifiez le serveur e-mail de Nextcloud.', Http::STATUS_BAD_GATEWAY);
+		}
+		$this->s->audit($this->a->uid(), 'collect_mail', $id, 'Demande de documents envoyée par e-mail');
+		try { \OCP\Server::get(\OCA\CallCrm\Service\ClientActivity::class)->event($id, $this->a->uid(), 'documents', ['action' => 'mail']); } catch (\Throwable $e) {}
+		return new JSONResponse(['ok' => true, 'email' => $mail]);
+	}
+
 	/** Identifiant technique à partir d'un nom (minuscules, sans accents), unique parmi $taken. */
 	private function slug(string $name, array $taken, string $prefix): string {
 		$t = class_exists('Normalizer') ? preg_replace('/\p{Mn}/u', '', \Normalizer::normalize($name, \Normalizer::FORM_D)) : $name;

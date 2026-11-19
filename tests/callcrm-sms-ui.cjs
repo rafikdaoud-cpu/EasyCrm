@@ -60,6 +60,8 @@ test('demande de documents : un seul message français puis arabe, lien et valid
  assert.match(lines[1],/صالح لمدة 7 أيام\.$/);assert.equal(lines[2],'https://cloud.csmtaksit.dz/d/'+'a'.repeat(32),'lien court seul sur la dernière ligne');
  assert.deepEqual([1,2,5,11,30].map(ctx.arabicDays),['يوم واحد','يومين','5 أيام','11 يومًا','30 يومًا']);
  assert.match(ctx.collectMessage({},url,{created_at:now,expires_at:now+86400}),/^Bonjour, envoyez .*valable 1 jour\./);
+ const custom=ctx.collectMessage({firstname:'Karim',lastname:'Benali'},url,{created_at:now,expires_at:now+3*86400},{fr:'Salam {nom}, pièces sous {jours}.',ar:'مرحبا {prenom}، {jours_ar}.'}).split('\n');
+ assert.equal(custom[0],'Salam Karim Benali, pièces sous 3 jours.');assert.equal(custom[1],'مرحبا Karim، 3 أيام.');assert.match(custom[2],/\/d\//);
  assert.ok(ctx.smsCount(t).segments<=3,'3 SMS au plus');
 });
 test('demande de documents : WhatsApp de l’entreprise avec le modèle à bouton, puis message libre en secours',async()=>{

@@ -15,7 +15,7 @@ class CollectController extends Controller {
  #[NoAdminRequired]
  public function configure():JSONResponse{
   if(!$this->access->can('fields'))return $this->error('Accès refusé',403);
-  try{return new JSONResponse($this->collect->configure($this->request->getParam('documents'),$this->request->getParam('days')));}catch(\InvalidArgumentException $e){return $this->error($e->getMessage());}
+  try{return new JSONResponse($this->collect->configure($this->request->getParam('documents'),$this->request->getParam('days'),$this->request->getParam('message')));}catch(\InvalidArgumentException $e){return $this->error($e->getMessage());}
  }
  #[NoAdminRequired]
  public function list(int $id):JSONResponse{if(!$this->prospect($id))return $this->error('Client introuvable',404);return new JSONResponse(array_map(fn($l)=>$this->collect->summary($l),$this->collect->forProspect($id)));}
@@ -28,7 +28,7 @@ class CollectController extends Controller {
   try{$r=$this->collect->create($id,$uid,$owner,$s['documents'],$s['days']);}catch(\InvalidArgumentException $e){return $this->error($e->getMessage());}
   $link=$this->url->linkToRouteAbsolute('callcrm.collect_public.page',['token'=>$r['token']]);
   try{$this->activity->event($id,$uid,'documents',['action'=>'link','count'=>count($this->collect->docs($this->collect->find($r['id']))),'expires_at'=>$r['expires_at']]);}catch(\Throwable $e){}
-  return new JSONResponse(['url'=>$link,'link'=>$this->collect->summary($this->collect->find($r['id']))]);
+  return new JSONResponse(['url'=>$link,'link'=>$this->collect->summary($this->collect->find($r['id'])),'message'=>$this->collect->message()]);
  }
  #[NoAdminRequired]
  public function revoke(int $id):JSONResponse{

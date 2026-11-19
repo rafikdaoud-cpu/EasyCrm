@@ -88,6 +88,7 @@ return ['routes' => [
 	['name' => 'api#teamMove', 'url' => '/api/teams/move', 'verb' => 'POST'],
 	['name' => 'api#supervisorTeams', 'url' => '/api/teams/supervisor', 'verb' => 'POST'],
 	['name' => 'api#saveRights', 'url' => '/api/rights', 'verb' => 'POST'],
+	['name' => 'api#collectMail', 'url' => '/api/prospects/{id}/collect/mail', 'verb' => 'POST'],
 	['name' => 'api#profileCreate', 'url' => '/api/profiles', 'verb' => 'POST'],
 	['name' => 'api#profileDelete', 'url' => '/api/profiles/delete', 'verb' => 'POST'],
 	['name' => 'api#profileMember', 'url' => '/api/profiles/member', 'verb' => 'POST'],

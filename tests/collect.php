@@ -51,6 +51,12 @@ ok($collect->settings()['documents'][2]===['label'=>'Fiche de paie','required'=>
 $request->params=['documents'=>[['label'=>'X']],'days'=>3];ok($crm('alice')->configure()->status===403,'commercial cannot change default list');
 $request->params=[];ok($crm('alice')->settings()->status===403&&$crm('super')->settings()->status===403&&$crm('admin')->settings()->status===200,'only the administrator sees the document list and validity');
 $collect->configure($collect->settings()['documents'],3);
+ok($collect->settings()['message']===\OCA\CallCrm\Service\Collect::DEFAULT_MESSAGE,'default bilingual message');
+$collect->configure($collect->settings()['documents'],3,['fr'=>'Salam {prenom}, déposez vos pièces ({jours}).','ar'=>'']);
+ok($collect->settings()['message']['fr']==='Salam {prenom}, déposez vos pièces ({jours}).'&&$collect->settings()['message']['ar']===\OCA\CallCrm\Service\Collect::DEFAULT_MESSAGE['ar'],'custom French line, empty Arabic falls back to default');
+foreach([['fr'=>'{inconnu}','ar'=>''],['fr'=>str_repeat('x',401),'ar'=>''],['fr'=>'<b>x</b>','ar'=>'']] as $bad){try{$collect->configure($collect->settings()['documents'],3,$bad);throw new LogicException('accepted');}catch(InvalidArgumentException $e){}}
+ok($collect->settings()['message']['fr']==='Salam {prenom}, déposez vos pièces ({jours}).','invalid messages rejected (unknown variable, too long, tags)');
+$collect->configure($collect->settings()['documents'],3,['fr'=>'','ar'=>'']);
 
 // Création du lien
 // Valeurs envoyées par le navigateur : ignorées, la liste et la durée de l'administrateur s'appliquent.
@@ -63,6 +69,7 @@ ok(!str_contains(json_encode($db->pdo->query("SELECT * FROM {$app}_collect_links
 $row=$collect->open($token);ok($row&&(int)$row['expires_at']-(int)$row['created_at']===3*86400&&$row['owner']==='alice','link valid 3 days, owner = assigned commercial');
 ok(array_column($collect->docs($row),'label')===['CNI recto','CNI verso','Fiche de paie'],'document list and validity sent by the browser are ignored (administrator settings apply)');
 ok(!isset($r->data['link']['documents']),'commercial response does not list the documents');
+ok(($r->data['message']??null)===$collect->message(),'link creation returns the message template');
 ok($collect->open('x'.substr($token,1))===null&&$collect->open('court')===null,'wrong or malformed token rejected');
 ok($db->pdo->query("SELECT count(*) FROM {$app}_client_events WHERE kind='documents'")->fetchColumn()==1,'link creation recorded in client chronology');
 $r2=$crm('alice')->create(1);$token2=$tokenOf($r2->data['url']);

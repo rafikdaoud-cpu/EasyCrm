@@ -48,14 +48,29 @@ class Collect {
   if(!is_numeric($days)||(int)$days!=$days||(int)$days<1||(int)$days>self::MAX_DAYS)throw new \InvalidArgumentException('Durée de validité : de 1 à '.self::MAX_DAYS.' jours.');
   return (int)$days;
  }
+ /** Modèle du message envoyé au client (SMS / WhatsApp) : une ligne en français, une en arabe ; le lien est ajouté à la fin. */
+ public const DEFAULT_MESSAGE=['fr'=>'Bonjour {prenom}, envoyez vos documents via ce lien sécurisé, valable {jours}.','ar'=>'أرسلوا وثائقكم عبر هذا الرابط الآمن، صالح لمدة {jours_ar}.'];
+ public static function normalizeMessage($v,string $lang):string{
+  $v=trim(preg_replace('/[ \t]+/u',' ',str_replace("\r",'',(string)$v)));
+  if($v==='')return self::DEFAULT_MESSAGE[$lang];
+  if(mb_strlen($v)>400||preg_match('/[\x00-\x09\x0b-\x1f<>]/',$v))throw new \InvalidArgumentException('Message '.($lang==='fr'?'en français':'en arabe').' : 400 caractères au maximum, sans balises.');
+  if(preg_match_all('/\{([a-z_]+)\}/',$v,$m))foreach($m[1]as $k)if(!in_array($k,['prenom','nom','jours','jours_ar','commercial'],true))throw new \InvalidArgumentException('Variable inconnue : {'.$k.'}. Variables possibles : {prenom}, {nom}, {jours}, {jours_ar}, {commercial}.');
+  return $v;
+ }
+ public function message():array{
+  $raw=json_decode((string)$this->config->getAppValue('callcrm','collect_message',''),true);
+  $o=[];foreach(['fr','ar']as $l){try{$o[$l]=self::normalizeMessage(is_array($raw)?($raw[$l]??''):'',$l);}catch(\InvalidArgumentException $e){$o[$l]=self::DEFAULT_MESSAGE[$l];}}
+  return $o;
+ }
  public function settings():array{
   $docs=json_decode((string)$this->config->getAppValue('callcrm','collect_docs',''),true);
   try{$docs=self::normalizeDocs($docs);}catch(\InvalidArgumentException $e){$docs=self::DEFAULT_DOCS;}
   $days=(int)$this->config->getAppValue('callcrm','collect_days','3');
-  return ['documents'=>$docs,'days'=>$days>=1&&$days<=self::MAX_DAYS?$days:3,'max_days'=>self::MAX_DAYS,'max_documents'=>self::MAX_DOCS];
+  return ['documents'=>$docs,'days'=>$days>=1&&$days<=self::MAX_DAYS?$days:3,'max_days'=>self::MAX_DAYS,'max_documents'=>self::MAX_DOCS,'message'=>$this->message(),'message_default'=>self::DEFAULT_MESSAGE];
  }
- public function configure($docs,$days):array{
+ public function configure($docs,$days,$message=null):array{
   $docs=self::normalizeDocs($docs);$days=self::normalizeDays($days);
+  if(is_array($message)){$m=['fr'=>self::normalizeMessage($message['fr']??'','fr'),'ar'=>self::normalizeMessage($message['ar']??'','ar')];$this->config->setAppValue('callcrm','collect_message',json_encode($m,JSON_UNESCAPED_UNICODE));}
   $this->config->setAppValue('callcrm','collect_docs',json_encode($docs,JSON_UNESCAPED_UNICODE));$this->config->setAppValue('callcrm','collect_days',(string)$days);
   return $this->settings();
  }

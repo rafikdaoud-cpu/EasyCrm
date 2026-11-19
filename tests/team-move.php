@@ -33,7 +33,7 @@ class FakeStore extends Store {public array $audits=[];public array $rows=[];pub
 class Cache {public array $v=[];public function get($k){return $this->v[$k]??null;}public function set($k,$x,$t){$this->v[$k]=$x;}public function remove($k){unset($this->v[$k]);}}
 class CacheFactory {public Cache $c;public function __construct(){$this->c=new Cache;}public function createDistributed($p){return $this->c;}}
 $cfg=new Config;$cf=new CacheFactory;
-\OCP\Server::$map=[\OCP\IConfig::class=>$cfg,'OCP\ICacheFactory'=>$cf,'OCA\CallCrm\Service\Sms'=>new class{public function runtime(){return ['enabled'=>false];}}];
+\OCP\Server::$map=[\OCP\IConfig::class=>$cfg,'OCP\ICacheFactory'=>$cf,'OCA\CallCrm\Service\Sms'=>new class{public function runtime(){return ['enabled'=>false];}},'OCA\CallCrm\Service\ClientActivity'=>new class{public function event(...$a){}}];
 $groups=new Groups;$session=new Session;$store=new FakeStore;$req=new Req;
 $groups->g=['callcrm_commercial'=>new Group('callcrm_commercial',['alice','bob']),'callcrm_motos'=>new Group('callcrm_motos',['alice']),
  'callcrm_electro_media'=>new Group('callcrm_electro_media',['bob']),'callcrm_amenagement'=>new Group('callcrm_amenagement',[])];
@@ -126,5 +126,26 @@ $req->p=['gid'=>'callcrm_motos'];ok($ctl()->teamDelete()->status===400,'groupe d
 $groups->g[$gid]->m=['alice'];$req->p=['gid'=>$gid];ok($ctl()->teamDelete()->status===400,'groupe non vide non supprimable');
 $groups->g[$gid]->m=[];$r=$ctl()->teamDelete();ok($r->status===200&&!isset(Access::teams()[$gid])&&!isset($groups->g[$gid]),'groupe vide supprimé');
 $groups->role='superviseur';$req->p=['name'=>'Pirate','base'=>'superviseur'];ok($ctl()->profileCreate()->status===403&&$ctl()->teamCreate()->status===403,'réservé à l’admin');
+
+// ---- Demande de documents : envoi par e-mail ----
+class Mailer implements \OCP\Mail\IMailer {public array $sent=[];public bool $fail=false;public function validateMailAddress($m){return (bool)filter_var($m,FILTER_VALIDATE_EMAIL);}
+ public function createMessage(){return new class{public array $d=[];public function setTo($t){$this->d['to']=$t;return $this;}public function setSubject($x){$this->d['subject']=$x;return $this;}public function setPlainBody($x){$this->d['body']=$x;return $this;}};}
+ public function send($m){if($this->fail)return ['x'];$this->sent[]=$m->d;return [];}}
+class Url implements \OCP\IURLGenerator {public function getAbsoluteURL($u){return 'https://cloud.csmtaksit.dz'.$u;}}
+$mailer=new Mailer;$mctl=fn()=>new \OCA\CallCrm\Controller\ApiController($req,new Access($session,$groups),$store,$cfg,$groups,new Users,new class implements \OCP\ITempManager{},new class implements \OCP\Files\IAppData{},$mailer,new Url);
+TeamScope::reset();$cfg->v["role_rights"]="";$session->uid="alice";$groups->role="commercial";
+$store->rows[7]=['id'=>7,'assigned_to'=>'alice','firstname'=>'Karim','lastname'=>'B','email'=>'karim@example.com'];
+$store->rows[8]=['id'=>8,'assigned_to'=>'alice','firstname'=>'Sans','lastname'=>'Mail','email'=>''];
+$store->rows[9]=['id'=>9,'assigned_to'=>'bob','firstname'=>'Autre','lastname'=>'','email'=>'x@example.com'];
+$good="Bonjour Karim, envoyez vos documents.\nأرسلوا وثائقكم.\nhttps://cloud.csmtaksit.dz/d/ABCDEFGHIJKLMNOPQRSTUVWXYZ012345";
+$req->p=["text"=>$good];$r=$mctl()->collectMail(7);
+ok($r->status===200&&$mailer->sent[0]['to']===['karim@example.com'=>'Karim B']&&str_contains($mailer->sent[0]['body'],'/d/ABCDEF'),'e-mail envoyé au client avec le message et le lien');
+ok(end($store->audits)[0]==='collect_mail','envoi par e-mail journalisé');
+ok($mctl()->collectMail(8)->status===400,'pas d’e-mail sur la fiche : refus');
+ok($mctl()->collectMail(9)->status===404,'fiche d’un autre commercial : refus');
+$req->p=['text'=>'Publicité sans lien'];ok($mctl()->collectMail(7)->status===400,'texte sans lien de dépôt refusé');
+$req->p=['text'=>'https://evil.example/d/ABCDEFGHIJKLMNOPQRSTUVWXYZ012345'];ok($mctl()->collectMail(7)->status===400,'lien d’un autre site refusé');
+$mailer->fail=true;$req->p=['text'=>$good];ok($mctl()->collectMail(7)->status===502,'refus du serveur e-mail signalé');
+$groups->role='lecture';ok($mctl()->collectMail(7)->status===403,'lecture seule : refus');
 echo "callcrm: $n team move checks".($fail?", $fail FAILED":' passed')."\n";exit($fail?1:0);
 }

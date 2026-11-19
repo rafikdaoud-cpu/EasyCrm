@@ -310,11 +310,14 @@ const arabicDays=n=>n===1?'يوم واحد':n===2?'يومين':n<=10?n+' أيا�
 /** Message unique bilingue (français puis arabe) envoyé au client avec le lien de dépôt de documents. */
 /** Lien court https://cloud…/d/<jeton> (redirection du serveur web vers la page de dépôt) : message plus court, un SMS de moins. */
 const collectShort=url=>{const m=/^(https:\/\/[^/]+)\/(?:index\.php\/)?apps\/callcrm\/collecte\/([A-Za-z0-9_-]{20,64})$/.exec(url||'');return m?m[1]+'/d/'+m[2]:url;};
-function collectMessage(p,url,link){
+const COLLECT_DEFAULT={fr:'Bonjour {prenom}, envoyez vos documents via ce lien sécurisé, valable {jours}.',ar:'أرسلوا وثائقكم عبر هذا الرابط الآمن، صالح لمدة {jours_ar}.'};
+/** Message du modèle réglé par l'administrateur : ligne française, ligne arabe, puis le lien court. */
+function collectMessage(p,url,link,tpl){
  url=collectShort(url);
- const n=collectDays(link),name=(p.firstname||'').trim();
- return 'Bonjour'+(name?' '+name:'')+', envoyez vos documents via ce lien sécurisé, valable '+n+' jour'+(n>1?'s':'')+'.\n'
-  +'أرسلوا وثائقكم عبر هذا الرابط الآمن، صالح لمدة '+arabicDays(n)+'.\n'+url;
+ const n=collectDays(link),t=tpl||COLLECT_DEFAULT;
+ const vars={prenom:(p.firstname||'').trim(),nom:[(p.firstname||'').trim(),(p.lastname||'').trim()].filter(Boolean).join(' '),jours:n+' jour'+(n>1?'s':''),jours_ar:arabicDays(n),commercial:(typeof me!=='undefined'&&me&&me.name)||''};
+ const fill=s=>String(s||'').replace(/\{(prenom|nom|jours|jours_ar|commercial)\}/g,(_,k)=>vars[k]).replace(/ +([,.;:!?])/g,'$1').replace(/ {2,}/g,' ').trim();
+ return fill(t.fr)+'\n'+fill(t.ar)+'\n'+url;
 }
 function collectCard(p){
  const box=h('details',{class:'card crm-collect-card',open:window.innerWidth>760}),rows=h('div'),msg=h('p',{class:'muted',role:'status'}),result=h('div');
@@ -329,21 +332,24 @@ function collectCard(p){
  /** Liste et validité définies par l'administrateur : le commercial envoie simplement le lien. */
  async function send(btn){
   if(!confirm('Créer un lien de dépôt de documents pour ce client ? Un lien encore ouvert sera remplacé.'))return;
-  btn.disabled=true;try{const r=await api('/prospects/'+p.id+'/collect',{method:'POST'});showLink(r.url,r.link);load();}catch(e){msg.textContent=e.message;}finally{btn.disabled=false;}
+  btn.disabled=true;try{const r=await api('/prospects/'+p.id+'/collect',{method:'POST'});showLink(r.url,r.link,r.message);load();}catch(e){msg.textContent=e.message;}finally{btn.disabled=false;}
  }
- function showLink(url,link){
-  const text=collectMessage(p,url,link);
-  const c=smsCount(text),out=h('p',{class:'muted',role:'status','aria-live':'polite'});
+ function showLink(url,link,tpl){
+  const text=collectMessage(p,url,link,tpl);
+  const c=smsCount(text),out=h('p',{class:'muted',role:'status','aria-live':'polite'}),mailOut=h('p',{class:'muted',role:'status'});
+  // E-mail connu : le même message part aussi par e-mail, une seule fois, dès le premier envoi SMS ou WhatsApp.
+  let mailed=false;const alsoMail=async()=>{if(mailed||!p.email)return;mailed=true;mailOut.textContent='Envoi de l’e-mail…';
+   try{const r=await api('/prospects/'+p.id+'/collect/mail',{method:'POST',body:{text}});mailOut.textContent='✔ Envoyé aussi par e-mail à '+r.email+'.';}catch(e){mailed=false;mailOut.textContent='E-mail non envoyé : '+e.message;}};
   const field=h('input',{value:url,readonly:true,'aria-label':'Lien à envoyer au client',onfocus:e=>e.target.select()});
   // WhatsApp de l'entreprise : modèle validé par Meta (bouton « Documents / الوثائق »), sinon message libre si le client a écrit depuis moins de 24 h.
   const waBtn=p.phone&&['admin','superviseur','commercial'].includes(me.role)?h('button',{class:'primary',onclick:async e=>{const b=e.currentTarget;b.disabled=true;out.textContent='Envoi WhatsApp…';
    const n=collectDays(link),token=(/\/collecte\/([A-Za-z0-9_-]{20,64})$/.exec(url)||[])[1]||'';
    try{await api('/wa/prospect/'+p.id+'/send',{method:'POST',body:{template:'csm_demande_documents',language:'fr',values:{body:{1:n+' jour'+(n>1?'s':''),2:arabicDays(n)},button:{1:token}}}});
-    out.textContent='✔ WhatsApp envoyé avec le bouton « Documents / الوثائق ».';b.textContent='WhatsApp envoyé';}
-   catch(x){try{await api('/wa/prospect/'+p.id+'/send',{method:'POST',body:{text}});out.textContent='✔ WhatsApp envoyé (message libre, le client a écrit récemment).';b.textContent='WhatsApp envoyé';}
+    out.textContent='✔ WhatsApp envoyé avec le bouton « Documents / الوثائق ».';b.textContent='WhatsApp envoyé';alsoMail();}
+   catch(x){try{await api('/wa/prospect/'+p.id+'/send',{method:'POST',body:{text}});out.textContent='✔ WhatsApp envoyé (message libre, le client a écrit récemment).';b.textContent='WhatsApp envoyé';alsoMail();}
     catch(y){out.textContent='WhatsApp de l’entreprise : '+x.message+' Utilisez le SMS, ou « WhatsApp du téléphone ».';b.disabled=false;}}}},'Envoyer par WhatsApp'):'';
   const smsBtn=p.phone&&me.sms?.enabled?h('button',{class:'primary',onclick:async e=>{const b=e.currentTarget;b.disabled=true;out.textContent='Envoi du SMS…';
-   try{const r=await api('/prospects/'+p.id+'/sms',{method:'POST',body:{text}});out.textContent='✔ SMS envoyé au '+p.phone+' ('+r.segments+' SMS).';b.textContent='SMS envoyé';}
+   try{const r=await api('/prospects/'+p.id+'/sms',{method:'POST',body:{text}});out.textContent='✔ SMS envoyé au '+p.phone+' ('+r.segments+' SMS).';b.textContent='SMS envoyé';alsoMail();}
    catch(x){out.textContent=x.message;b.disabled=false;}}},'✉ Envoyer par SMS'):'';
   result.replaceChildren(h('div',{class:'crm-collect-result'},h('strong',{},'Lien créé ('+link.requested+' document(s), valable '+collectDays(link)+' jour(s), jusqu’au '+fmt(link.expires_at)+') — à envoyer au client :'),
    h('pre',{class:'crm-collect-message','aria-label':'Message envoyé au client'},text),
@@ -351,8 +357,8 @@ function collectCard(p){
    h('div',{class:'bar'},smsBtn,waBtn,
     p.phone?h('a',{class:'crm-agenda-call',href:'https://wa.me/'+waNum(p.phone)+'?text='+encodeURIComponent(text),target:'_blank',rel:'noopener noreferrer'},'WhatsApp du téléphone'):'',
     p.phone&&!me.sms?.enabled?h('a',{class:'crm-agenda-call',href:'sms:'+p.phone+'?body='+encodeURIComponent(text)},'SMS depuis le téléphone'):'',
-    p.email?h('a',{class:'crm-agenda-call',href:'mailto:'+p.email+'?subject='+encodeURIComponent('Vos documents / وثائقكم')+'&body='+encodeURIComponent(text)},'Envoyer par e-mail'):''),
-   out,field,
+    p.email?h('button',{type:'button',onclick:()=>{mailed=false;alsoMail();}},'Envoyer par e-mail'):''),
+   out,mailOut,p.email?h('small',{class:'muted'},'E-mail du client connu ('+p.email+') : le message lui est aussi envoyé par e-mail avec le SMS ou le WhatsApp.'):'',field,
    h('button',{onclick:async()=>{try{await navigator.clipboard.writeText(url);out.textContent='Lien copié.';}catch(e){field.select();out.textContent='Copiez le lien sélectionné.';}}},'Copier le lien seul'),
    h('p',{class:'muted'},'Le lien ne sera plus affiché ensuite : en cas de perte, créez-en un nouveau (l’ancien est annulé). Les documents arriveront dans le dossier Nextcloud du commercial de la fiche.')));
  }
@@ -430,17 +436,27 @@ function smsSettingsCard(){
 }
 /** Administration : liste de documents proposée par défaut et durée de validité des liens. */
 function collectSettingsCard(){
- const box=h('div',{class:'card'}),body=h('div'),out=h('p',{class:'muted',role:'status'});box.append(h('h3',{},'Demande de documents au client · liste et validité'),body,out);
+ const box=h('div',{class:'card'}),body=h('div'),out=h('p',{class:'muted',role:'status'});box.append(h('h3',{},'Demande de documents au client · liste, validité et message'),body,out);
  api('/collect/settings').then(s=>{
   const list=h('div',{class:'crm-collect-docs'});
   const line=(label,required)=>{const row=h('div',{class:'bar crm-collect-doc-line'},h('input',{value:label,maxlength:120,'aria-label':'Libellé du document'}),h('label',{},h('input',{type:'checkbox',checked:required}),' Obligatoire'),h('button',{onclick:()=>row.remove(),'aria-label':'Retirer ce document'},'✕'));return row;};
   s.documents.forEach(d=>list.append(line(d.label,d.required)));
   const days=h('input',{type:'number',min:1,max:s.max_days,value:s.days,style:'width:5em'});
+  const mfr=h('textarea',{rows:2,maxlength:400,'aria-label':'Message en français'},s.message?.fr||''),mar=h('textarea',{rows:2,maxlength:400,dir:'rtl',lang:'ar','aria-label':'Message en arabe'},s.message?.ar||'');
+  const preview=h('pre',{class:'crm-collect-message','aria-label':'Aperçu du message'}),pc=h('small',{class:'muted'});
+  const draw=()=>{const t=collectMessage({firstname:'Karim',lastname:'Benali'},'https://cloud.csmtaksit.dz/d/XXXXXXXXXXXXXXXXXXXXXXXX',{created_at:0,expires_at:Number(days.value||3)*86400},{fr:mfr.value||s.message_default.fr,ar:mar.value||s.message_default.ar});preview.textContent=t;const c=smsCount(t);pc.textContent=c.chars+' caractères · '+c.segments+' SMS (arabe : 70 caractères par SMS)';};
+  [mfr,mar,days].forEach(x=>x.addEventListener('input',draw));
   body.replaceChildren(h('p',{class:'muted'},'Documents demandés dans chaque lien envoyé par les commerciaux (ils ne voient pas cette liste). '+s.max_documents+' documents au maximum.'),list,
    h('button',{onclick:()=>{list.append(line('',true));list.lastChild.querySelector('input').focus();}},'+ Ajouter un document'),
    h('label',{style:'display:block;margin:8px 0'},'Validité des liens : ',days,' jour(s)'),
+   h('h4',{},'Modèle du message envoyé au client (SMS et WhatsApp)'),
+   h('p',{class:'muted'},'Un seul message : la ligne en français, la ligne en arabe, puis le lien (ajouté automatiquement). Variables : {prenom}, {nom}, {jours} (« 3 jours »), {jours_ar} (« 3 أيام »), {commercial}. Laissez vide pour le texte d’origine. Le WhatsApp hors conversation récente utilise le modèle validé par Meta.'),
+   h('label',{class:'crm-collect-msg'},'Français',mfr),h('label',{class:'crm-collect-msg'},'Arabe',mar),
+   h('div',{class:'bar'},h('button',{type:'button',onclick:()=>{mfr.value=s.message_default.fr;mar.value=s.message_default.ar;draw();}},'Texte d’origine')),
+   preview,pc,
    h('button',{class:'primary',onclick:async()=>{const documents=[...list.children].map(r=>({label:r.querySelector('input').value.trim(),required:r.querySelector('input[type=checkbox]').checked})).filter(d=>d.label);
-    try{await api('/collect/settings',{method:'POST',body:{documents,days:Number(days.value)}});out.textContent='Liste enregistrée.';}catch(e){out.textContent=e.message;}}},'Enregistrer'));
+    try{await api('/collect/settings',{method:'POST',body:{documents,days:Number(days.value),message:{fr:mfr.value,ar:mar.value}}});out.textContent='Liste, validité et message enregistrés.';}catch(e){out.textContent=e.message;}}},'Enregistrer'));
+  draw();
  }).catch(e=>{out.textContent=e.message;});
  return box;
 }
