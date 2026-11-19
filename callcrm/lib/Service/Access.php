@@ -7,7 +7,7 @@ class Access {
 	// catégorie de produit => groupe de commerciaux
 	public const DEF_CATS = ['Motos' => 'callcrm_motos', 'Électroménager' => 'callcrm_electro_media', 'Média' => 'callcrm_electro_media', 'Aménagement' => 'callcrm_amenagement', 'Cuisine équipée' => 'callcrm_amenagement', 'Meuble' => 'callcrm_amenagement'];
 	// groupe => nom affiché
-	public const DEF_TEAMS = ['callcrm_motos' => 'Motos', 'callcrm_electro_media' => 'Électroménager & Média', 'callcrm_amenagement' => 'Aménagement, Cuisine & Meuble'];
+	public const DEF_TEAMS = ['callcrm_motos' => 'Motos', 'callcrm_electro_media' => 'Électroménager & Média', 'callcrm_amenagement' => 'Aménagement, Cuisine & Meuble', 'callcrm_reclamation' => 'Réclamation'];
 	// Ordre = priorité
 	public const DEF_GROUPS = ['admin' => 'callcrm_admin', 'superviseur' => 'callcrm_superviseur', 'commercial' => 'callcrm_commercial', 'lecture' => 'callcrm_lecture'];
 	// Les noms de groupes peuvent être remplacés par des groupes de l'AD (occ config:app:set callcrm group_commercial --value="…")
