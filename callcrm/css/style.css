@@ -771,3 +771,6 @@ body.crm-glass-on #callcrm-chat .crm-chat-panel,body.crm-glass-on #callcrm-chat 
 #callcrm .rights-table .rights-cell{text-align:center;width:110px}
 #callcrm .rights-table input[type=checkbox]{width:18px;height:18px;cursor:pointer}
 #callcrm .rights-table tbody th{text-align:left;font-weight:600}
+#callcrm .chip-x{border:0;background:none;padding:0 2px;margin:0;min-height:0;cursor:pointer;color:var(--color-text-maxcontrast);font-size:12px}
+#callcrm .chip-x:hover{color:#dc2626}
+#callcrm button.small{padding:3px 10px;min-height:28px;font-size:12px}

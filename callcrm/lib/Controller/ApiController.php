@@ -172,9 +172,11 @@ class ApiController extends Controller {
 	}
 	private function allCommerciaux(): array {
 		return $this->memoCom ??= $this->cached('commerciaux', function () {
-			$g = $this->gm->get(Access::groups()['commercial']);
-			if (!$g) { return []; }
-			return array_values(array_map(fn($u) => ['uid' => $u->getUID(), 'name' => $u->getDisplayName()], $g->getUsers()));
+			$out = [];
+			$gids = [Access::groups()['commercial']];
+			foreach (Access::customProfiles() as $cp) { if ($cp['base'] === 'commercial') { $gids[] = $cp['group']; } }
+			foreach ($gids as $gid) { foreach ($this->gm->get($gid)?->getUsers() ?? [] as $u) { $out[$u->getUID()] = ['uid' => $u->getUID(), 'name' => $u->getDisplayName()]; } }
+			return array_values($out);
 		});
 	}
 	/** Commerciaux choisis dans l'interface (uids), restreints aux vrais commerciaux ; null si aucun. */
@@ -198,7 +200,7 @@ class ApiController extends Controller {
 		if (!$this->a->can('view')) { return $this->deny(); }
 		$can = [];
 		foreach (['call', 'assign', 'create', 'import', 'invite', 'teams', 'fields', 'labels', 'delete', 'all', 'audit', 'export', 'export_phone'] as $k) { $can[$k] = $this->a->can($k); }
-		return new JSONResponse(['statuses' => Statuses::all(), 'fields' => Fields::all(), 'role' => $this->a->role(), 'uid' => $this->a->uid(), 'name' => $this->um->get($this->a->uid())?->getDisplayName() ?: $this->a->uid(), 'labels' => $this->getLabels(), 'options' => self::OPT + ['c5' => array_keys(Lookup::WILAYAS)], 'teams' => $this->visibleTeams(), 'groups' => array_values(array_filter(array_map(fn($g, $n) => ['id' => $g, 'name' => $n, 'cats' => array_keys(array_filter(Access::cats(), fn($x) => $x === $g))], array_keys(Access::teams()), array_values(Access::teams())), fn($x) => isset($this->visibleTeams()[$x['id']]))), 'scope_teams' => TeamScope::users() !== null, 'supervisors' => $this->a->can('teams') ? $this->supervisors() : [], 'rights' => $this->a->can('teams') ? $this->rightsMatrix() : null, 'commerciaux' => $this->commerciaux(), 'max_callbacks' => $this->maxCallbacks(), 'prefs' => Prefs::all(), 'can' => $can, 'sms' => $this->smsRuntime()]);
+		return new JSONResponse(['statuses' => Statuses::all(), 'fields' => Fields::all(), 'role' => $this->a->role(), 'uid' => $this->a->uid(), 'name' => $this->um->get($this->a->uid())?->getDisplayName() ?: $this->a->uid(), 'labels' => $this->getLabels(), 'options' => self::OPT + ['c5' => array_keys(Lookup::WILAYAS)], 'teams' => $this->visibleTeams(), 'groups' => array_values(array_filter(array_map(fn($g, $n) => ['id' => $g, 'name' => $n, 'cats' => array_keys(array_filter(Access::cats(), fn($x) => $x === $g))], array_keys(Access::teams()), array_values(Access::teams())), fn($x) => isset($this->visibleTeams()[$x['id']]))), 'scope_teams' => TeamScope::users() !== null, 'supervisors' => $this->a->can('teams') ? $this->supervisors() : [], 'rights' => $this->a->can('teams') ? $this->rightsMatrix() : null, 'profiles' => $this->a->can('teams') ? $this->profilesList() : null, 'custom_teams' => $this->a->can('teams') ? array_keys(Access::customTeams()) : [], 'commerciaux' => $this->commerciaux(), 'max_callbacks' => $this->maxCallbacks(), 'prefs' => Prefs::all(), 'can' => $can, 'sms' => $this->smsRuntime()]);
 	}
 
 	#[NoAdminRequired]
@@ -444,11 +446,164 @@ class ApiController extends Controller {
 		return new JSONResponse(['teams' => $this->computeTeams(), 'from' => $before, 'to' => $to]);
 	}
 
+	/** Identifiant technique à partir d'un nom (minuscules, sans accents), unique parmi $taken. */
+	private function slug(string $name, array $taken, string $prefix): string {
+		$t = class_exists('Normalizer') ? preg_replace('/\p{Mn}/u', '', \Normalizer::normalize($name, \Normalizer::FORM_D)) : $name;
+		$base = trim(preg_replace('/[^a-z0-9]+/', '_', mb_strtolower((string)$t)), '_') ?: 'groupe';
+		$base = substr($base, 0, 30); $id = $prefix . $base; $i = 2;
+		while (in_array($id, $taken, true) || $this->gm->groupExists($id)) { $id = $prefix . $base . '_' . $i++; }
+		return $id;
+	}
+	private function cleanName(string $v): ?string {
+		$v = trim(preg_replace('/\s+/u', ' ', $v));
+		return ($v === '' || mb_strlen($v) > 60 || preg_match('/[\x00-\x1f<>]/', $v)) ? null : $v;
+	}
+	/** Profils pour l'administration : modèles (fixes) et profils créés, avec leurs membres. */
+	private function profilesList(): array {
+		$out = [];
+		foreach (Access::BASES as $id => $name) {
+			$out[] = ['id' => $id, 'name' => $name, 'base' => $id, 'builtin' => true, 'group' => Access::groups()[$id], 'members' => []];
+		}
+		foreach (Access::customProfiles() as $p) {
+			$m = [];
+			foreach ($this->gm->get($p['group'])?->getUsers() ?? [] as $u) { $m[] = ['uid' => $u->getUID(), 'name' => $u->getDisplayName()]; }
+			usort($m, fn($a, $b) => strcasecmp($a['name'], $b['name']));
+			$out[] = $p + ['builtin' => false, 'members' => $m];
+		}
+		return $out;
+	}
+	private function saveProfiles(array $list): void { $this->cfg->setAppValue(Application::APP_ID, 'custom_profiles', json_encode(array_values($list), JSON_UNESCAPED_UNICODE)); }
+
+	/** Administrateurs : créer un profil (nom + modèle de fonctionnement) ; ses droits partent de ceux du modèle. */
+	#[NoAdminRequired]
+	public function profileCreate(): JSONResponse {
+		if (!$this->a->can('teams')) { return $this->deny(); }
+		$name = $this->cleanName((string)$this->request->getParam('name', ''));
+		$base = (string)$this->request->getParam('base', '');
+		if ($name === null) { return $this->err('Nom du profil obligatoire (60 caractères maximum).'); }
+		if (!isset(Access::BASES[$base])) { return $this->err('Choisissez le modèle du profil.'); }
+		$list = Access::customProfiles();
+		if (count($list) >= 20) { return $this->err('20 profils au maximum.'); }
+		foreach (array_merge(array_values(Access::BASES), array_column($list, 'name')) as $n) { if (mb_strtolower($n) === mb_strtolower($name)) { return $this->err('Un profil porte déjà ce nom.'); } }
+		$id = $this->slug($name, array_column($list, 'id'), 'p_');
+		$gid = 'crm_profil_' . substr($id, 2);
+		$g = $this->gm->groupExists($gid) ? $this->gm->get($gid) : $this->gm->createGroup($gid);
+		if (!$g) { return $this->err('Création du groupe du profil impossible.'); }
+		if (method_exists($g, 'setDisplayName')) { $g->setDisplayName('Call CRM – profil ' . $name); }
+		$list[] = ['id' => $id, 'name' => $name, 'base' => $base, 'group' => $gid];
+		$this->saveProfiles($list);
+		$this->s->audit($this->a->uid(), 'profile_create', null, $name . ' (' . $id . ', modèle ' . Access::BASES[$base] . ')');
+		return new JSONResponse(['profiles' => $this->profilesList(), 'rights' => $this->rightsMatrix()]);
+	}
+
+	/** Administrateurs : supprimer un profil créé, s'il n'a plus aucun membre. */
+	#[NoAdminRequired]
+	public function profileDelete(): JSONResponse {
+		if (!$this->a->can('teams')) { return $this->deny(); }
+		$id = (string)$this->request->getParam('id', '');
+		$list = Access::customProfiles(); $p = null;
+		foreach ($list as $x) { if ($x['id'] === $id) { $p = $x; } }
+		if (!$p) { return $this->err('Profil inconnu (les profils d’origine ne se suppriment pas).'); }
+		$g = $this->gm->get($p['group']);
+		if ($g && count($g->getUsers())) { return $this->err('Retirez d’abord les membres de ce profil.'); }
+		if ($g && method_exists($g, 'delete')) { $g->delete(); }
+		$this->saveProfiles(array_filter($list, fn($x) => $x['id'] !== $id));
+		$raw = json_decode((string)$this->cfg->getAppValue(Application::APP_ID, 'role_rights', ''), true);
+		if (is_array($raw)) {
+			foreach ($raw as $k => $roles) { if (is_array($roles)) { $raw[$k] = array_values(array_diff($roles, [$id])); } }
+			$this->cfg->setAppValue(Application::APP_ID, 'role_rights', json_encode($raw));
+		}
+		$this->s->audit($this->a->uid(), 'profile_delete', null, $p['name'] . ' (' . $id . ')');
+		return new JSONResponse(['profiles' => $this->profilesList(), 'rights' => $this->rightsMatrix()]);
+	}
+
+	/** Administrateurs : ajouter / retirer un utilisateur d'un profil créé (un seul profil créé par personne). */
+	#[NoAdminRequired]
+	public function profileMember(): JSONResponse {
+		if (!$this->a->can('teams')) { return $this->deny(); }
+		$id = (string)$this->request->getParam('id', ''); $uid = trim((string)$this->request->getParam('uid', ''));
+		$add = (bool)$this->request->getParam('add', true);
+		$list = Access::customProfiles(); $p = null;
+		foreach ($list as $x) { if ($x['id'] === $id) { $p = $x; } }
+		if (!$p) { return $this->err('Profil inconnu.'); }
+		$user = $uid !== '' ? $this->um->get($uid) : null;
+		if (!$user) { return $this->err('Utilisateur introuvable.'); }
+		if ($add && ($this->gm->isAdmin($uid) || $this->gm->isInGroup($uid, Access::groups()['admin']))) { return $this->err('Un administrateur garde son profil administrateur.'); }
+		$g = $this->gm->get($p['group']);
+		if (!$g) { return $this->err('Groupe du profil introuvable.'); }
+		if ($add) {
+			foreach ($list as $x) {
+				if ($x['id'] !== $id && ($o = $this->gm->get($x['group'])) && $o->inGroup($user) && !$this->groupWrite($o, $user, false)) { return $this->err('Impossible de retirer cette personne de son profil actuel.'); }
+			}
+			if (!$g->inGroup($user) && !$this->groupWrite($g, $user, true)) { return $this->err('Ajout au profil refusé.'); }
+		} elseif ($g->inGroup($user) && !$this->groupWrite($g, $user, false)) { return $this->err('Retrait du profil refusé.'); }
+		try { $c = \OCP\Server::get(\OCP\ICacheFactory::class)->createDistributed('callcrm'); $c->remove('commerciaux'); $c->remove('teams'); } catch (\Throwable $e) {}
+		$this->memoCom = null; $this->memoTeams = null;
+		$this->s->audit($this->a->uid(), 'profile_member', null, ($add ? '+' : '-') . $uid . ' · ' . $p['name']);
+		return new JSONResponse(['profiles' => $this->profilesList()]);
+	}
+
+	/** Administrateurs : recherche d'utilisateurs Nextcloud (nom ou identifiant) pour les ajouter à un profil. */
+	#[NoAdminRequired]
+	public function userSearch(): JSONResponse {
+		if (!$this->a->can('teams')) { return $this->deny(); }
+		$q = trim((string)$this->request->getParam('q', ''));
+		if (mb_strlen($q) < 2) { return new JSONResponse([]); }
+		$out = [];
+		foreach ($this->um->searchDisplayName(mb_substr($q, 0, 60), 20) as $u) { $out[] = ['uid' => $u->getUID(), 'name' => $u->getDisplayName()]; }
+		return new JSONResponse($out);
+	}
+
+	/** Administrateurs : créer un groupe d'équipe (groupe local Nextcloud). */
+	#[NoAdminRequired]
+	public function teamCreate(): JSONResponse {
+		if (!$this->a->can('teams')) { return $this->deny(); }
+		$name = $this->cleanName((string)$this->request->getParam('name', ''));
+		if ($name === null) { return $this->err('Nom du groupe obligatoire (60 caractères maximum).'); }
+		foreach (Access::teams() as $n) { if (mb_strtolower($n) === mb_strtolower($name)) { return $this->err('Un groupe porte déjà ce nom.'); } }
+		$custom = Access::customTeams();
+		if (count($custom) >= 30) { return $this->err('30 groupes créés au maximum.'); }
+		$gid = $this->slug($name, array_keys(Access::teams()), 'crm_equipe_');
+		$g = $this->gm->createGroup($gid);
+		if (!$g) { return $this->err('Création du groupe impossible.'); }
+		if (method_exists($g, 'setDisplayName')) { $g->setDisplayName('Équipe ' . $name); }
+		$custom[$gid] = $name;
+		$this->cfg->setAppValue(Application::APP_ID, 'custom_teams', json_encode($custom, JSON_UNESCAPED_UNICODE));
+		try { \OCP\Server::get(\OCP\ICacheFactory::class)->createDistributed('callcrm')->remove('teams'); } catch (\Throwable $e) {}
+		$this->memoTeams = null;
+		$this->s->audit($this->a->uid(), 'team_create', null, $name . ' (' . $gid . ')');
+		return new JSONResponse(['teams' => $this->computeTeams(), 'groups' => $this->groupsPayload(), 'custom_teams' => array_keys(Access::customTeams())]);
+	}
+
+	/** Administrateurs : supprimer un groupe créé, s'il est vide. */
+	#[NoAdminRequired]
+	public function teamDelete(): JSONResponse {
+		if (!$this->a->can('teams')) { return $this->deny(); }
+		$gid = (string)$this->request->getParam('gid', '');
+		$custom = Access::customTeams();
+		if (!isset($custom[$gid])) { return $this->err('Seuls les groupes créés dans Call CRM se suppriment.'); }
+		$g = $this->gm->get($gid);
+		if ($g && count($g->getUsers())) { return $this->err('Déplacez d’abord les commerciaux de ce groupe.'); }
+		if ($g && method_exists($g, 'delete')) { $g->delete(); }
+		$name = $custom[$gid]; unset($custom[$gid]);
+		$this->cfg->setAppValue(Application::APP_ID, 'custom_teams', json_encode($custom, JSON_UNESCAPED_UNICODE));
+		$sv = TeamScope::config($this->cfg);
+		foreach ($sv as $u => $l) { $sv[$u] = array_values(array_diff($l, [$gid])); if (!$sv[$u]) { unset($sv[$u]); } }
+		$this->cfg->setAppValue(Application::APP_ID, TeamScope::CONFIG, json_encode($sv, JSON_UNESCAPED_UNICODE));
+		try { \OCP\Server::get(\OCP\ICacheFactory::class)->createDistributed('callcrm')->remove('teams'); } catch (\Throwable $e) {}
+		$this->memoTeams = null;
+		$this->s->audit($this->a->uid(), 'team_delete', null, $name . ' (' . $gid . ')');
+		return new JSONResponse(['teams' => $this->computeTeams(), 'groups' => $this->groupsPayload(), 'custom_teams' => array_keys(Access::customTeams())]);
+	}
+	private function groupsPayload(): array {
+		return array_values(array_filter(array_map(fn($g, $n) => ['id' => $g, 'name' => $n, 'cats' => array_keys(array_filter(Access::cats(), fn($x) => $x === $g))], array_keys(Access::teams()), array_values(Access::teams())), fn($x) => isset($this->visibleTeams()[$x['id']])));
+	}
+
 	/** Matrice des droits pour l'écran d'administration. */
 	private function rightsMatrix(): array {
-		$map = Access::rights(); $out = [];
+		$map = Access::rights(); $out = []; $editable = array_keys(Access::editableProfiles());
 		foreach (Access::RIGHTS as $k => [$label, $help]) {
-			$out[] = ['key' => $k, 'label' => $label, 'help' => $help, 'roles' => array_values(array_intersect($map[$k] ?? [], Access::EDITABLE_ROLES)), 'locked' => $k === 'teams'];
+			$out[] = ['key' => $k, 'label' => $label, 'help' => $help, 'roles' => array_values(array_intersect($map[$k] ?? [], $editable)), 'locked' => $k === 'teams'];
 		}
 		return $out;
 	}
@@ -466,8 +621,9 @@ class ApiController extends Controller {
 			$store = [];
 			foreach (Access::RIGHTS as $k => $_) {
 				if ($k === 'teams') { continue; }
-				$store[$k] = array_values(array_unique(array_intersect(array_map('strval', (array)($in[$k] ?? [])), Access::EDITABLE_ROLES)));
+				$store[$k] = array_values(array_unique(array_intersect(array_map('strval', (array)($in[$k] ?? [])), array_keys(Access::editableProfiles()))));
 			}
+			$store['_profiles'] = array_keys(Access::editableProfiles());
 			$this->cfg->setAppValue(Application::APP_ID, 'role_rights', json_encode($store));
 		}
 		$after = $this->rightsMatrix(); $diff = [];
@@ -483,9 +639,13 @@ class ApiController extends Controller {
 	/** Superviseurs (membres du groupe superviseur) et leurs groupes d'équipe attribués. */
 	private function supervisors(): array {
 		$cfg = TeamScope::config($this->cfg); $out = [];
-		foreach ($this->gm->get(Access::groups()['superviseur'])?->getUsers() ?? [] as $u) {
+		$gids = [Access::groups()['superviseur']];
+		foreach (Access::customProfiles() as $cp) { if ($cp['base'] === 'superviseur') { $gids[] = $cp['group']; } }
+		$seen = [];
+		foreach ($gids as $gid) { foreach ($this->gm->get($gid)?->getUsers() ?? [] as $u) {
+			if (isset($seen[$u->getUID()])) { continue; } $seen[$u->getUID()] = true;
 			$out[] = ['uid' => $u->getUID(), 'name' => $u->getDisplayName(), 'teams' => $cfg[$u->getUID()] ?? []];
-		}
+		} }
 		usort($out, fn($a, $b) => strcasecmp($a['name'], $b['name']));
 		return $out;
 	}

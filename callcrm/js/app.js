@@ -1949,9 +1949,51 @@ function responseKeys(observed = []) {
   return keys;
 }
 let responseSortKey = 'name', responseSortDirection = 'asc';
+/** Administrateurs : créer un groupe d'équipe. */
+function teamCreateForm() {
+  const name = h('input', {type:'text', maxlength:60, placeholder:'Nom du nouveau groupe', 'aria-label':'Nom du nouveau groupe'});
+  const out = h('span', {role:'status', class:'muted'});
+  return h('div', {class:'team-move'}, h('strong', {}, 'Créer un groupe'), h('div', {class:'bar'}, name,
+    h('button', {type:'button', class:'primary', onclick: async () => {
+      out.textContent = 'Création…';
+      try { const r = await api('/teams/create', {method:'POST', body:{name:name.value}}); me.teams = r.teams; me.groups = r.groups; me.custom_teams = r.custom_teams; go('admin'); }
+      catch (e) { out.textContent = e.message; }
+    }}, 'Créer le groupe'), out),
+    h('p', {class:'muted'}, 'Groupe local, vide au départ : placez-y les commerciaux avec « Changer un commercial de groupe ». Seuls les groupes créés ici et vides peuvent être supprimés.'));
+}
+/** Administrateurs : profils (modèles d'origine et profils créés), membres et création. */
+function profilesCard() {
+  const out = h('span', {role:'status', class:'muted'});
+  const refresh = r => { if (r.profiles) me.profiles = r.profiles; if (r.rights) me.rights = r.rights; go('admin'); };
+  const name = h('input', {type:'text', maxlength:60, placeholder:'Nom du profil (ex. Chef d’équipe)', 'aria-label':'Nom du profil'});
+  const base = h('select', {'aria-label':'Modèle du profil'}, h('option', {value:'superviseur'}, 'Modèle : Superviseur'), h('option', {value:'commercial'}, 'Modèle : Commercial'), h('option', {value:'lecture'}, 'Modèle : Lecture seule'));
+  const rows = (me.profiles || []).map(p => {
+    if (p.builtin) return h('div', {class:'team-group'}, h('strong', {}, p.name), h('span', {class:'muted'}, ' · profil d’origine — membres = groupe « ' + p.group + ' » (AD / Nextcloud)'));
+    const msg = h('span', {role:'status', class:'muted'});
+    const search = h('input', {type:'search', placeholder:'Ajouter une personne (nom)…', 'aria-label':'Ajouter une personne au profil ' + p.name, list:'dl-' + p.id});
+    const dl = h('datalist', {id:'dl-' + p.id});
+    let found = [], t;
+    search.addEventListener('input', () => { clearTimeout(t); t = setTimeout(async () => { try { found = await api('/users/search?q=' + encodeURIComponent(search.value)); dl.replaceChildren(...found.map(u => h('option', {value:u.name + ' — ' + u.uid}))); } catch (e) {} }, 250); });
+    const add = h('button', {type:'button', onclick: async () => {
+      const v = search.value, u = found.find(x => v === x.name + ' — ' + x.uid) || found.find(x => x.name.toLowerCase() === v.trim().toLowerCase());
+      if (!u) { msg.textContent = 'Choisissez une personne dans la liste proposée.'; return; }
+      try { refresh(await api('/profiles/member', {method:'POST', body:{id:p.id, uid:u.uid, add:true}})); } catch (e) { msg.textContent = e.message; }
+    }}, 'Ajouter');
+    return h('div', {class:'team-group'},
+      h('div', {class:'bar', style:'align-items:center;margin:0'}, h('strong', {}, p.name), h('span', {class:'muted'}, ' · modèle ' + ({superviseur:'Superviseur', commercial:'Commercial', lecture:'Lecture seule'}[p.base] || p.base) + ' · ' + p.members.length + ' membre(s)'),
+        h('button', {type:'button', class:'small', onclick: async () => { if (!confirm('Supprimer le profil « ' + p.name + ' » ?')) return; try { refresh(await api('/profiles/delete', {method:'POST', body:{id:p.id}})); } catch (e) { msg.textContent = e.message; } }}, 'Supprimer')),
+      p.members.length ? h('ul', {class:'team-members'}, p.members.map(m => h('li', {}, m.name, ' ', h('button', {type:'button', class:'chip-x', 'aria-label':'Retirer ' + m.name, onclick: async () => { try { refresh(await api('/profiles/member', {method:'POST', body:{id:p.id, uid:m.uid, add:false}})); } catch (e) { msg.textContent = e.message; } }}, '✕')))) : h('div', {class:'muted'}, 'Aucun membre.'),
+      h('div', {class:'bar', style:'align-items:center'}, search, dl, add, msg));
+  });
+  return h('div', {class:'card'}, h('h3', {}, 'Profils'),
+    h('p', {class:'muted'}, 'Un profil créé fonctionne comme son modèle (écrans, périmètre) avec ses propres droits, réglés dans « Droits des profils ». Ses membres sont ajoutés ici ; ce profil passe avant les profils d’origine. Pour un profil sur le modèle Commercial, laissez aussi la personne dans le groupe des commerciaux de l’AD pour la présence et la téléphonie.'),
+    rows,
+    h('div', {class:'team-move'}, h('strong', {}, 'Créer un profil'), h('div', {class:'bar'}, name, base,
+      h('button', {type:'button', class:'primary', onclick: async () => { out.textContent = 'Création…'; try { refresh(await api('/profiles', {method:'POST', body:{name:name.value, base:base.value}})); } catch (e) { out.textContent = e.message; } }}, 'Créer le profil'), out)));
+}
 /** Administrateurs : droits de chaque profil (l'administrateur a toujours tous les droits). */
 function rightsCard() {
-  const roles = [['superviseur','Superviseur'],['commercial','Commercial'],['lecture','Lecture seule']];
+  const roles = (me.profiles || [{id:'superviseur',name:'Superviseur'},{id:'commercial',name:'Commercial'},{id:'lecture',name:'Lecture seule'}]).map(p => [p.id, p.name]);
   const out = h('span', {role:'status', class:'muted'});
   const body = h('tbody');
   const draw = rights => body.replaceChildren(...rights.map(r => h('tr', {'data-right':r.key},
@@ -2368,15 +2410,18 @@ function admin() {
       h('p', {class:'muted'}, 'Les commerciaux sont les membres du groupe des commerciaux ; chaque commercial est placé dans le groupe de son équipe, ci-dessous.'),
       me.can.teams ? teamMoveForm() : '',
       me.can.teams ? supervisorTeamsForm() : '',
+      me.can.teams ? teamCreateForm() : '',
       (() => { const placed = new Set(Object.values(me.teams || {}).flat()); const none = me.commerciaux.filter(u => !placed.has(u.uid)).map(u => u.name).sort((a, b) => a.localeCompare(b, 'fr'));
         return none.length ? h('div', {class:'team-group'}, h('strong', {}, 'Sans groupe'), h('span', {class:'muted'}, ' · ' + none.length + ' commercial(aux) : non proposés dans la répartition par catégorie'), h('ul', {class:'team-members'}, none.map(n => h('li', {}, n)))) : ''; })(),
       me.groups.map(g => {
         // Membres affichés par leur nom (repli sur l'identifiant d'un compte inconnu), triés par ordre alphabétique.
         const members = ((me.teams || {})[g.id] || []).map(uid => (me.commerciaux.find(u => u.uid === uid) || {name:uid}).name).sort((a, b) => a.localeCompare(b, 'fr'));
-        return h('div', {class:'team-group'}, h('div', {}, h('strong', {}, g.name), h('span', {class:'muted'}, ' — ' + g.id + ' · ' + members.length + ' commercial(aux)')),
+        const del = me.can.teams && (me.custom_teams || []).includes(g.id) ? h('button', {type:'button', class:'small', onclick: async () => { if (!confirm('Supprimer le groupe « ' + g.name + ' » ?')) return; try { const r = await api('/teams/delete', {method:'POST', body:{gid:g.id}}); me.teams = r.teams; me.groups = r.groups; me.custom_teams = r.custom_teams; go('admin'); } catch (e) { alert(e.message); } }}, 'Supprimer') : '';
+        return h('div', {class:'team-group'}, h('div', {class:'bar', style:'align-items:center;margin:0'}, h('strong', {}, g.name), h('span', {class:'muted'}, ' — ' + g.id + ' · ' + members.length + ' commercial(aux)'), del),
           members.length ? h('ul', {class:'team-members'}, members.map(n => h('li', {}, n))) : h('div', {class:'muted'}, 'Aucun commercial dans ce groupe.'),
           h('div', {class:'muted'}, 'Catégories : ' + (g.cats.join(', ') || '—')));
       })),
+    me.can.teams && me.profiles ? profilesCard() : '',
     me.can.teams && me.rights ? rightsCard() : '',
     me.can.fields ? fieldsEditor() : '',
     me.can.fields ? statusesEditor() : '',

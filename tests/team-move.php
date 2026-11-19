@@ -18,15 +18,15 @@ use OCA\CallCrm\Service\{Access,Store};
 $fail=0;$n=0;function ok($c,$m){global $fail,$n;$n++;if(!$c){$fail++;echo "FAIL $m\n";}}
 class User {public function __construct(private string $u){}public function getUID(){return $this->u;}public function getDisplayName(){return ucfirst($this->u);}}
 class Session implements \OCP\IUserSession {public string $uid='boss';public function getUser(){return new User($this->uid);}}
-class Group {public bool $writable=true;public bool $throw=false;public function __construct(public string $id,public array $m){}public function getGID(){return $this->id;}
+class Group {public bool $writable=true;public bool $throw=false;public function __construct(public string $id,public array $m){}public function getGID(){return $this->id;}public function delete(){global $groups;unset($groups->g[$this->id]);}public function setDisplayName($n){}
  public function getUsers(){return array_map(fn($u)=>new User($u),$this->m);}public function inGroup($u){return in_array($u->getUID(),$this->m,true);}
  public function canAddUser(){return $this->writable;}public function canRemoveUser(){return $this->writable;}
  public function addUser($u){if($this->throw)throw new \RuntimeException('Insufficient access');$this->m[]=$u->getUID();}
  public function removeUser($u){$this->m=array_values(array_diff($this->m,[$u->getUID()]));}}
-class Groups implements \OCP\IGroupManager {public string $role='admin';public array $g=[];public array $backends=[];public function getBackends(){return $this->backends;}public function isAdmin($u){return false;}public function isInGroup($u,$g){return str_ends_with($g,'_'.$this->role);}public function get($g){return $this->g[$g]??null;}}
+class Groups implements \OCP\IGroupManager {public string $role='admin';public array $g=[];public array $backends=[];public array $member=[];public array $roles=[];public function getBackends(){return $this->backends;}public function groupExists($g){return isset($this->g[$g]);}public function createGroup($g){return $this->g[$g]=new Group($g,[]);}public function isAdmin($u){return false;}public function isInGroup($u,$g){if(isset($this->g[$g])&&str_starts_with($g,'crm_profil_'))return in_array($u,$this->g[$g]->m,true);return str_ends_with($g,'_'.($this->roles[$u]??$this->role));}public function get($g){return $this->g[$g]??null;}}
 class MemBackend {public array $skip=[];public function __construct(public Groups $gs){}public function groupExists($g){return isset($this->gs->g[$g])&&!in_array($g,$this->skip,true);}public function implementsActions($a){return in_array($a,[256,512],true);}
  public function addToGroup($u,$g){$x=$this->gs->g[$g];if($x->throw)throw new \RuntimeException('Insufficient access');$x->m[]=$u;return true;}public function removeFromGroup($u,$g){$x=$this->gs->g[$g];$x->m=array_values(array_diff($x->m,[$u]));return true;}}
-class Users implements \OCP\IUserManager {public function get($u){return new User($u);}}
+class Users implements \OCP\IUserManager {public function get($u){return new User($u);}public function searchDisplayName($q,$l){return [new User('zoe')];}}
 class Config implements \OCP\IConfig {public array $v=[];public function getAppValue($a,$k,$d=''){return $this->v[$k]??$d;}public function setAppValue($a,$k,$x){$this->v[$k]=$x;}}
 class Req implements \OCP\IRequest {public array $p=[];public function getParam($k,$d=null){return $this->p[$k]??$d;}}
 class FakeStore extends Store {public array $audits=[];public array $rows=[];public array $updates=[];public function __construct(){}public function get(int $id):?array{return $this->rows[$id]??null;}public function update(int $id,array $v,?string $actor=null,?array $expected=null):void{$this->updates[]=[$id,$v];$this->rows[$id]=array_merge($this->rows[$id],$v);}public function audit(?string $uid,string $action,?int $pid=null,string $detail=''):void{$this->audits[]=[$action,$detail];}}
@@ -99,5 +99,32 @@ ok($m['mask']===['lecture']&&!in_array('admin',$m['mask'],true),'masquage : jama
 $groups->role='commercial';ok($acc()->can('delete')&&!$acc()->can('export'),'droits appliqués au profil');
 ok(str_contains(end($store->audits)[1],'+commercial:delete'),'audit des droits');
 $groups->role='admin';$req->p=['reset'=>1];$ctl()->saveRights();ok(!in_array('commercial',Access::rights()['delete'],true)&&in_array('commercial',Access::rights()['export'],true),'retour aux droits d’origine');
+
+// ---- Création de profils et de groupes ----
+$session->uid='boss';$groups->role='admin';TeamScope::reset();
+$req->p=['name'=>'Chef d’équipe','base'=>'superviseur'];$r=$ctl()->profileCreate();
+$cp=Access::customProfiles();ok($r->status===200&&count($cp)===1&&$cp[0]['base']==='superviseur'&&isset($groups->g[$cp[0]['group']]),'profil créé avec son groupe');
+$pid=$cp[0]['id'];ok(in_array($pid,Access::rights()['assign'],true)&&!in_array($pid,Access::rights()['delete'],true),'le profil hérite des droits du modèle');
+$req->p=['name'=>'chef d’équipe','base'=>'commercial'];ok($ctl()->profileCreate()->status===400,'nom en double refusé');
+$req->p=['name'=>'X','base'=>'admin'];ok($ctl()->profileCreate()->status===400,'modèle administrateur interdit');
+$groups->roles['zoe']='commercial';$req->p=['id'=>$pid,'uid'=>'zoe','add'=>true];$r=$ctl()->profileMember();ok($r->status===200&&$groups->g[$cp[0]['group']]->m===['zoe'],'membre ajouté au profil');
+$groups->role='commercial';$session->uid='zoe';$a2=new Access($session,$groups);ok($a2->profile()===$pid&&$a2->role()==='superviseur'&&$a2->can('assign'),'le membre a le profil et fonctionne comme son modèle');
+$session->uid='boss';$groups->role='admin';
+$req->p=['rights'=>['delete'=>[$pid],'assign'=>['superviseur']]];$ctl()->saveRights();$m=Access::rights();
+ok(in_array($pid,$m['delete'],true)&&!in_array($pid,$m['assign'],true)&&in_array('superviseur',$m['assign'],true),'droits propres au profil créé');
+$req->p=['name'=>'Contrôle','base'=>'lecture'];$ctl()->profileCreate();$p2=Access::customProfiles()[1]['id'];
+ok(in_array($p2,Access::rights()['all'],true)&&!in_array($p2,Access::rights()['delete'],true),'profil créé après réglage : hérite toujours de son modèle');
+$req->p=['id'=>$pid];ok($ctl()->profileDelete()->status===400,'suppression refusée tant qu’il a des membres');
+$req->p=['id'=>$pid,'uid'=>'zoe','add'=>false];$ctl()->profileMember();$req->p=['id'=>$pid];$r=$ctl()->profileDelete();
+ok($r->status===200&&count(Access::customProfiles())===1&&!in_array($pid,Access::rights()['delete'],true),'profil vide supprimé et retiré des droits');
+$req->p=['id'=>'superviseur'];ok($ctl()->profileDelete()->status===400,'profil d’origine non supprimable');
+$req->p=['q'=>'zo'];ok($ctl()->userSearch()->data===[['uid'=>'zoe','name'=>'Zoe']],'recherche d’utilisateurs');
+$req->p=['name'=>'Grands comptes'];$r=$ctl()->teamCreate();$gid=array_key_last(Access::customTeams());
+ok($r->status===200&&$gid==='crm_equipe_grands_comptes'&&isset(Access::teams()[$gid])&&isset($groups->g[$gid]),'groupe d’équipe créé');
+$req->p=['name'=>'motos'];ok($ctl()->teamCreate()->status===400,'nom de groupe en double refusé');
+$req->p=['gid'=>'callcrm_motos'];ok($ctl()->teamDelete()->status===400,'groupe d’origine non supprimable');
+$groups->g[$gid]->m=['alice'];$req->p=['gid'=>$gid];ok($ctl()->teamDelete()->status===400,'groupe non vide non supprimable');
+$groups->g[$gid]->m=[];$r=$ctl()->teamDelete();ok($r->status===200&&!isset(Access::teams()[$gid])&&!isset($groups->g[$gid]),'groupe vide supprimé');
+$groups->role='superviseur';$req->p=['name'=>'Pirate','base'=>'superviseur'];ok($ctl()->profileCreate()->status===403&&$ctl()->teamCreate()->status===403,'réservé à l’admin');
 echo "callcrm: $n team move checks".($fail?", $fail FAILED":' passed')."\n";exit($fail?1:0);
 }
