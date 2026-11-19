@@ -84,11 +84,17 @@ class ApiController extends Controller {
 		return $out;
 	}
 	/**
-	 * Case téléphone d'un import : un ou deux numéros (séparés par / , ; | « et » « ou », ou collés : 20 chiffres).
+	 * Case téléphone d'un import : un ou deux numéros (séparés par / , ; | « et » « ou », ou collés : 20 chiffres),
+	 * y compris un nombre Excel à séparateurs de milliers (673,817,367 → 0673817367).
 	 * Renvoie [premier numéro valide, second numéro valide différent ou null] ; premier null si aucun n'est valide.
 	 */
 	private function splitPhones(string $raw): array {
-		$parts = preg_split('#\s*(?:[/,;|]|\s(?:et|ou)\s|\n)\s*#iu', trim($raw)) ?: [];
+		$parts = [];
+		foreach (preg_split('#\s*(?:[/;|]|\s(?:et|ou)\s|\n)\s*#iu', trim($raw)) ?: [] as $chunk) {
+			// Nombre Excel avec séparateurs de milliers (« 673,817,367 », « 773.257.812 ») : un seul numéro dont le 0 initial a été perdu.
+			if (preg_match('/^\d{1,3}(?:[,.\s\x{00A0}\x{202F}]\d{3})+$/u', trim($chunk))) { $parts[] = $chunk; continue; }
+			foreach (explode(',', $chunk) as $piece) { $parts[] = $piece; }
+		}
 		$found = [];
 		foreach ($parts as $part) {
 			if (trim($part) === '') { continue; }
