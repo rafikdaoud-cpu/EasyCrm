@@ -95,6 +95,17 @@ class ApiController extends Controller {
 			if (preg_match('/^\d{1,3}(?:[,.\s\x{00A0}\x{202F}]\d{3})+$/u', trim($chunk))) { $parts[] = $chunk; continue; }
 			foreach (explode(',', $chunk) as $piece) { $parts[] = $piece; }
 		}
+		// Un numéro découpé par les séparateurs (« 0655/91/76/61 ») : morceaux courts recollés jusqu'à 10 chiffres.
+		$merged = []; $buf = '';
+		foreach ($parts as $part) {
+			$d = preg_replace('/\D+/', '', Lookup::latin($part));
+			if ($d === '') { continue; }
+			if (strlen($d) >= 8) { if ($buf !== '') { $merged[] = $buf; $buf = ''; } $merged[] = $part; continue; }
+			$buf .= $d;
+			if (strlen($buf) >= 10) { $merged[] = $buf; $buf = ''; }
+		}
+		if ($buf !== '') { $merged[] = $buf; }
+		$parts = $merged;
 		$found = [];
 		foreach ($parts as $part) {
 			if (trim($part) === '') { continue; }
