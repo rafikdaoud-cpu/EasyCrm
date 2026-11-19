@@ -16,12 +16,19 @@ use OCP\IDBConnection;
  * - la route générale (sans filtre d'appelant) doit rester la dernière : l'API ne permettant pas de choisir
  *   l'ordre, elle est recopiée puis l'originale supprimée, uniquement si la copie est identique ;
  * - un commercial hors ligne, indisponible dans Yeastar ou en pause dans le CRM ne reçoit rien : ses clients
- *   repassent par le circuit normal (SVI, file d'attente).
+ *   repassent par le circuit normal (SVI, file d'attente) ;
+ * - le message d'accueil reste obligatoire : aux heures d'ouverture, la route du commercial mène à un SVI « CRM_<poste> »,
+ *   copie du SVI d'accueil de la route générale (même annonce), dont toutes les touches, le délai et l'erreur
+ *   aboutissent au poste du commercial.
  */
 class YeastarRouting {
 	public const CHUNK = 250;
 	public const PLACEHOLDER = '0000000000';
 	public const NAME = '/^CRM_(\d{1,10})_(\d{1,3})$/D';
+	public const IVR = '/^CRM_(\d{1,10})$/D';
+	/** Numéros libres pris pour les SVI d'accueil des commerciaux. */
+	public const IVR_FIRST = 6250, IVR_LAST = 6299;
+	private const IVR_COPY = ['prompt', 'prompt_repeat', 'resp_timeout', 'digit_timeout', 'alert_info'];
 	private const FORWARD_KEYS = ['enb_ex_no_answer_forward', 'ex_no_answer_forward_dest', 'ex_no_answer_forward_prefix', 'ex_no_answer_forward_value', 'ex_no_answer_forward_num',
 		'enb_ex_busy_forward', 'ex_busy_forward_dest', 'ex_busy_forward_prefix', 'ex_busy_forward_value', 'ex_busy_forward_num', 'ring_timeout'];
 	/** Sonnerie du poste avant de basculer vers la file (s'applique aussi aux appels internes vers ce poste). */
@@ -74,6 +81,57 @@ class YeastarRouting {
 		return $r['data'] ?? [];
 	}
 	private function route(int $id): array { return $this->ok($this->client->call('GET', 'inbound_route/get', ['id' => $id]), 'Lecture d’une route')['data'] ?? []; }
+	private function ivrs(): array { $r = $this->ok($this->client->call('GET', 'ivr/list', []), 'Lecture des SVI'); return $r['ivr_list'] ?? $r['data'] ?? []; }
+
+	/**
+	 * SVI d'accueil de chaque commercial joignable : annonce du SVI de la route générale aux heures d'ouverture,
+	 * puis le poste du commercial quelle que soit la réponse. Renvoie [poste => id du SVI] ; vide si la route
+	 * générale ne passe pas par un SVI (les routes visent alors directement le poste, comme avant).
+	 */
+	private function welcomeIvrs(array $general, array $extIds): array {
+		if (!$extIds) return [];
+		[$d, $v] = (int)($general['enb_time_condition'] ?? 0) === 1 ? ['business_hours_destination', 'business_hours_destination_value'] : ['def_dest', 'def_dest_value'];
+		if (($general[$d] ?? '') !== 'ivr') return [];
+		$list = $this->ivrs(); $mine = []; $used = []; $tpl = null;
+		foreach ($list as $i) {
+			$used[(string)$i['number']] = true;
+			if (preg_match(self::IVR, (string)$i['name'], $m)) $mine[$m[1]] = $i;
+			elseif ((string)$i['id'] === (string)($general[$v] ?? '')) $tpl = $this->ok($this->client->call('GET', 'ivr/get', ['id' => (int)$i['id']]), 'Lecture du SVI d’accueil');
+		}
+		$tpl = $tpl['data'] ?? $tpl;
+		if (!$tpl || empty($tpl['prompt'])) return [];
+		$s = $this->state(); $hashes = $s['ivr_hashes'] ?? []; $out = [];
+		foreach ($extIds as $ext => $id) {
+			$id = (string)$id;
+			$b = ['name' => 'CRM_' . $ext] + array_intersect_key($tpl, array_flip(self::IVR_COPY)) + ['dial_ext_option' => 'disable'];
+			foreach ($tpl as $k => $x) if (preg_match('/^press(\d|_hash|_star)_dest$/D', $k) && $x !== '') { $b[$k] = 'extension'; $b[$k . '_value'] = $id; }
+			foreach (['timeout', 'invalid'] as $k) { $b[$k . '_dest'] = 'extension'; $b[$k . '_dest_value'] = $id; }
+			$h = hash('sha256', json_encode($b));
+			if (isset($mine[$ext])) {
+				$iid = (int)$mine[$ext]['id'];
+				if (($hashes[$iid] ?? '') !== $h) { $this->ok($this->client->call('POST', 'ivr/update', [], ['id' => $iid] + $b), 'Mise à jour du SVI ' . $b['name']); $hashes[$iid] = $h; }
+			} else {
+				$num = null;
+				for ($x = self::IVR_FIRST; $x <= self::IVR_LAST; $x++) if (!isset($used[(string)$x])) { $num = (string)$x; break; }
+				if ($num === null) continue; // plus de numéro libre : ce commercial reçoit ses clients directement
+				$used[$num] = true;
+				$iid = (int)$this->ok($this->client->call('POST', 'ivr/create', [], ['number' => $num] + $b), 'Création du SVI ' . $b['name'])['id'];
+				$hashes[$iid] = $h;
+			}
+			$out[$ext] = $iid;
+		}
+		$s = $this->state(); $s['ivr_hashes'] = $hashes; $this->saveState($s);
+		return $out;
+	}
+
+	/** Supprime les SVI d'accueil gérés (tous, ou ceux des postes donnés) ; à appeler une fois leurs routes supprimées. */
+	private function dropIvrs(?array $exts = null): void {
+		foreach ($this->ivrs() as $i) {
+			if (!preg_match(self::IVR, (string)$i['name'], $m) || ($exts !== null && !in_array($m[1], $exts, true))) continue;
+			$this->ok($this->client->call('GET', 'ivr/delete', ['id' => (int)$i['id']]), 'Suppression du SVI ' . $i['name']);
+			$s = $this->state(); unset($s['ivr_hashes'][(int)$i['id']]); $this->saveState($s);
+		}
+	}
 
 	/** Route générale : sans filtre d'appelant ni de numéro composé. Il n'en faut qu'une, et elle doit être la dernière. */
 	private static function catchAll(array $r): bool {
@@ -154,6 +212,7 @@ class YeastarRouting {
 				}
 			}
 			if (!$general) throw new \RuntimeException('Route générale introuvable sur le standard : synchronisation arrêtée par précaution.');
+			if ($excluded) $this->dropIvrs(array_map('strval', array_keys($excluded)));
 			$template = self::body($general);
 
 			$hashes = $s['hashes'] ?? []; $created = 0; $updated = 0; $routed = 0; $people = 0; $off = [];
@@ -166,6 +225,9 @@ class YeastarRouting {
 			}
 			// Routes en trop (moins de clients, commercial absent) : neutralisées, pas supprimées, pour éviter de réordonner.
 			foreach ($managed as $key => $r) if (!isset($needed[$key])) $needed[$key] = ['ext' => explode('_', $key)[0], 'ext_id' => null, 'numbers' => []];
+			$extIds = [];
+			foreach ($needed as $n) if ($n['ext_id']) $extIds[$n['ext']] = $n['ext_id'];
+			$ivr = $this->welcomeIvrs($general, $extIds);
 
 			foreach ($needed as $key => $n) {
 				[$ext, $idx] = explode('_', $key);
@@ -174,8 +236,9 @@ class YeastarRouting {
 				$body['cid_option'] = 'patterns';
 				$body['cid_pattern_list'] = array_map(fn($x) => ['cid_pattern' => $x], $n['numbers'] ?: [self::PLACEHOLDER]);
 				if ($n['ext_id']) {
-					$body['def_dest'] = 'extension'; $body['def_dest_value'] = $n['ext_id'];
-					if ((int)($body['enb_time_condition'] ?? 0) === 1) { $body['business_hours_destination'] = 'extension'; $body['business_hours_destination_value'] = $n['ext_id']; }
+					[$dest, $value] = isset($ivr[$n['ext']]) ? ['ivr', (string)$ivr[$n['ext']]] : ['extension', $n['ext_id']];
+					$body['def_dest'] = $dest; $body['def_dest_value'] = $value;
+					if ((int)($body['enb_time_condition'] ?? 0) === 1) { $body['business_hours_destination'] = $dest; $body['business_hours_destination_value'] = $value; }
 				}
 				$hash = hash('sha256', json_encode($body));
 				if (isset($managed[$key])) {
@@ -285,6 +348,7 @@ class YeastarRouting {
 		try {
 			$this->restoreForwards();
 			foreach ($this->routes() as $r) if (preg_match(self::NAME, (string)$r['name'])) $this->ok($this->client->call('GET', 'inbound_route/delete', ['id' => (int)$r['id']]), 'Suppression de ' . $r['name']);
+			$this->dropIvrs();
 			$s = $this->state(); $s['hashes'] = []; $s['summary'] = null; $s['last_sync'] = time(); $s['last_error'] = ''; $this->saveState($s);
 			return $this->status();
 		} finally { $this->unlock(); }

@@ -12,7 +12,7 @@ $fail=0;$n=0;function ok($c,$m){global $fail,$n;$n++;if(!$c){$fail++;echo "FAIL 
 class Config implements \OCP\IConfig {public array $v=[];public function getAppValue($a,$k,$d=''){return $this->v[$k]??$d;}public function setAppValue($a,$k,$x){$this->v[$k]=$x;}}
 /** Faux standard : routes en mémoire, ordre de création = ordre de priorité (comme le Yeastar). */
 class FakePbx extends YeastarClient {
- public array $routes=[];public array $ext=[];public int $extUpdates=0;public int $next=10;
+ public array $routes=[];public array $ivr=[1=>['id'=>1,'number'=>'6200','name'=>'OPEN','prompt'=>'Bienvenue-.wav','prompt_repeat'=>1,'resp_timeout'=>3,'digit_timeout'=>3,'dial_ext_option'=>'disable','alert_info'=>'','press1_dest'=>'queue','press1_dest_value'=>'1','press2_dest'=>'queue','press2_dest_value'=>'2','press3_dest'=>'','press3_dest_value'=>'','timeout_dest'=>'queue','timeout_dest_value'=>'1','invalid_dest'=>'queue','invalid_dest_value'=>'1'],2=>['id'=>2,'number'=>'6201','name'=>'CLOSED','prompt'=>'Ferme.wav']];public array $ext=[];public int $extUpdates=0;public int $next=10;
  public static function presence(){return [['status'=>'available','enb_ex_no_answer_forward'=>1,'ex_no_answer_forward_dest'=>'ext_vm','ex_no_answer_forward_value'=>'','enb_ex_busy_forward'=>1,'ex_busy_forward_dest'=>'ext_vm','ex_busy_forward_value'=>'','enb_in_no_answer_forward'=>1,'in_no_answer_forward_dest'=>'ext_vm','ring_timeout'=>30],['status'=>'away','ex_no_answer_forward_dest'=>'ext_vm']];}public array $log=[];public bool $badCopy=false;
  public function __construct(){}
  public function call(string $verb,string $path,array $query=[],?array $body=null):array{
@@ -30,6 +30,11 @@ class FakePbx extends YeastarClient {
    case 'inbound_route/update': $id=$body['id'];if(array_intersect_key($body,['prefix_code'=>1,'reset_code'=>1,'holiday_code'=>1,'office_code'=>1]))return ['errcode'=>40002];if(!isset($this->routes[$id]))return ['errcode'=>40002];if(count($body['cid_pattern_list']??[])>300)return ['errcode'=>60002];
      $this->routes[$id]=array_merge($this->routes[$id],$body);return ['errcode'=>0];
    case 'inbound_route/delete': unset($this->routes[$query['id']]);return ['errcode'=>0];
+   case 'ivr/list': return ['errcode'=>0,'ivr_list'=>array_values(array_map(fn($i)=>['id'=>$i['id'],'number'=>$i['number'],'name'=>$i['name']],$this->ivr))];
+   case 'ivr/get': return isset($this->ivr[$query['id']])?['errcode'=>0,'data'=>$this->ivr[$query['id']]]:['errcode'=>40002];
+   case 'ivr/create': foreach($this->ivr as $i)if($i['number']===$body['number'])return ['errcode'=>50001];$id=$this->next++;$this->ivr[$id]=['id'=>$id]+$body;return ['errcode'=>0,'id'=>$id];
+   case 'ivr/update': if(!isset($this->ivr[$body['id']])||isset($body['number']))return ['errcode'=>40002];$this->ivr[$body['id']]=array_merge($this->ivr[$body['id']],$body);return ['errcode'=>0];
+   case 'ivr/delete': unset($this->ivr[$query['id']]);return ['errcode'=>0];
    case 'queue/list': return ['errcode'=>0,'queue_list'=>[['id'=>1,'number'=>'6400','name'=>'CSM_AR'],['id'=>2,'number'=>'6401','name'=>'CSM_FR']]];
    case 'extension/get': return ['errcode'=>0,'data'=>['id'=>$query['id'],'number'=>'x','presence_list'=>$this->ext[$query['id']]??($this->ext[$query['id']]=self::presence())]];
    case 'extension/update': foreach($body['presence_list'] as $u){if(isset($u['mobile_prefix']))return ['errcode'=>40002];foreach($this->ext[$body['id']] as &$e)if($e['status']===$u['status'])$e=array_merge($e,$u);unset($e);}$this->extUpdates++;return ['errcode'=>0];
@@ -67,7 +72,10 @@ $st=$r->setEnabled(true);
 $names=array_map(fn($x)=>$x['name'],array_values($pbx->routes));
 ok($names===['CRM_1004_1','CRM_1004_2','CRM_1004_3','Inbound_Route'],'3 routes puis route générale en dernier : '.json_encode($names));
 $g=end($pbx->routes);ok($g['outside_business_hours_destination_value']==='2'&&$g['business_hours_destination']==='ivr'&&!isset($pbx->routes[3]),'route générale recopiée à l’identique, ancienne supprimée');
-$first=reset($pbx->routes);ok(count($first['cid_pattern_list'])===250&&$first['business_hours_destination']==='extension'&&$first['business_hours_destination_value']==='7'&&$first['outside_business_hours_destination_value']==='2'&&$first['holidays_hours_destination']==='end_call','route commercial : poste aux heures d’ouverture, horaires copiés');
+$crm=array_values(array_filter($pbx->ivr,fn($i)=>$i['name']==='CRM_1004'));ok(count($crm)===1&&$crm[0]['number']==='6250'&&$crm[0]['prompt']==='Bienvenue-.wav','SVI d’accueil CRM_1004 créé avec l’annonce de bienvenue');
+$w=$crm[0];ok($w['press1_dest']==='extension'&&$w['press1_dest_value']==='7'&&$w['press2_dest_value']==='7'&&$w['timeout_dest']==='extension'&&$w['timeout_dest_value']==='7'&&$w['invalid_dest_value']==='7'&&!isset($w['press3_dest'])&&$w['dial_ext_option']==='disable','SVI d’accueil : touches 1/2, délai et erreur → poste du commercial');
+ok($pbx->ivr[1]['press1_dest']==='queue'&&count($pbx->ivr)===3,'SVI OPEN intact, pas de SVI pour 1000 hors ligne');
+$first=reset($pbx->routes);ok(count($first['cid_pattern_list'])===250&&$first['business_hours_destination']==='ivr'&&$first['business_hours_destination_value']===(string)$w['id']&&$first['outside_business_hours_destination_value']==='2'&&$first['holidays_hours_destination']==='end_call','route commercial : SVI d’accueil du commercial aux heures d’ouverture, horaires copiés');
 ok($st['summary']['commercials']===1&&$st['summary']['numbers']===600&&$st['summary']['not_routed']===['1000 (hors ligne)'],'résumé : '.json_encode($st['summary']));
 
 // Renvois du poste : appels externes non répondus / occupé → file choisie ; internes et autres statuts inchangés
@@ -102,6 +110,7 @@ ok(!in_array('Inbound_Route_tmp',$names,true)&&end($names)==='Inbound_Route'&&co
 $r->setEnabled(true);ok(in_array('CRM_1029_1',array_column($pbx->routes,'name'),true)&&$pbx->ext[20][0]['ring_timeout']===15,'avant exclusion : 1029 routé');
 $st=$r->setEnabled(true,null,['1029']);
 ok(!in_array('CRM_1029_1',array_column($pbx->routes,'name'),true)&&in_array('CRM_1004_1',array_column($pbx->routes,'name'),true),'1029 exclu : route supprimée, les autres restent');
+ok(!in_array('CRM_1029',array_column($pbx->ivr,'name'),true)&&in_array('CRM_1004',array_column($pbx->ivr,'name'),true),'1029 exclu : son SVI d’accueil supprimé');
 ok($pbx->ext[20][0]['ring_timeout']===30&&$pbx->ext[20][0]['ex_no_answer_forward_dest']==='ext_vm','1029 exclu : poste remis comme avant');
 ok($st['excluded']===['1029'],'exclusion mémorisée');
 $r->sync(true);ok(!in_array('CRM_1029_1',array_column($pbx->routes,'name'),true),'1029 jamais recréé');
@@ -118,7 +127,15 @@ ok($pbx->ext[20][0]['ex_no_answer_forward_dest']==='queue','activé : renvoi pos
 $r->setEnabled(false);
 ok($pbx->ext[20][0]['ex_no_answer_forward_dest']==='ext_vm'&&$pbx->ext[20][0]['ex_busy_forward_dest']==='ext_vm','désactivé : renvoi d’origine (messagerie) restauré');
 ok($pbx->ext[20][0]['ring_timeout']===30,'désactivé : sonnerie d’origine (30 s) restaurée');
+ok(array_column($pbx->ivr,'name')===['OPEN','CLOSED'],'désactivé : SVI d’accueil supprimés, OPEN/CLOSED intacts');
 ok(count(array_filter($pbx->routes,fn($x)=>preg_match(YeastarRouting::NAME,$x['name'])))===0&&isset($pbx->routes[2])&&in_array('Inbound_Route',array_column($pbx->routes,'name'),true),'désactivé : routes gérées supprimées, le reste intact');
 
+// Route générale sans SVI aux heures d'ouverture : la route vise directement le poste (comportement d'avant)
+[$pbx,$cfg,$r]=$setup();$pbx->routes[3]['business_hours_destination']='queue';$r->want=['1029'=>['uid'=>'u','ext_id'=>20,'reachable'=>true,'why'=>'','numbers'=>['0550000001']]];$r->setEnabled(true);
+$c=array_values(array_filter($pbx->routes,fn($x)=>$x['name']==='CRM_1029_1'))[0];ok($c['business_hours_destination']==='extension'&&$c['business_hours_destination_value']==='20'&&count($pbx->ivr)===2,'sans SVI général : poste direct, aucun SVI créé');
+// Annonce changée dans le SVI général : SVI des commerciaux mis à jour au passage suivant
+[$pbx,$cfg,$r]=$setup();$r->want=['1029'=>['uid'=>'u','ext_id'=>20,'reachable'=>true,'why'=>'','numbers'=>['0550000001']]];$r->setEnabled(true);
+$pbx->ivr[1]['prompt']='Nouveau.wav';$pbx->log=[];$r->sync();$c=array_values(array_filter($pbx->ivr,fn($i)=>$i['name']==='CRM_1029'))[0];
+ok($c['prompt']==='Nouveau.wav'&&in_array('ivr/update',$pbx->log,true)&&!in_array('ivr/create',$pbx->log,true),'nouvelle annonce recopiée sans recréer le SVI');
 echo $fail?"$fail/$n routing checks FAILED\n":"callcrm: $n Yeastar routing checks passed\n";exit($fail?1:0);
 }
