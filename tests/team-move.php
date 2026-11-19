@@ -59,7 +59,7 @@ ok($r->status===502&&str_contains($r->data['error'],'AD')&&$groups->g['callcrm_a
 // Moteur LDAP qui refuse sans exception (ldap_write_support renvoie false) : refus signalé
 $groups->g['callcrm_electro_media']=new Group('callcrm_electro_media',[]);$mem=$groups->backends[0];$mem->skip=['callcrm_electro_media'];$groups->backends=[$mem,new class{public function groupExists($g){return $g==='callcrm_electro_media';}public function implementsActions($a){return true;}public function addToGroup($u,$g){return false;}public function removeFromGroup($u,$g){return false;}}];
 $req->p=['uid'=>'alice','to'=>'callcrm_electro_media'];$r=$ctl()->teamMove();
-ok($r->status===502&&str_contains($r->data['error'],'compte de liaison')&&$groups->g['callcrm_amenagement']->m===['alice'],'refus silencieux de l’AD détecté');
+ok($r->status===502&&str_contains($r->data['error'],'refusé la modification')&&$groups->g['callcrm_amenagement']->m===['alice'],'refus silencieux de l’AD détecté');
 $req->p=['uid'=>'alice','to'=>'callcrm_motos'];
 $groups->g['callcrm_motos']->throw=false;$groups->g['callcrm_motos']->writable=false;$r=$ctl()->teamMove();ok($r->status===400&&$groups->g['callcrm_amenagement']->m===['alice'],'groupe en lecture seule');
 echo "callcrm: $n team move checks".($fail?", $fail FAILED":' passed')."\n";exit($fail?1:0);

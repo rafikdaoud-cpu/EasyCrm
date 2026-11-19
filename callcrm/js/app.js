@@ -1960,7 +1960,7 @@ function teamMoveForm() {
   const btn = h('button', {type:'button', class:'primary', onclick: async () => {
     if (!who.value) { out.textContent = 'Choisissez un commercial.'; return; }
     const target = to.value ? (me.groups.find(g => g.id === to.value) || {}).name : 'aucun groupe';
-    if (!confirm('Déplacer ' + nameOf(who.value) + ' (' + groupOf(who.value) + ') vers « ' + target + ' » ? Le changement est fait dans l’AD.')) return;
+    if (!confirm('Déplacer ' + nameOf(who.value) + ' (' + groupOf(who.value) + ') vers « ' + target + ' » ?')) return;
     btn.disabled = true; out.textContent = 'Modification en cours…';
     try {
       const r = await api('/teams/move', {method:'POST', body:{uid:who.value, to:to.value}});
@@ -1968,7 +1968,7 @@ function teamMoveForm() {
     } catch (e) { out.textContent = e.message; btn.disabled = false; }
   }}, 'Changer de groupe');
   return h('div', {class:'team-move'}, h('strong', {}, 'Changer un commercial de groupe'), h('div', {class:'bar'}, who, h('span', {}, 'vers'), to, btn), out,
-    h('p', {class:'muted'}, 'Réservé aux administrateurs. Le commercial est ajouté au nouveau groupe puis retiré des autres groupes d’équipe, directement dans l’AD ; ses prospects ne changent pas de commercial. L’opération est enregistrée dans le journal d’audit.'));
+    h('p', {class:'muted'}, 'Réservé aux administrateurs. Le commercial est ajouté au nouveau groupe puis retiré des autres groupes d’équipe ; ses prospects ne changent pas de commercial. L’opération est enregistrée dans le journal d’audit. Un nouveau commercial arrive « sans groupe » : placez-le ici.'));
 }
 function callResponsesTable(calls) {
   const keys = responseKeys(calls.map(x => x.result)), byUser = {};
@@ -2328,8 +2328,10 @@ function admin() {
   };
   show(h('h2', {}, 'Administration'),
     h('div', {class:'card'}, h('h3', {}, 'Groupes de commerciaux'),
-      h('p', {class:'muted'}, 'Les commerciaux sont les membres du groupe des commerciaux ; chaque commercial doit aussi être dans le groupe de son équipe (groupes de l’AD ou de Nextcloud).'),
+      h('p', {class:'muted'}, 'Les commerciaux sont les membres du groupe des commerciaux ; chaque commercial est placé dans le groupe de son équipe, ci-dessous.'),
       me.can.teams ? teamMoveForm() : '',
+      (() => { const placed = new Set(Object.values(me.teams || {}).flat()); const none = me.commerciaux.filter(u => !placed.has(u.uid)).map(u => u.name).sort((a, b) => a.localeCompare(b, 'fr'));
+        return none.length ? h('div', {class:'team-group'}, h('strong', {}, 'Sans groupe'), h('span', {class:'muted'}, ' · ' + none.length + ' commercial(aux) : non proposés dans la répartition par catégorie'), h('ul', {class:'team-members'}, none.map(n => h('li', {}, n)))) : ''; })(),
       me.groups.map(g => {
         // Membres affichés par leur nom (repli sur l'identifiant d'un compte inconnu), triés par ordre alphabétique.
         const members = ((me.teams || {})[g.id] || []).map(uid => (me.commerciaux.find(u => u.uid === uid) || {name:uid}).name).sort((a, b) => a.localeCompare(b, 'fr'));

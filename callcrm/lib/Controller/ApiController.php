@@ -402,7 +402,7 @@ class ApiController extends Controller {
 		$before = [];
 		foreach ($teams as $gid => $name) { $g = $this->gm->get($gid); if ($g && $g->inGroup($user)) { $before[] = $gid; } }
 		if ($before === ($to === '' ? [] : [$to])) { return $this->err('Ce commercial est déjà dans ce groupe.'); }
-		$refused = 'L’annuaire (AD) a refusé la modification : le compte de liaison LDAP de Nextcloud n’a pas le droit de modifier les membres des groupes d’équipe. Donnez-lui ce droit dans l’AD (voir l’aide de l’administrateur) ou changez le groupe directement dans l’AD.';
+		$refused = 'L’annuaire a refusé la modification du groupe (groupe de l’AD sans droit d’écriture pour Nextcloud). Utilisez des groupes d’équipe locaux Nextcloud ou modifiez le groupe dans l’AD.';
 		try {
 			if ($to !== '' && !in_array($to, $before, true)) {
 				$g = $this->gm->get($to);
