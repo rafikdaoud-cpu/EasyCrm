@@ -402,16 +402,19 @@ class ApiController extends Controller {
 		$before = [];
 		foreach ($teams as $gid => $name) { $g = $this->gm->get($gid); if ($g && $g->inGroup($user)) { $before[] = $gid; } }
 		if ($before === ($to === '' ? [] : [$to])) { return $this->err('Ce commercial est déjà dans ce groupe.'); }
+		$refused = 'L’annuaire (AD) a refusé la modification : le compte de liaison LDAP de Nextcloud n’a pas le droit de modifier les membres des groupes d’équipe. Donnez-lui ce droit dans l’AD (voir l’aide de l’administrateur) ou changez le groupe directement dans l’AD.';
 		try {
 			if ($to !== '' && !in_array($to, $before, true)) {
 				$g = $this->gm->get($to);
 				if (!$g || !$g->canAddUser()) { return $this->err('Ce groupe ne peut pas être modifié depuis Call CRM (groupe en lecture seule).'); }
-				$g->addUser($user);
+				if (!$this->groupWrite($g, $user, true)) { return $this->err($refused, Http::STATUS_BAD_GATEWAY); }
 			}
 			foreach ($before as $gid) {
 				if ($gid === $to) { continue; }
 				$g = $this->gm->get($gid);
-				if ($g && $g->canRemoveUser()) { $g->removeUser($user); }
+				if ($g && $g->canRemoveUser() && !$this->groupWrite($g, $user, false)) {
+					return $this->err($refused . ' Le commercial a été ajouté au nouveau groupe mais reste aussi dans « ' . ($teams[$gid] ?? $gid) . ' ».', Http::STATUS_BAD_GATEWAY);
+				}
 			}
 		} catch (\Throwable $e) {
 			return $this->err('L’annuaire (AD) a refusé la modification : ' . $e->getMessage(), Http::STATUS_BAD_GATEWAY);
@@ -421,6 +424,24 @@ class ApiController extends Controller {
 		$label = fn($g) => $g === '' ? 'aucun groupe' : ($teams[$g] ?? $g);
 		$this->s->audit($this->a->uid(), 'team_move', null, $uid . ' : ' . ($before ? implode(', ', array_map($label, $before)) : 'aucun groupe') . ' → ' . $label($to));
 		return new JSONResponse(['teams' => $this->computeTeams(), 'from' => $before, 'to' => $to]);
+	}
+
+	/**
+	 * Écrit l'appartenance via le moteur du groupe et vérifie sa réponse : Group::addUser() ignore le résultat,
+	 * or ldap_write_support renvoie false (sans exception) quand l'AD refuse (« Insufficient access »).
+	 */
+	private function groupWrite($group, $user, bool $add): bool {
+		$uid = $user->getUID(); $gid = $group->getGID();
+		if (!method_exists($this->gm, 'getBackends')) { $add ? $group->addUser($user) : $group->removeUser($user); return true; }
+		foreach ($this->gm->getBackends() as $b) {
+			if (!$b->groupExists($gid)) { continue; }
+			// Moteurs récents (interfaces) ou anciens (implementsActions : 256 = ajout, 512 = retrait), dont l'AD (Group_Proxy).
+			$can = $add ? ($b instanceof \OCP\Group\Backend\IAddToGroupBackend || (method_exists($b, 'implementsActions') && $b->implementsActions(256)))
+				: ($b instanceof \OCP\Group\Backend\IRemoveFromGroupBackend || (method_exists($b, 'implementsActions') && $b->implementsActions(512)));
+			if (!$can) { continue; }
+			return (bool)($add ? $b->addToGroup($uid, $gid) : $b->removeFromGroup($uid, $gid));
+		}
+		return false;
 	}
 
 	/** Transfert en masse : de $from (commercial, ou '' = non assignés) vers $to, filtré par statut, avec quantité max. */
