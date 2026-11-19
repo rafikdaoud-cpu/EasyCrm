@@ -85,5 +85,19 @@ $me=$ctl()->me()->data;ok(array_column($me['commerciaux'],'uid')===['alice']&&$m
 ok(TeamScope::canTarget('alice')&&!TeamScope::canTarget('bob')&&TeamScope::canSee(null),'règles canSee / canTarget');
 TeamScope::force(null);ok($m->invoke($ctl(),2)!==null,'sans groupe attribué : voit tout');
 TeamScope::reset();
+
+// ---- Droits des profils ----
+$session->uid='boss';$groups->role='commercial';$req->p=['rights'=>['delete'=>['commercial']]];ok($ctl()->saveRights()->status===403,'commercial : ne modifie pas les droits');
+$groups->role='admin';$acc=fn()=>new Access($session,$groups);
+ok(!in_array('commercial',Access::rights()['delete'],true),'par défaut : commercial ne supprime pas');
+$req->p=['rights'=>['delete'=>['commercial','intrus'],'export'=>[],'teams'=>['commercial'],'mask'=>['lecture']]];$r=$ctl()->saveRights();
+$m=Access::rights();
+ok($r->status===200&&in_array('commercial',$m['delete'],true)&&in_array('admin',$m['delete'],true)&&!in_array('intrus',$m['delete'],true),'droit accordé au commercial, admin conservé, rôle inconnu ignoré');
+ok($m['export']===['admin'],'droit retiré à tous les profils sauf admin');
+ok($m['teams']===['admin'],'gestion des groupes réservée à l’admin');
+ok($m['mask']===['lecture']&&!in_array('admin',$m['mask'],true),'masquage : jamais pour l’admin');
+$groups->role='commercial';ok($acc()->can('delete')&&!$acc()->can('export'),'droits appliqués au profil');
+ok(str_contains(end($store->audits)[1],'+commercial:delete'),'audit des droits');
+$groups->role='admin';$req->p=['reset'=>1];$ctl()->saveRights();ok(!in_array('commercial',Access::rights()['delete'],true)&&in_array('commercial',Access::rights()['export'],true),'retour aux droits d’origine');
 echo "callcrm: $n team move checks".($fail?", $fail FAILED":' passed')."\n";exit($fail?1:0);
 }

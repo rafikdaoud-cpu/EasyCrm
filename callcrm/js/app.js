@@ -1949,6 +1949,24 @@ function responseKeys(observed = []) {
   return keys;
 }
 let responseSortKey = 'name', responseSortDirection = 'asc';
+/** Administrateurs : droits de chaque profil (l'administrateur a toujours tous les droits). */
+function rightsCard() {
+  const roles = [['superviseur','Superviseur'],['commercial','Commercial'],['lecture','Lecture seule']];
+  const out = h('span', {role:'status', class:'muted'});
+  const body = h('tbody');
+  const draw = rights => body.replaceChildren(...rights.map(r => h('tr', {'data-right':r.key},
+    h('th', {scope:'row'}, h('span', {}, r.label), h('small', {class:'muted', style:'display:block;font-weight:400'}, r.help)),
+    h('td', {class:'rights-cell'}, h('span', {title:'Toujours accordé à l’administrateur', 'aria-label':'Administrateur : toujours'}, r.key === 'mask' ? '—' : '✔')),
+    roles.map(([role, label]) => h('td', {class:'rights-cell'}, h('input', {type:'checkbox', 'aria-label':label + ' : ' + r.label, value:role, checked:r.roles.includes(role), disabled:r.locked}))))));
+  draw(me.rights);
+  const collect = () => Object.fromEntries([...body.querySelectorAll('tr')].map(tr => [tr.dataset.right, [...tr.querySelectorAll('input:checked')].map(c => c.value)]));
+  const send = async body2 => { out.textContent = 'Enregistrement…'; try { const r = await api('/rights', {method:'POST', body:body2}); me.rights = r.rights; draw(r.rights); out.textContent = '✔ Droits enregistrés. Ils s’appliquent dès le prochain chargement de Call CRM des utilisateurs.'; } catch (e) { out.textContent = e.message; } };
+  return h('div', {class:'card rights-card'}, h('h3', {}, 'Droits des profils'),
+    h('p', {class:'muted'}, 'Cochez ce que chaque profil peut faire. L’administrateur a toujours tous les droits ; « Gérer les groupes » lui est réservé. Chaque changement est noté dans le journal d’audit.'),
+    h('div', {class:'presence-table'}, h('table', {class:'t rights-table'}, h('thead', {}, h('tr', {}, h('th', {scope:'col'}, 'Droit'), h('th', {scope:'col'}, 'Administrateur'), roles.map(([, l]) => h('th', {scope:'col'}, l)))), body)),
+    h('div', {class:'bar', style:'margin-top:10px;align-items:center'}, h('button', {class:'primary', onclick:() => send({rights:collect()})}, 'Enregistrer les droits'),
+      h('button', {onclick:() => { if (confirm('Remettre les droits d’origine pour tous les profils ?')) send({reset:1}); }}, 'Revenir aux droits d’origine'), out));
+}
 /** Administrateurs : groupes gérés par chaque superviseur (aucun coché = il voit tous les groupes). */
 function supervisorTeamsForm() {
   const list = me.supervisors || [];
@@ -2359,6 +2377,7 @@ function admin() {
           members.length ? h('ul', {class:'team-members'}, members.map(n => h('li', {}, n))) : h('div', {class:'muted'}, 'Aucun commercial dans ce groupe.'),
           h('div', {class:'muted'}, 'Catégories : ' + (g.cats.join(', ') || '—')));
       })),
+    me.can.teams && me.rights ? rightsCard() : '',
     me.can.fields ? fieldsEditor() : '',
     me.can.fields ? statusesEditor() : '',
     me.can.fields ? settingsCard() : '',

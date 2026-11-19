@@ -198,7 +198,7 @@ class ApiController extends Controller {
 		if (!$this->a->can('view')) { return $this->deny(); }
 		$can = [];
 		foreach (['call', 'assign', 'create', 'import', 'invite', 'teams', 'fields', 'labels', 'delete', 'all', 'audit', 'export', 'export_phone'] as $k) { $can[$k] = $this->a->can($k); }
-		return new JSONResponse(['statuses' => Statuses::all(), 'fields' => Fields::all(), 'role' => $this->a->role(), 'uid' => $this->a->uid(), 'name' => $this->um->get($this->a->uid())?->getDisplayName() ?: $this->a->uid(), 'labels' => $this->getLabels(), 'options' => self::OPT + ['c5' => array_keys(Lookup::WILAYAS)], 'teams' => $this->visibleTeams(), 'groups' => array_values(array_filter(array_map(fn($g, $n) => ['id' => $g, 'name' => $n, 'cats' => array_keys(array_filter(Access::cats(), fn($x) => $x === $g))], array_keys(Access::teams()), array_values(Access::teams())), fn($x) => isset($this->visibleTeams()[$x['id']]))), 'scope_teams' => TeamScope::users() !== null, 'supervisors' => $this->a->can('teams') ? $this->supervisors() : [], 'commerciaux' => $this->commerciaux(), 'max_callbacks' => $this->maxCallbacks(), 'prefs' => Prefs::all(), 'can' => $can, 'sms' => $this->smsRuntime()]);
+		return new JSONResponse(['statuses' => Statuses::all(), 'fields' => Fields::all(), 'role' => $this->a->role(), 'uid' => $this->a->uid(), 'name' => $this->um->get($this->a->uid())?->getDisplayName() ?: $this->a->uid(), 'labels' => $this->getLabels(), 'options' => self::OPT + ['c5' => array_keys(Lookup::WILAYAS)], 'teams' => $this->visibleTeams(), 'groups' => array_values(array_filter(array_map(fn($g, $n) => ['id' => $g, 'name' => $n, 'cats' => array_keys(array_filter(Access::cats(), fn($x) => $x === $g))], array_keys(Access::teams()), array_values(Access::teams())), fn($x) => isset($this->visibleTeams()[$x['id']]))), 'scope_teams' => TeamScope::users() !== null, 'supervisors' => $this->a->can('teams') ? $this->supervisors() : [], 'rights' => $this->a->can('teams') ? $this->rightsMatrix() : null, 'commerciaux' => $this->commerciaux(), 'max_callbacks' => $this->maxCallbacks(), 'prefs' => Prefs::all(), 'can' => $can, 'sms' => $this->smsRuntime()]);
 	}
 
 	#[NoAdminRequired]
@@ -442,6 +442,42 @@ class ApiController extends Controller {
 		$label = fn($g) => $g === '' ? 'aucun groupe' : ($teams[$g] ?? $g);
 		$this->s->audit($this->a->uid(), 'team_move', null, $uid . ' : ' . ($before ? implode(', ', array_map($label, $before)) : 'aucun groupe') . ' → ' . $label($to));
 		return new JSONResponse(['teams' => $this->computeTeams(), 'from' => $before, 'to' => $to]);
+	}
+
+	/** Matrice des droits pour l'écran d'administration. */
+	private function rightsMatrix(): array {
+		$map = Access::rights(); $out = [];
+		foreach (Access::RIGHTS as $k => [$label, $help]) {
+			$out[] = ['key' => $k, 'label' => $label, 'help' => $help, 'roles' => array_values(array_intersect($map[$k] ?? [], Access::EDITABLE_ROLES)), 'locked' => $k === 'teams'];
+		}
+		return $out;
+	}
+
+	/** Administrateurs : droits des profils superviseur, commercial et lecture seule (reset = valeurs d'origine). */
+	#[NoAdminRequired]
+	public function saveRights(): JSONResponse {
+		if (!$this->a->can('teams')) { return $this->deny(); }
+		$before = $this->rightsMatrix();
+		if ($this->request->getParam('reset')) {
+			$this->cfg->setAppValue(Application::APP_ID, 'role_rights', '');
+		} else {
+			$in = $this->request->getParam('rights', []);
+			if (!is_array($in)) { return $this->err('Droits invalides'); }
+			$store = [];
+			foreach (Access::RIGHTS as $k => $_) {
+				if ($k === 'teams') { continue; }
+				$store[$k] = array_values(array_unique(array_intersect(array_map('strval', (array)($in[$k] ?? [])), Access::EDITABLE_ROLES)));
+			}
+			$this->cfg->setAppValue(Application::APP_ID, 'role_rights', json_encode($store));
+		}
+		$after = $this->rightsMatrix(); $diff = [];
+		foreach ($after as $i => $r) {
+			$old = $before[$i]['roles'];
+			foreach (array_diff($r['roles'], $old) as $role) { $diff[] = '+' . $role . ':' . $r['key']; }
+			foreach (array_diff($old, $r['roles']) as $role) { $diff[] = '-' . $role . ':' . $r['key']; }
+		}
+		$this->s->audit($this->a->uid(), 'rights', null, $this->request->getParam('reset') ? 'Droits remis par défaut' . ($diff ? ' : ' . implode(' ', $diff) : '') : ($diff ? implode(' ', $diff) : 'aucun changement'));
+		return new JSONResponse(['rights' => $after]);
 	}
 
 	/** Superviseurs (membres du groupe superviseur) et leurs groupes d'équipe attribués. */

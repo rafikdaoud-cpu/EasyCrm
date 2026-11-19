@@ -52,9 +52,41 @@ class Access {
 		}
 		return $this->roleMemo = 'none';
 	}
+	/** Droits réglables dans Administration → Droits des profils (libellé, explication). */
+	public const RIGHTS = [
+		'call' => ['Appeler et saisir des résultats', 'Bouton d’appel et qualification des appels.'],
+		'create' => ['Créer des prospects', 'Ajouter une fiche à la main.'],
+		'all' => ['Voir toutes les fiches', 'Sinon, seulement ses propres fiches (superviseur : limité à ses groupes s’il en a).'],
+		'assign' => ['Attribuer et transférer', 'Réattribuer des fiches, transferts et changements de statut en masse.'],
+		'import' => ['Importer des prospects', 'Import Excel / CSV.'],
+		'export' => ['Exporter en Excel', 'Téléchargement des listes et du journal.'],
+		'export_phone' => ['Exporter les numéros', 'Sinon l’export se fait sans numéro de téléphone.'],
+		'audit' => ['Consulter le journal d’audit', 'Historique des actions sensibles.'],
+		'delete' => ['Supprimer des fiches', 'Suppression définitive d’un prospect.'],
+		'labels' => ['Modifier les libellés', 'Libellés des champs.'],
+		'fields' => ['Configurer le CRM', 'Champs, statuts, réglages, simulateur.'],
+		'invite' => ['Inviter les commerciaux', 'Envoi des accès par e-mail.'],
+		'teams' => ['Gérer les groupes', 'Changer un commercial de groupe, groupes des superviseurs, droits des profils.'],
+		'mask' => ['Masquer téléphones et e-mails', 'Restriction : le profil voit les fiches sans coordonnées.'],
+	];
+	public const EDITABLE_ROLES = ['superviseur', 'commercial', 'lecture'];
+	/** Droits par défaut, éventuellement remplacés par le réglage « role_rights » (l'administrateur garde toujours tout). */
+	public static function rights(): array {
+		$map = self::CAN;
+		try { $raw = json_decode((string)\OCP\Server::get(\OCP\IConfig::class)->getAppValue('callcrm', 'role_rights', ''), true); } catch (\Throwable $e) { $raw = null; }
+		if (is_array($raw)) {
+			foreach (self::RIGHTS as $k => $_) {
+				if (!isset($raw[$k]) || !is_array($raw[$k])) { continue; }
+				$roles = array_values(array_intersect($raw[$k], self::EDITABLE_ROLES));
+				$map[$k] = $k === 'mask' ? $roles : array_merge(['admin'], $roles);
+			}
+		}
+		$map['teams'] = ['admin'];
+		return $map;
+	}
 	public function can(string $a): bool {
 		$r = $this->role();
 		if ($a === 'view') { return $r !== 'none'; }
-		return in_array($r, self::CAN[$a] ?? [], true);
+		return in_array($r, self::rights()[$a] ?? [], true);
 	}
 }
