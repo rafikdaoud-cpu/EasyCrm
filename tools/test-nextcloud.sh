@@ -24,6 +24,7 @@ node tests/callcrm-neglected-ui.cjs
 "$PHP_BIN" tests/inactive-owners.php
 "$PHP_BIN" tests/team-move.php
 "$PHP_BIN" tests/notifier.php
+"$PHP_BIN" tests/whatsapp-number.php
 node tests/callcrm-sms-ui.cjs
 node tests/callcrm-chat-ui.cjs
 "$PHP_BIN" tests/yeastar-settings.php

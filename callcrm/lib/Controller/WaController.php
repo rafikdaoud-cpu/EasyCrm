@@ -203,8 +203,10 @@ class WaController extends Controller {
 		$p = $this->s->get($pid);
 		if (!$p || ($this->scope() !== null && $p['assigned_to'] !== $this->a->uid()) || !\OCA\CallCrm\Service\TeamScope::canSee($p['assigned_to'])) { return $this->err('Introuvable', Http::STATUS_NOT_FOUND); }
 		if ($this->a->role() === 'commercial' && $p['assigned_to'] !== $this->a->uid()) { return $this->deny(); }
-		$phone = Wa::localPhone((string)($p['phone'] ?? ''));
-		if (!$phone) { return $this->err('Numéro de téléphone absent ou non algérien : envoi WhatsApp impossible.'); }
+		// Numéro WhatsApp de la fiche (algérien ou international) en priorité, sinon le téléphone principal.
+		$wa = \OCA\CallCrm\Service\Fields::whatsappOf($p);
+		$phone = $wa !== null ? (str_starts_with($wa, '213') ? Wa::localPhone($wa) : $wa) : Wa::localPhone((string)($p['phone'] ?? ''));
+		if (!$phone) { return $this->err('Numéro WhatsApp absent ou invalide : renseignez le champ WhatsApp ou le téléphone de la fiche.'); }
 		$c = $this->wa->convForProspect($pid, $phone);
 		if (!$c) {
 			$raw = $this->wa->ensureConv(Wa::waId($phone), trim(($p['lastname'] ?? '') . ' ' . ($p['firstname'] ?? '')));

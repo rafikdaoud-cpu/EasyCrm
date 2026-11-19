@@ -69,7 +69,7 @@ test('demande de documents : WhatsApp de l’entreprise avec le modèle à bouto
  const dom=new JSDOM('<main id="r"></main>',{url:'https://cloud.example.test'}),document=dom.window.document,root=document.getElementById('r');
  const calls=[];let tplOk=false;
  const ctx=vm.createContext({document,window:Object.assign(dom.window,{innerWidth:1200}),Node:dom.window.Node,root,setTimeout,clearTimeout,URLSearchParams,confirm:()=>true,
-  fmt:t=>'D'+t,waNum:x=>x,OC:{generateUrl:x=>x},me:{role:'commercial',uid:'u',can:{call:true},sms:{enabled:true}},
+  fmt:t=>'D'+t,waNum:x=>x,waOf:p=>p.phone,OC:{generateUrl:x=>x},me:{role:'commercial',uid:'u',can:{call:true},sms:{enabled:true}},
   smsCount:()=>({chars:195,segments:3}),
   api:async(path,o={})=>{calls.push([path,o.body]);
    if(path==='/prospects/7/collect'&&o.method==='POST')return{url:'https://cloud.csmtaksit.dz/index.php/apps/callcrm/collecte/'+'k'.repeat(32),link:{requested:3,created_at:1800000000,expires_at:1800000000+15*86400}};

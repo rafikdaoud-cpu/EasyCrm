@@ -83,6 +83,27 @@ class ApiController extends Controller {
 		}
 		return $out;
 	}
+	/**
+	 * Case téléphone d'un import : un ou deux numéros (séparés par / , ; | « et » « ou », ou collés : 20 chiffres).
+	 * Renvoie [premier numéro valide, second numéro valide différent ou null] ; premier null si aucun n'est valide.
+	 */
+	private function splitPhones(string $raw): array {
+		$parts = preg_split('#\s*(?:[/,;|]|\s(?:et|ou)\s|\n)\s*#iu', trim($raw)) ?: [];
+		$found = [];
+		foreach ($parts as $part) {
+			if (trim($part) === '') { continue; }
+			$n = $this->normPhone($part);
+			if ($n === null) {
+				// Deux mobiles collés ou séparés par des espaces : 0776459672 0560898201
+				$d = preg_replace('/\D+/', '', Lookup::latin($part));
+				if (preg_match_all('/0[567]\d{8}/', $d, $m) && strlen($d) === 10 * count($m[0])) { foreach ($m[0] as $x) { $found[] = $x; } }
+				continue;
+			}
+			$found[] = $n;
+		}
+		$found = array_values(array_unique($found));
+		return [$found[0] ?? null, $found[1] ?? null];
+	}
 	/** Numéro algérien : mobile 05/06/07 + 8 chiffres, ou fixe 02/03/04/09 ; sinon null */
 	private function normPhone(string $raw): ?string {
 		$d = preg_replace('/\D+/', '', Lookup::latin($raw));
@@ -821,13 +842,14 @@ class ApiController extends Controller {
 		$d = ';';
 		foreach ([',', "\t"] as $c) { if (substr_count($first, $c) > substr_count($first, $d)) { $d = $c; } }
 		$fix = fn($v) => mb_check_encoding((string)$v, 'UTF-8') ? trim(str_replace("\xEF\xBB\xBF", '', (string)$v)) : trim(mb_convert_encoding((string)$v, 'UTF-8', 'Windows-1252'));
-		$n = 0; $skip = 0; $dup = 0; $bad = 0; $na = 0; $unk = 0; $i = 0; $rr = []; $samples = []; $now = time();
+		$n = 0; $skip = 0; $dup = 0; $bad = 0; $na = 0; $unk = 0; $two = 0; $i = 0; $rr = []; $samples = []; $now = time();
 		while (($row = fgetcsv($h, 0, $d)) !== false && $n < 20000) {
 			$row = array_map($fix, $row);
 			if ($i++ === 0) { continue; } // en-tête ignoré
 			$row = array_pad($row, 7 + count($exKeys), '');
 			if ($row[0] === '') { $skip++; continue; }
-			$phone = $this->normPhone($row[1]);
+			// Case téléphone avec deux numéros (« 0776459672 /0560898201 ») : le 1er en Téléphone 1, le 2e en Numéro WhatsApp.
+			[$phone, $second] = $this->splitPhones($row[1]);
 			if ($phone === null) { $bad++; if (count($samples) < 10) { $samples[] = 'ligne ' . $i . ' : ' . $row[1]; } continue; }
 			if ($this->s->phoneExists($phone)) { $dup++; continue; }
 			$wil = Lookup::wilaya($row[2]); $cat = Lookup::categorie($row[3]); $job = Lookup::emploi($row[4]);
@@ -840,6 +862,11 @@ class ApiController extends Controller {
 			if ($to === null) { $na++; }
 			$extra = [];
 			foreach ($exKeys as $xi => $xk) { $xv = trim((string)$row[7 + $xi]); if ($xk && $xv !== '') { $extra[$xk] = mb_substr($xv, 0, 4000); } }
+			if ($second !== null) {
+				$waKey = null; foreach (Fields::all() as $wf) { if (($wf['type'] ?? '') === 'whatsapp' && empty($wf['builtin']) && empty($wf['hidden'])) { $waKey = $wf['key']; break; } }
+				if ($waKey !== null && empty($extra[$waKey])) { $extra[$waKey] = Fields::whatsapp($second) ?? $second; $two++; }
+				else { $rem = trim($rem . ' [Autre numéro : ' . $second . ']'); $two++; }
+			}
 			$this->s->insert('callcrm_prospects', ['source' => 'import', 'extra' => $extra ? json_encode($extra, JSON_UNESCAPED_UNICODE) : null, 'lastname' => $row[0], 'firstname' => '', 'email' => '', 'phone' => $phone,
 				'c1' => '', 'c2' => $cat, 'c3' => $job, 'c4' => Lookup::latin($row[5]), 'c5' => $wil, 'remarque' => $rem,
 				'assigned_to' => $to, 'status' => 'nouveau', 'created_at' => $now]);
@@ -847,7 +874,7 @@ class ApiController extends Controller {
 		}
 		fclose($h);
 		$this->s->audit($this->a->uid(), 'import', null, $n . ' importé(s), ' . $dup . ' doublon(s), ' . ($mode === 'none' ? 'non affectés (Nouveau)' : 'répartis entre : ' . implode(', ', $team) . ' (' . $mode . ')'));
-		return new JSONResponse(['imported' => $n, 'duplicates' => $dup, 'skipped' => $skip, 'invalid' => $bad, 'samples' => $samples, 'unassigned' => $na, 'unrecognized' => $unk]);
+		return new JSONResponse(['imported' => $n, 'duplicates' => $dup, 'skipped' => $skip, 'invalid' => $bad, 'samples' => $samples, 'unassigned' => $na, 'unrecognized' => $unk, 'two_numbers' => $two]);
 	}
 
 	#[NoAdminRequired]

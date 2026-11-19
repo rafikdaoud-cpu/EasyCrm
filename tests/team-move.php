@@ -148,5 +148,11 @@ $req->p=['text'=>'Publicité sans lien'];ok($mctl()->collectMail(7)->status===40
 $req->p=['text'=>'https://evil.example/d/ABCDEFGHIJKLMNOPQRSTUVWXYZ012345'];ok($mctl()->collectMail(7)->status===400,'lien d’un autre site refusé');
 $mailer->fail=true;$req->p=['text'=>$good];ok($mctl()->collectMail(7)->status===502,'refus du serveur e-mail signalé');
 $groups->role='lecture';ok($mctl()->collectMail(7)->status===403,'lecture seule : refus');
+
+// ---- Import : deux numéros dans la case téléphone ----
+$sp=new ReflectionMethod(\OCA\CallCrm\Controller\ApiController::class,'splitPhones');
+foreach(['0776459672 /0560898201'=>['0776459672','0560898201'],'0540771452/0771936106'=>['0540771452','0771936106'],'0550 12 34 56'=>['0550123456',null],
+ '0776459672 0560898201'=>['0776459672','0560898201'],'0776459672 ou 0560898201'=>['0776459672','0560898201'],'0776459672/0776459672'=>['0776459672',null],
+ 'abc / 0560898201'=>['0560898201',null],'12345'=>[null,null]] as $in=>$want){ok($sp->invoke($ctl(),$in)===$want,'deux numéros : '.$in);}
 echo "callcrm: $n team move checks".($fail?", $fail FAILED":' passed')."\n";exit($fail?1:0);
 }

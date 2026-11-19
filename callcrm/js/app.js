@@ -23,6 +23,9 @@ const fmtD = t => Number(t) ? new Date(t * 1000).toLocaleDateString('fr-FR', {da
 const fmtS = t => t ? new Date(t * 1000).toLocaleString('fr-FR', {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false}) : '';
 const fmt = t => t ? new Date(t * 1000).toLocaleString('fr-FR', {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}) : '';
 const waNum = p => { const d = String(p || '').replace(/\D+/g, ''); return d.startsWith('0') ? '213' + d.slice(1) : d; };
+/** Numéro WhatsApp d'une fiche : champ « Numéro WhatsApp » s'il est rempli (algérien ou international), sinon le téléphone. */
+const waOf = p => { const f = (me.fields || []).find(x => x.type === 'whatsapp' && !x.builtin); let ex = p && p.extra ? p.extra : {}; if (typeof ex === 'string') { try { ex = JSON.parse(ex) || {}; } catch (e) { ex = {}; } }
+  const v = f && ex[f.key] ? String(ex[f.key]) : ''; return v ? v.replace(/\D+/g, '').replace(/^00/, '') : waNum(p && p.phone); };
 const nm = r => ((r.lastname || '') + ' ' + (r.firstname || '')).trim();
 const h = (t, a = {}, ...c) => {
   const e = document.createElement(t);
@@ -154,7 +157,8 @@ function fieldEl(f, val, disabled) {
   if (f.type === 'multiselect') { const cur = String(val).split('|').map(x => x.trim());
     return h('div', {'data-k': f.key, 'data-multi': 1, style:'display:flex;flex-wrap:wrap;gap:4px 14px;padding:4px 0'},
       (f.options || []).map(x => h('label', {style:'display:flex;align-items:center;gap:4px'}, h('input', {type:'checkbox', value:x, checked: cur.includes(x), disabled}), x))); }
-  return h('input', {...a, type: f.type === 'tel' ? 'tel' : f.type === 'date' ? 'date' : f.type === 'email' ? 'email' : 'text', inputmode: f.type === 'number' ? 'decimal' : undefined, value: val});
+  return h('input', {...a, type: f.type === 'tel' || f.type === 'whatsapp' ? 'tel' : f.type === 'date' ? 'date' : f.type === 'email' ? 'email' : 'text', inputmode: f.type === 'number' ? 'decimal' : f.type === 'whatsapp' ? 'tel' : undefined,
+    placeholder: f.type === 'whatsapp' ? '0550 12 34 56 ou +33 6 12 34 56 78' : a.placeholder, value: val});
 }
 function fieldsGrid(p, disabled) {
   const vis = (me.fields || []).filter(f => !f.hidden);
@@ -213,7 +217,7 @@ function clientWorkspace(p,info,form,note,reason,cb,getResult,saveCall){
  info.addEventListener('crm-saved',saved);
  const wrap=h('details',{class:'card crm-client-info'},h('summary',{},'Informations du client'));info.classList.remove('card');info.replaceWith(wrap);wrap.append(info);if(window.innerWidth>760)wrap.open=true;
  const columns=root.querySelector('.cols');if(columns){columns.classList.add('crm-client-columns');columns.children[1].append(collectCard(p),documentsCard(p.id));}
- const footer=h('div',{class:'crm-client-footer'},p.phone&&me.can.call?h('a',{class:'footer-call',href:'tel:'+p.phone},'☎ Appeler'):'',p.phone&&me.can.call?h('a',{class:'footer-wa',href:'https://wa.me/'+waNum(p.phone),target:'_blank',rel:'noopener noreferrer'},'WhatsApp'):'',p.phone&&me.sms?.enabled?h('button',{class:'footer-sms',onclick:()=>clientSms(p)},'✉ SMS'):'',me.can.call?h('button',{class:'primary',onclick:()=>{if(getResult())saveCall();else{wrap.open=true;info.querySelector('button')?.click();}}},'Enregistrer'):'');root.querySelector('.crm-page')?.append(footer);
+ const footer=h('div',{class:'crm-client-footer'},p.phone&&me.can.call?h('a',{class:'footer-call',href:'tel:'+p.phone},'☎ Appeler'):'',p.phone&&me.can.call?h('a',{class:'footer-wa',href:'https://wa.me/'+waOf(p),target:'_blank',rel:'noopener noreferrer'},'WhatsApp'):'',p.phone&&me.sms?.enabled?h('button',{class:'footer-sms',onclick:()=>clientSms(p)},'✉ SMS'):'',me.can.call?h('button',{class:'primary',onclick:()=>{if(getResult())saveCall();else{wrap.open=true;info.querySelector('button')?.click();}}},'Enregistrer'):'');root.querySelector('.crm-page')?.append(footer);
 }
 function agenda(){
  let period='today',offset=0,sequence=0;const box=h('div'),rows=h('div'),counts=h('div',{class:'team-kpis'}),msg=h('p',{class:'muted'}),search=h('input',{type:'search',placeholder:'Rechercher un client…','aria-label':'Rechercher un client'}),type=h('select',{'aria-label':'Type'},h('option',{value:'all'},'Tous les types'),h('option',{value:'callback'},'Rappels'),h('option',{value:'appointment'},'Rendez-vous'));
@@ -357,7 +361,7 @@ function collectCard(p){
    h('pre',{class:'crm-collect-message','aria-label':'Message envoyé au client'},text),
    h('small',{class:'muted'},c.chars+' caractères · '+c.segments+' SMS'+(c.segments>5?' · trop long pour un SMS, utilisez WhatsApp':'')),
    h('div',{class:'bar'},smsBtn,waBtn,
-    p.phone?h('a',{class:'crm-agenda-call',href:'https://wa.me/'+waNum(p.phone)+'?text='+encodeURIComponent(text),target:'_blank',rel:'noopener noreferrer'},'WhatsApp du téléphone'):'',
+    p.phone?h('a',{class:'crm-agenda-call',href:'https://wa.me/'+waOf(p)+'?text='+encodeURIComponent(text),target:'_blank',rel:'noopener noreferrer'},'WhatsApp du téléphone'):'',
     p.phone&&!me.sms?.enabled?h('a',{class:'crm-agenda-call',href:'sms:'+p.phone+'?body='+encodeURIComponent(text)},'SMS depuis le téléphone'):'',
     p.email?h('button',{type:'button',onclick:()=>{mailed=false;alsoMail();}},'Envoyer par e-mail'):''),
    out,mailOut,p.email?h('small',{class:'muted'},'E-mail du client connu ('+p.email+') : le message lui est aussi envoyé par e-mail avec le SMS ou le WhatsApp.'):'',field,
@@ -937,7 +941,7 @@ function row(r, onSel) {
     h('div', {class:'cell cell-d muted', title: Number(r.last_call_at) ? 'Traité le ' + fmt(Number(r.last_call_at)) : 'Jamais traité'}, fmtD(r.created_at)),
     h('div', {class:'cell cell-act'},
       tel ? h('a', {class:'crm-row-btn call', href:'tel:' + r.phone, title:'Appeler ' + r.phone, 'aria-label':'Appeler ' + nm(r)}, '☎') : '',
-      tel ? h('a', {class:'crm-row-btn wa', href:'https://wa.me/' + waNum(r.phone), target:'_blank', rel:'noopener noreferrer', title:'WhatsApp', 'aria-label':'WhatsApp ' + nm(r)}, '💬') : ''));
+      tel ? h('a', {class:'crm-row-btn wa', href:'https://wa.me/' + waOf(r), target:'_blank', rel:'noopener noreferrer', title:'WhatsApp', 'aria-label':'WhatsApp ' + nm(r)}, '💬') : ''));
 }
 /** En-tête du tableau ; avec onSort, les titres trient la liste (2e clic : ordre inverse). */
 function rowHead(withCk, onSort) {
@@ -1091,7 +1095,7 @@ async function detail(id) {
     h('div', {class:'crm-hero-actions'},
       h('button', {type:'button', class:'sim-open crm-btn-ghost', onclick: () => openSim(p)}, '🧮 Simulateur'),
       p.phone && me.sms?.enabled ? h('button', {type:'button', class:'crm-btn-ghost crm-btn-sms', onclick: () => clientSms(p)}, '✉ SMS') : '',
-      p.phone && me.can.call ? h('a', {class:'crm-btn crm-btn-wa', target:'_blank', rel:'noopener noreferrer', href:'https://wa.me/' + waNum(p.phone)}, 'WhatsApp') : '',
+      p.phone && me.can.call ? h('a', {class:'crm-btn crm-btn-wa', target:'_blank', rel:'noopener noreferrer', href:'https://wa.me/' + waOf(p)}, 'WhatsApp') : '',
       p.phone && me.can.call ? h('a', {class:'crm-btn crm-btn-primary call', href:'tel:' + p.phone}, '☎ Appeler') : ''));
   const outcome = me.can.call ? h('section', {class:'card crm-outcome'},
       h('div', {class:'crm-card-head'}, h('h3', {}, 'Résultat de l’appel'), h('span', {class:'muted crm-kbd-hint'}, 'Touches 1 à ' + Math.min(RES.length, 9))),
@@ -1752,7 +1756,7 @@ async function excelToCsv(f) {
   const csv = '\uFEFF' + [head, ...out].map(r => r.map(q).join(';')).join('\r\n');
   return {csv, extras: cust.map(f => f.key), total: rows.length - start - empty, kept: out.length, dupInFile: dup, empty};
 }
-const TYPE_LABELS = {text:'Texte libre', textarea:'Texte long', number:'Nombre', date:'Date', email:'E-mail', yesno:'Oui / Non', select:'Liste (un seul choix)', multiselect:'Liste (plusieurs choix)'};
+const TYPE_LABELS = {text:'Texte libre', textarea:'Texte long', number:'Nombre', date:'Date', email:'E-mail', yesno:'Oui / Non', select:'Liste (un seul choix)', multiselect:'Liste (plusieurs choix)', whatsapp:'Numéro WhatsApp (algérien ou international)'};
 function fieldsEditor() {
   let list = JSON.parse(JSON.stringify(me.fields || []));
   const out = h('span', {class:'muted'}), box = h('div');
@@ -2510,7 +2514,7 @@ function admin() {
           } else { fd.append('file', f0); }
           const r = await api('/import', {method:'POST', body:fd});
           m2.replaceChildren(pre + `${r.imported} importés, ${r.duplicates} déjà dans la base (doublons), ${r.skipped} sans nom, ${r.invalid} numéros invalides`
-            + (r.unrecognized ? `, ${r.unrecognized} avec valeur non reconnue (voir commentaire)` : '') + (r.unassigned ? (asg.value === 'none' ? `, tous en « Nouveau », non affectés : répartissez-les avec « Répartir les prospects non assignés ».` : `, ${r.unassigned} sans commercial (groupe vide ou catégorie vide).`) : '.'),
+            + (r.unrecognized ? `, ${r.unrecognized} avec valeur non reconnue (voir commentaire)` : '') + (r.two_numbers ? `, ${r.two_numbers} avec deux numéros (le 2e mis en Numéro WhatsApp)` : '') + (r.unassigned ? (asg.value === 'none' ? `, tous en « Nouveau », non affectés : répartissez-les avec « Répartir les prospects non assignés ».` : `, ${r.unassigned} sans commercial (groupe vide ou catégorie vide).`) : '.'),
             ...r.samples.map(x => h('div', {class:'err'}, x)));
         } catch (e) { m2.textContent = e.message; }
       }}, 'Importer'), m2),
@@ -2771,7 +2775,7 @@ async function checkReminders() {
       h('h3', {}, '⏰ Rappel client'),
       h('p', {}, h('strong', {}, nm(due)), ' — ' + due.phone),
       h('p', {class:'muted'}, 'Prévu : ' + fmt(Number(due.callback_at)) + (due.last_note ? ' — ' + due.last_note : '')),
-      h('a', {href:'https://wa.me/' + waNum(due.phone), target:'_blank', rel:'noopener noreferrer', onclick: () => close(30), style:'display:block;text-align:center;padding:14px;font-size:18px;border-radius:10px;margin:10px 0;background:#25D366;color:#fff;text-decoration:none'}, '💬 WhatsApp'),
+      h('a', {href:'https://wa.me/' + waOf(due), target:'_blank', rel:'noopener noreferrer', onclick: () => close(30), style:'display:block;text-align:center;padding:14px;font-size:18px;border-radius:10px;margin:10px 0;background:#25D366;color:#fff;text-decoration:none'}, '💬 WhatsApp'),
       h('a', {href:'tel:' + due.phone, onclick: () => close(30), style:'display:block;text-align:center;padding:14px;font-size:18px;border-radius:10px;margin:10px 0;background:var(--color-primary-element);color:var(--color-primary-element-text);text-decoration:none'}, '📞 Appeler'),
       h('button', {onclick: () => { close(30); detail(due.id); }}, 'Ouvrir la fiche'),
       h('button', {onclick: () => close(10)}, 'Plus tard (10 min)')));

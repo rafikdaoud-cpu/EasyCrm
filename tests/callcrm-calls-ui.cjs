@@ -32,7 +32,7 @@ test('answered inbound call opens the known file, offers a new file for an unkno
 test('callback reminder waits while a call or a client file is being handled and appears once the file is left',async()=>{
  const dom=new JSDOM('<main><div class="cols" data-pid="5"></div></main>',{url:'https://cloud.example.test'}),document=dom.window.document,root=document.querySelector('main');
  const due={id:9,assigned_to:'alice',callback_at:1,phone:'0770000009',lastname:'Client'};
- const ctx=vm.createContext({document,window:dom.window,Node:dom.window.Node,root,setTimeout:()=>{},fmt:String,nm:p=>p.lastname,waNum:String,saveSnooze:()=>{},snooze:{},popup:false,myPresence:null,
+ const ctx=vm.createContext({document,window:dom.window,Node:dom.window.Node,root,setTimeout:()=>{},fmt:String,nm:p=>p.lastname,waNum:String,waOf:p=>String(p.phone),saveSnooze:()=>{},snooze:{},popup:false,myPresence:null,
   dirtyChecks:new Map(),yeastarPopups:new Map(),pbxState:s=>s==='BYE'?'Terminé':s,detail:()=>{},me:{uid:'alice',can:{call:true}},callBusy:{pid:null,until:0},api:async()=>[due]});
  vm.runInContext(part('const h =','async function api(')+source.slice(source.indexOf('function callDone()'),source.lastIndexOf('(async () => {')),ctx);
  const check=async()=>{await vm.runInContext('checkReminders()',ctx);await tick();return document.querySelectorAll('.ccp-bg').length;};

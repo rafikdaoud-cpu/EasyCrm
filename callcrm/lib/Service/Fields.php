@@ -6,7 +6,8 @@ use OCP\IConfig;
 /** Définition configurable des champs de la fiche client (réglée par l'admin). */
 class Fields {
 	public const TYPES = ['text' => 'Texte libre', 'textarea' => 'Texte long', 'number' => 'Nombre', 'date' => 'Date', 'email' => 'E-mail',
-		'yesno' => 'Oui / Non', 'select' => 'Liste (un seul choix)', 'multiselect' => 'Liste (plusieurs choix)'];
+		'yesno' => 'Oui / Non', 'select' => 'Liste (un seul choix)', 'multiselect' => 'Liste (plusieurs choix)',
+		'whatsapp' => 'Numéro WhatsApp (algérien ou international)'];
 	public const MAX_CUSTOM = 30;
 	/** Champs intégrés : clé => [libellé, type par défaut, type verrouillé ?] */
 	private const BUILTIN = [
@@ -96,6 +97,35 @@ class Fields {
 	}
 
 	/** Normalise une valeur selon le type du champ ; '' si invalide. */
+	/**
+	 * Numéro WhatsApp au format international « +<indicatif><numéro> », ou null.
+	 * Algérien : 05/06/07 + 8 chiffres ou fixe 02/03/04/09 (avec ou sans 0, 213 ou 00213) ;
+	 * international : préfixe + ou 00, puis 8 à 15 chiffres (indicatif compris).
+	 */
+	public static function whatsapp(string $raw): ?string {
+		$t = trim(Lookup::latin($raw));
+		if ($t === '') { return null; }
+		$intl = str_starts_with($t, '+') || str_starts_with(preg_replace('/\s+/', '', $t), '00');
+		$d = preg_replace('/\D+/', '', $t);
+		if (str_starts_with($d, '00')) { $d = substr($d, 2); }
+		if (!$intl || str_starts_with($d, '213')) {
+			$local = str_starts_with($d, '213') ? '0' . substr($d, 3) : ($d !== '' && $d[0] !== '0' ? '0' . $d : $d);
+			if (preg_match('/^0[567]\d{8}$/', $local) || preg_match('/^0[2349]\d{7,8}$/', $local)) { return '+213' . substr($local, 1); }
+			if (!$intl) { return null; }
+		}
+		return preg_match('/^[1-9]\d{7,14}$/', $d) ? '+' . $d : null;
+	}
+	/** Numéro WhatsApp renseigné sur la fiche (champ de type « whatsapp »), chiffres seuls (ex. 33612345678), sinon null. */
+	public static function whatsappOf(array $prospect): ?string {
+		$extra = is_array($prospect['extra'] ?? null) ? $prospect['extra'] : (json_decode((string)($prospect['extra'] ?? ''), true) ?: []);
+		foreach (self::all() as $f) {
+			if (($f['type'] ?? '') === 'whatsapp' && empty($f['builtin']) && !empty($extra[$f['key']])) {
+				$n = self::whatsapp((string)$extra[$f['key']]);
+				if ($n) { return substr($n, 1); }
+			}
+		}
+		return null;
+	}
 	public static function norm(string $val, array $f): string {
 		$val = trim($val);
 		switch ($f['type']) {
@@ -110,6 +140,7 @@ class Fields {
 			case 'multiselect':
 				$sel = array_values(array_unique(array_filter(array_map('trim', explode('|', $val)), fn($x) => in_array($x, $f['options'], true))));
 				return implode(' | ', $sel);
+			case 'whatsapp': return self::whatsapp($val) ?? '';
 			case 'textarea': return mb_substr($val, 0, 4000);
 			default: return mb_substr($val, 0, 255);
 		}
