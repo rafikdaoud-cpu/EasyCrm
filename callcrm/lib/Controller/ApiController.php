@@ -179,7 +179,7 @@ class ApiController extends Controller {
 	public function me(): JSONResponse {
 		if (!$this->a->can('view')) { return $this->deny(); }
 		$can = [];
-		foreach (['call', 'assign', 'create', 'import', 'invite', 'fields', 'labels', 'delete', 'all', 'audit', 'export', 'export_phone'] as $k) { $can[$k] = $this->a->can($k); }
+		foreach (['call', 'assign', 'create', 'import', 'invite', 'teams', 'fields', 'labels', 'delete', 'all', 'audit', 'export', 'export_phone'] as $k) { $can[$k] = $this->a->can($k); }
 		return new JSONResponse(['statuses' => Statuses::all(), 'fields' => Fields::all(), 'role' => $this->a->role(), 'uid' => $this->a->uid(), 'name' => $this->um->get($this->a->uid())?->getDisplayName() ?: $this->a->uid(), 'labels' => $this->getLabels(), 'options' => self::OPT + ['c5' => array_keys(Lookup::WILAYAS)], 'teams' => $this->getTeams(), 'groups' => array_map(fn($g, $n) => ['id' => $g, 'name' => $n, 'cats' => array_keys(array_filter(Access::cats(), fn($x) => $x === $g))], array_keys(Access::teams()), array_values(Access::teams())), 'commerciaux' => $this->commerciaux(), 'max_callbacks' => $this->maxCallbacks(), 'prefs' => Prefs::all(), 'can' => $can, 'sms' => $this->smsRuntime()]);
 	}
 
@@ -382,6 +382,45 @@ class ApiController extends Controller {
 		foreach ($rows as &$r) { $r['user_name'] = $r['user_id'] ? ($this->um->getDisplayName($r['user_id']) ?: $r['user_id']) : ''; }
 		unset($r);
 		return new JSONResponse(['rows' => $rows, 'total' => $this->s->auditCount($act)]);
+	}
+
+	/**
+	 * Change le groupe d'équipe d'un commercial (administrateurs) : ajout au nouveau groupe puis retrait des autres
+	 * groupes d'équipe. Les groupes viennent de l'AD : l'écriture passe par ldap_write_support ; un refus est rapporté.
+	 * to = '' retire le commercial de tous les groupes d'équipe.
+	 */
+	#[NoAdminRequired]
+	public function teamMove(): JSONResponse {
+		if (!$this->a->can('teams')) { return $this->deny(); }
+		$uid = trim((string)$this->request->getParam('uid', ''));
+		$to = trim((string)$this->request->getParam('to', ''));
+		$teams = Access::teams();
+		if (!in_array($uid, array_column($this->commerciaux(), 'uid'), true)) { return $this->err('Commercial inconnu'); }
+		if ($to !== '' && !isset($teams[$to])) { return $this->err('Groupe inconnu'); }
+		$user = $this->um->get($uid);
+		if (!$user) { return $this->err('Compte introuvable'); }
+		$before = [];
+		foreach ($teams as $gid => $name) { $g = $this->gm->get($gid); if ($g && $g->inGroup($user)) { $before[] = $gid; } }
+		if ($before === ($to === '' ? [] : [$to])) { return $this->err('Ce commercial est déjà dans ce groupe.'); }
+		try {
+			if ($to !== '' && !in_array($to, $before, true)) {
+				$g = $this->gm->get($to);
+				if (!$g || !$g->canAddUser()) { return $this->err('Ce groupe ne peut pas être modifié depuis Call CRM (groupe en lecture seule).'); }
+				$g->addUser($user);
+			}
+			foreach ($before as $gid) {
+				if ($gid === $to) { continue; }
+				$g = $this->gm->get($gid);
+				if ($g && $g->canRemoveUser()) { $g->removeUser($user); }
+			}
+		} catch (\Throwable $e) {
+			return $this->err('L’annuaire (AD) a refusé la modification : ' . $e->getMessage(), Http::STATUS_BAD_GATEWAY);
+		}
+		try { $c = \OCP\Server::get(\OCP\ICacheFactory::class)->createDistributed('callcrm'); $c->remove('teams'); } catch (\Throwable $e) {}
+		$this->memoTeams = null;
+		$label = fn($g) => $g === '' ? 'aucun groupe' : ($teams[$g] ?? $g);
+		$this->s->audit($this->a->uid(), 'team_move', null, $uid . ' : ' . ($before ? implode(', ', array_map($label, $before)) : 'aucun groupe') . ' → ' . $label($to));
+		return new JSONResponse(['teams' => $this->computeTeams(), 'from' => $before, 'to' => $to]);
 	}
 
 	/** Transfert en masse : de $from (commercial, ou '' = non assignés) vers $to, filtré par statut, avec quantité max. */

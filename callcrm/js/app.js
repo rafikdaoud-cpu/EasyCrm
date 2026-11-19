@@ -1949,6 +1949,27 @@ function responseKeys(observed = []) {
   return keys;
 }
 let responseSortKey = 'name', responseSortDirection = 'asc';
+/** Administrateurs : déplacer un commercial vers un autre groupe d'équipe (groupes de l'AD). */
+function teamMoveForm() {
+  const nameOf = uid => (me.commerciaux.find(u => u.uid === uid) || {name:uid}).name;
+  const groupOf = uid => (me.groups || []).filter(g => ((me.teams || {})[g.id] || []).includes(uid)).map(g => g.name).join(', ') || 'sans groupe';
+  const who = h('select', {'aria-label':'Commercial à déplacer'}, h('option', {value:''}, 'Choisir un commercial…'),
+    me.commerciaux.slice().sort((a, b) => a.name.localeCompare(b.name, 'fr')).map(u => h('option', {value:u.uid}, u.name + ' — ' + groupOf(u.uid))));
+  const to = h('select', {'aria-label':'Nouveau groupe'}, (me.groups || []).map(g => h('option', {value:g.id}, g.name)), h('option', {value:''}, 'Aucun groupe (retirer)'));
+  const out = h('span', {role:'status'});
+  const btn = h('button', {type:'button', class:'primary', onclick: async () => {
+    if (!who.value) { out.textContent = 'Choisissez un commercial.'; return; }
+    const target = to.value ? (me.groups.find(g => g.id === to.value) || {}).name : 'aucun groupe';
+    if (!confirm('Déplacer ' + nameOf(who.value) + ' (' + groupOf(who.value) + ') vers « ' + target + ' » ? Le changement est fait dans l’AD.')) return;
+    btn.disabled = true; out.textContent = 'Modification en cours…';
+    try {
+      const r = await api('/teams/move', {method:'POST', body:{uid:who.value, to:to.value}});
+      me.teams = r.teams; go('admin');
+    } catch (e) { out.textContent = e.message; btn.disabled = false; }
+  }}, 'Changer de groupe');
+  return h('div', {class:'team-move'}, h('strong', {}, 'Changer un commercial de groupe'), h('div', {class:'bar'}, who, h('span', {}, 'vers'), to, btn), out,
+    h('p', {class:'muted'}, 'Réservé aux administrateurs. Le commercial est ajouté au nouveau groupe puis retiré des autres groupes d’équipe, directement dans l’AD ; ses prospects ne changent pas de commercial. L’opération est enregistrée dans le journal d’audit.'));
+}
 function callResponsesTable(calls) {
   const keys = responseKeys(calls.map(x => x.result)), byUser = {};
   calls.forEach(x => { const row = byUser[x.user_id] ||= {}; row[x.result] = (row[x.result] || 0) + Number(x.n); });
@@ -2308,6 +2329,7 @@ function admin() {
   show(h('h2', {}, 'Administration'),
     h('div', {class:'card'}, h('h3', {}, 'Groupes de commerciaux'),
       h('p', {class:'muted'}, 'Les commerciaux sont les membres du groupe des commerciaux ; chaque commercial doit aussi être dans le groupe de son équipe (groupes de l’AD ou de Nextcloud).'),
+      me.can.teams ? teamMoveForm() : '',
       me.groups.map(g => {
         // Membres affichés par leur nom (repli sur l'identifiant d'un compte inconnu), triés par ordre alphabétique.
         const members = ((me.teams || {})[g.id] || []).map(uid => (me.commerciaux.find(u => u.uid === uid) || {name:uid}).name).sort((a, b) => a.localeCompare(b, 'fr'));

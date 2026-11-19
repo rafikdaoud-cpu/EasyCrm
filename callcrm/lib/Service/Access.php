@@ -33,7 +33,7 @@ class Access {
 		return $o;
 	}
 	private const CAN = [
-		'import' => ['admin', 'superviseur'], 'invite' => ['admin'], 'fields' => ['admin'], 'labels' => ['admin'], 'delete' => ['admin'],
+		'import' => ['admin', 'superviseur'], 'invite' => ['admin'], 'teams' => ['admin'], 'fields' => ['admin'], 'labels' => ['admin'], 'delete' => ['admin'],
 		'assign' => ['admin', 'superviseur'], 'create' => ['admin', 'superviseur', 'commercial'], 'call' => ['admin', 'commercial'],
 		'all' => ['admin', 'superviseur', 'lecture'], 'audit' => ['admin', 'superviseur'],
 		'export' => ['admin', 'superviseur', 'commercial', 'lecture'], 'export_phone' => ['admin', 'superviseur'], 'mask' => [],

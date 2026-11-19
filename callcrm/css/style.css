@@ -763,3 +763,5 @@ body.crm-glass-on #callcrm-chat .crm-chat-panel,body.crm-glass-on #callcrm-chat 
 #callcrm .team-group:first-of-type{border-top:0}
 #callcrm .team-members{display:flex;flex-wrap:wrap;gap:6px;list-style:none;margin:8px 0;padding:0}
 #callcrm .team-members li{padding:3px 10px;border-radius:999px;background:var(--color-background-dark);font-size:13px}
+#callcrm .team-move{margin:10px 0 14px;padding:12px;border-radius:10px;background:var(--color-background-dark)}
+#callcrm .team-move .bar{align-items:center;margin:8px 0 4px}
