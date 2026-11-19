@@ -776,3 +776,27 @@ body.crm-glass-on #callcrm-chat .crm-chat-panel,body.crm-glass-on #callcrm-chat 
 #callcrm button.small{padding:3px 10px;min-height:28px;font-size:12px}
 #callcrm .crm-collect-msg{display:flex;flex-direction:column;gap:4px;margin:8px 0;font-weight:600}
 #callcrm .crm-collect-msg textarea{width:100%;font-weight:400}
+/* Tableaux : outils colonnes, poignées de largeur, pagination */
+#callcrm .crm-tbl-tools{display:flex;gap:8px;justify-content:flex-end;align-items:center;margin:4px 0 6px}
+#callcrm .crm-tbl-tools button,#callcrm .crm-tbl-cols>summary{font-size:12px;min-height:30px;padding:4px 10px}
+#callcrm .crm-tbl-cols{position:relative}
+#callcrm .crm-tbl-cols>summary{list-style:none;cursor:pointer;border:1px solid var(--color-border);border-radius:8px;display:inline-flex;align-items:center;background:var(--color-main-background)}
+#callcrm .crm-tbl-cols>summary::-webkit-details-marker{display:none}
+#callcrm .crm-tbl-menu{position:absolute;right:0;z-index:30;min-width:200px;margin-top:4px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;background:var(--color-main-background);border:1px solid var(--color-border);border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.14)}
+#callcrm .crm-tbl-menu label{display:flex;align-items:center;gap:6px;white-space:nowrap;cursor:pointer;font-weight:400}
+#callcrm .crm-tbl-th{position:relative}
+#callcrm table th,#callcrm table td{overflow:hidden;text-overflow:ellipsis}
+#callcrm .crm-tbl-grip{position:absolute;top:0;right:0;width:7px;height:100%;cursor:col-resize;user-select:none;touch-action:none}
+#callcrm .crm-tbl-grip:hover,#callcrm .crm-tbl-grip:focus-visible{background:var(--color-primary-element);opacity:.45;outline:none}
+#callcrm .crm-tbl-pager{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-end;margin:8px 0}
+#callcrm .crm-tbl-pager button{min-height:30px;padding:2px 10px}
+/* Liste des dossiers : colonnes choisies et largeurs (grille) */
+#callcrm .crm-list{--crm-cols:minmax(200px,2.2fr) minmax(90px,1fr) minmax(110px,1.2fr) 178px minmax(120px,1.2fr) 110px 84px}
+@media(min-width:1101px){#callcrm .crm-list .row{grid-template-columns:var(--crm-cols)}#callcrm .crm-list .row:has(.cell-ck){grid-template-columns:24px var(--crm-cols)}}
+#callcrm .crm-list.hide-cell-w .cell-w,#callcrm .crm-list.hide-cell-c .cell-c,#callcrm .crm-list.hide-cell-s .cell-s,#callcrm .crm-list.hide-cell-cb .cell-cb,#callcrm .crm-list.hide-cell-d .cell-d{display:none!important}
+#callcrm .crm-tbl-tools{flex-wrap:wrap}
+#callcrm .crm-tbl-cols[open]{flex-basis:100%;order:2}
+#callcrm .crm-tbl-cols>summary{margin-left:auto;width:max-content}
+#callcrm .crm-tbl-menu{position:static;flex-direction:row;flex-wrap:wrap;gap:4px 16px;box-shadow:none;margin:6px 0 0;min-width:0}
+#callcrm .crm-tbl-menu label{display:inline-flex!important;margin:0!important;padding:2px 0!important;min-height:0!important;font-size:13px}
+#callcrm .crm-tbl-menu input{margin:0}

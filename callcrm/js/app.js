@@ -1,5 +1,7 @@
 (() => {
 const root = document.getElementById('callcrm');
+const tblStore = {get(k, d) { try { const v = JSON.parse(localStorage.getItem('callcrm_tbl_' + k)); return v === null ? d : v; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('callcrm_tbl_' + k, JSON.stringify(v)); } catch (e) {} }};
 const API = root.dataset.api;
 const tok = () => document.head.dataset.requesttoken || (window.OC && OC.requestToken) || '';
 let ST = {}, RES = [], STD = {}, STC = {}, KINDS = {}, TABS = [];
@@ -108,7 +110,7 @@ window.addEventListener('online', flushQueue); window.addEventListener('offline'
 setInterval(flushQueue, 30000);
 let sortBy = {k:'', d:'desc'};
 const sel = new Set();
-let pageSize = 10; try { const v = localStorage.getItem('callcrm_ps2'); if (v !== null && [0, 10, 20, 30].includes(Number(v))) pageSize = Number(v); } catch (e) {}
+let pageSize = 10; try { const v = localStorage.getItem('callcrm_ps2'); if (v !== null && [0, 5, 10, 20].includes(Number(v))) pageSize = Number(v); } catch (e) {}
 let me, tab = 'nouveaux', filt = {q:'', status:'', assigned:''}, snooze = {}, popup = false;
 /** Dernière liste affichée : permet « dossier précédent / suivant » depuis la fiche. */
 let ficheList = {ids:[], offset:0, total:0};
@@ -839,7 +841,7 @@ async function list(k) {
         h('span', {class:'crm-pager'}, h('button', {'aria-label':'Page précédente', disabled: page <= 1, onclick: () => go2(page - 1)}, '‹'), h('span', {class:'muted'}, 'Page ' + page + ' / ' + pages),
           h('button', {'aria-label':'Page suivante', disabled: page >= pages, onclick: () => go2(page + 1)}, '›'), ' ',
           h('select', {onchange: e => { pageSize = Number(e.target.value); try { localStorage.setItem('callcrm_ps2', String(pageSize)); } catch (x) {} load(); }},
-            [10, 20, 30, 0].map(n => h('option', {value:n, selected: n === pageSize}, n ? n + ' par page' : 'Tout'))))];
+            [5, 10, 20, 0].map(n => h('option', {value:n, selected: n === pageSize}, n ? n + ' par page' : 'Tout'))))];
       pager.replaceChildren(...mk()); pagerB.replaceChildren(...mk());
     } catch (e) { box.replaceChildren(h('p', {class:'err'}, e.message)); }
   };
@@ -849,7 +851,46 @@ async function list(k) {
     (me.can.create || me.sms?.bulk) ? h('div', {class:'crm-page-actions'}, me.sms?.bulk ? h('button', {onclick: bulkSms}, '✉ SMS à la sélection') : '', me.can.create ? h('button', {class:'primary', onclick: () => addForm()}, '+ Nouveau client') : '') : '');
   head0 = rowHead(!!me.can.assign, sortCol);
   const listCard = h('div', {class:'card crm-list'}, head0, box, pagerB);
-  show(head, dossierTabs(), me.can.assign && K.all ? distButtons() : '', bar, moreFilters, selBar, listCard); load();
+  const gridTools = listGridColumns(listCard);
+  show(head, dossierTabs(), me.can.assign && K.all ? distButtons() : '', bar, moreFilters, selBar, gridTools, listCard); load();
+}
+/** Liste des dossiers (grille) : colonnes affichables / masquables et redimensionnables, réglages gardés dans le navigateur. */
+const LIST_COLS = [['cell-who', 'Client', 'minmax(200px,2.2fr)', true], ['cell-w', 'Wilaya', 'minmax(90px,1fr)'], ['cell-c', 'Produit', 'minmax(110px,1.2fr)'],
+  ['cell-s', 'État', '178px'], ['cell-cb', 'Rappel', 'minmax(120px,1.2fr)'], ['cell-d', 'Inscrit le', '110px'], ['cell-act', 'Actions', '84px', true]];
+function listGridColumns(card) {
+  let st = tblStore.get('dossiers', {hidden: [], widths: {}});
+  const save = () => tblStore.set('dossiers', st);
+  const apply = () => {
+    const cols = LIST_COLS.filter(([c]) => !st.hidden.includes(c)).map(([c, , def]) => st.widths[c] ? st.widths[c] + 'px' : def).join(' ');
+    card.style.setProperty('--crm-cols', cols);
+    LIST_COLS.forEach(([c]) => card.classList.toggle('hide-' + c, st.hidden.includes(c)));
+  };
+  const menu = h('div', {class:'crm-tbl-menu'});
+  LIST_COLS.forEach(([c, label, , fixed]) => { if (fixed) return;
+    const box = h('input', {type:'checkbox', checked: !st.hidden.includes(c)});
+    box.addEventListener('change', () => { st.hidden = box.checked ? st.hidden.filter(x => x !== c) : [...st.hidden, c]; save(); apply(); });
+    menu.append(h('label', {}, box, ' ' + (c === 'cell-w' ? fieldLabel('c5', 'Wilaya') : c === 'cell-c' ? fieldLabel('c2', 'Produit') : label)));
+  });
+  // Poignées dans l'en-tête de la grille (recréé à chaque tri) : on les remet à chaque changement.
+  const grips = () => { const head = card.querySelector('.crm-row-head'); if (!head || head.dataset.grips) return; head.dataset.grips = '1';
+    LIST_COLS.forEach(([c, label]) => { const cell = head.querySelector('.' + c); if (!cell || c === 'cell-act') return;
+      cell.classList.add('crm-tbl-th');
+      const grip = h('span', {class:'crm-tbl-grip', role:'separator', 'aria-orientation':'vertical', tabindex:0, 'aria-label':'Largeur de la colonne ' + label});
+      const start = x0 => { const w0 = cell.getBoundingClientRect().width;
+        const move = ev => { const x = ev.touches ? ev.touches[0].clientX : ev.clientX; st.widths[c] = Math.max(60, Math.round(w0 + x - x0)); apply(); if (ev.cancelable) ev.preventDefault(); };
+        const stop = () => { ['mousemove', 'touchmove'].forEach(e => document.removeEventListener(e, move)); ['mouseup', 'touchend'].forEach(e => document.removeEventListener(e, stop)); save(); };
+        document.addEventListener('mousemove', move); document.addEventListener('touchmove', move, {passive:false}); document.addEventListener('mouseup', stop); document.addEventListener('touchend', stop); };
+      grip.addEventListener('mousedown', e => { e.preventDefault(); e.stopPropagation(); start(e.clientX); });
+      grip.addEventListener('touchstart', e => { e.stopPropagation(); start(e.touches[0].clientX); }, {passive:true});
+      grip.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); });
+      grip.addEventListener('keydown', e => { if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+        st.widths[c] = Math.max(60, (st.widths[c] || Math.round(cell.getBoundingClientRect().width)) + (e.key === 'ArrowRight' ? 20 : -20)); save(); apply(); e.preventDefault(); });
+      cell.append(grip);
+    }); };
+  new MutationObserver(grips).observe(card, {childList: true}); setTimeout(grips, 0);
+  apply();
+  return h('div', {class:'crm-tbl-tools'}, h('details', {class:'crm-tbl-cols'}, h('summary', {}, 'Colonnes'), menu),
+    h('button', {type:'button', onclick: () => { st.widths = {}; save(); apply(); }}, 'Largeurs par défaut'));
 }
 async function addForm(preset = {}, note = '', origin = '') {
   const msg = h('div', {class:'err'});
@@ -1537,7 +1578,7 @@ async function stats() {
       result: res.value, from: day(from.value, 0), to: day(to.value, 86400), tz: -new Date().getTimezoneOffset()});
   };
   let jp = null, jpage = 1, jsize = 10, jsort = {k:'date', d:'desc'};
-  try { const v = localStorage.getItem('callcrm_jps2'); if (v !== null && [0, 10, 20, 30].includes(Number(v))) jsize = Number(v); } catch (e) {}
+  try { const v = localStorage.getItem('callcrm_jps2'); if (v !== null && [0, 5, 10, 20].includes(Number(v))) jsize = Number(v); } catch (e) {}
   const jq = h('input', {type:'search', placeholder:'Rechercher dans le journal…'});
   const jpg = h('div', {class:'bar', style:'justify-content:space-between;align-items:center;margin:8px 0'});
   const jhead = [['date', 'Date et heure'], ['user', 'Commercial'], ['client', 'Client'], ['phone', 'Téléphone'], ['cat', 'Catégorie'], ['result', 'Résultat'], ['note', 'Note']];
@@ -1551,8 +1592,8 @@ async function stats() {
       jpg.replaceChildren(h('span', {class:'muted'}, r.total + ' appel(s) — page ' + jpage + ' / ' + pages),
         h('span', {}, h('button', {disabled: jpage <= 1, onclick: () => go3(jpage - 1)}, '◀ Précédent'), ' ', h('button', {disabled: jpage >= pages, onclick: () => go3(jpage + 1)}, 'Suivant ▶'), ' ',
           h('select', {onchange: e => { jsize = Number(e.target.value); try { localStorage.setItem('callcrm_jps2', String(jsize)); } catch (x) {} jpage = 1; jload(); }},
-            [10, 20, 30, 0].map(n => h('option', {value:n, selected: n === jsize}, n ? n + ' par page' : 'Tout')))));
-      box.replaceChildren(r.rows.length ? h('table', {style:'width:100%;border-collapse:collapse'},
+            [5, 10, 20, 0].map(n => h('option', {value:n, selected: n === jsize}, n ? n + ' par page' : 'Tout')))));
+      box.replaceChildren(r.rows.length ? h('table', {style:'width:100%;border-collapse:collapse', 'data-server-paged':'1'},
         h('thead', {}, h('tr', {}, jhead.map(([k, t]) => h('th', {style:'text-align:left;padding:4px;cursor:pointer;white-space:nowrap;user-select:none', title:'Trier', onclick: () => { if (jsort.k === k) jsort.d = jsort.d === 'asc' ? 'desc' : 'asc'; else { jsort.k = k; jsort.d = k === 'date' ? 'desc' : 'asc'; } jpage = 1; jload(); }},
           t + ' ', h('small', {style: jsort.k === k ? '' : 'opacity:.35'}, jsort.k === k ? (jsort.d === 'asc' ? '▲' : '▼') : '⇅'))))),
         h('tbody', {}, r.rows.map(x => h('tr', {style:'border-top:1px solid var(--color-border);cursor:pointer', onclick: () => detail(x.prospect_id)},
@@ -1876,7 +1917,7 @@ function auditCard() {
       const r = await api('/audit?' + new URLSearchParams({action:act.value, limit:size, offset:(page - 1) * size}));
       const pages = Math.max(1, Math.ceil(r.total / size));
       out.replaceChildren(r.total + ' événement(s) — page ' + page + ' / ' + pages + ' ', h('button', {disabled: page <= 1, onclick: () => { page--; load(); }}, '◀'), ' ', h('button', {disabled: page >= pages, onclick: () => { page++; load(); }}, '▶'));
-      box.replaceChildren(r.rows.length ? h('div', {style:'overflow-x:auto'}, h('table', {class:'t'}, h('thead', {}, h('tr', {}, ['Date et heure', 'Utilisateur', 'Action', 'Fiche', 'Détail'].map(x => h('th', {}, x)))),
+      box.replaceChildren(r.rows.length ? h('div', {style:'overflow-x:auto'}, h('table', {class:'t', 'data-server-paged':'1'}, h('thead', {}, h('tr', {}, ['Date et heure', 'Utilisateur', 'Action', 'Fiche', 'Détail'].map(x => h('th', {}, x)))),
         h('tbody', {}, r.rows.map(x => h('tr', {}, h('td', {style:'white-space:nowrap'}, fmtS(Number(x.created_at))), h('td', {}, x.user_name || '—'), h('td', {}, AUDIT[x.action] || x.action),
           h('td', {}, x.prospect_id ? h('a', {href:'#', onclick: e => { e.preventDefault(); detail(Number(x.prospect_id)); }}, '#' + x.prospect_id) : ''), h('td', {}, x.detail || '')))))) : h('p', {class:'muted'}, 'Aucun événement.'));
     } catch (e) { box.textContent = e.message; }
@@ -2963,4 +3004,88 @@ function crmChat() {
   checkReminders(); setInterval(checkReminders, 30000);
   setInterval(paintWa, 20000);
 })();
+
+/* ---- Tableaux : colonnes affichables / masquables et redimensionnables, pagination 5 / 10 / 20.
+   S'applique tout seul à chaque tableau de Call CRM (MutationObserver), y compris ceux affichés plus tard.
+   Réglages gardés dans le navigateur, par tableau (clé = en-têtes du tableau). Un tableau déjà paginé par le serveur
+   (data-server-paged) ou très court n'est pas repaginé. ---- */
+const tblLabel = th => (th.textContent || '').replace(/[▲▼⇅↑↓]/g, '').trim();
+function enhanceTable(table) {
+  if (table.dataset.tblDone || table.closest('.crm-noenhance')) return;
+  const head = table.tHead && table.tHead.rows[0];
+  if (!head || head.cells.length < 2) return;
+  table.dataset.tblDone = '1';
+  const ths = [...head.cells], labels = ths.map(tblLabel);
+  const key = 'k' + labels.join('|').slice(0, 300).split('').reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 0);
+  let st = tblStore.get(key, {hidden: [], widths: {}, size: 10});
+  const save = () => tblStore.set(key, st);
+  const apply = () => {
+    const visible = [];
+    ths.forEach((th, i) => {
+      const off = st.hidden.includes(labels[i]);
+      for (const r of table.rows) if (r.cells[i]) r.cells[i].hidden = off;
+      if (!off) visible.push(i);
+      th.style.width = st.widths[labels[i]] ? st.widths[labels[i]] + 'px' : '';
+    });
+    const custom = visible.some(i => st.widths[labels[i]]);
+    table.style.tableLayout = custom ? 'fixed' : '';
+    table.style.width = custom ? visible.reduce((s, i) => s + (st.widths[labels[i]] || 120), 0) + 'px' : '';
+    paginate();
+  };
+  // Barre d'outils : menu « Colonnes », largeurs par défaut.
+  const menu = h('div', {class:'crm-tbl-menu'});
+  ths.forEach((th, i) => { if (!labels[i]) return;
+    const box = h('input', {type:'checkbox', checked: !st.hidden.includes(labels[i])});
+    box.addEventListener('change', () => {
+      if (!box.checked && ths.length - st.hidden.length <= 1) { box.checked = true; return; }
+      st.hidden = box.checked ? st.hidden.filter(x => x !== labels[i]) : [...st.hidden, labels[i]]; save(); apply();
+    });
+    menu.append(h('label', {}, box, ' ' + labels[i]));
+  });
+  const tools = h('div', {class:'crm-tbl-tools'}, h('details', {class:'crm-tbl-cols'}, h('summary', {}, 'Colonnes'), menu),
+    h('button', {type:'button', onclick: () => { st.widths = {}; save(); apply(); }}, 'Largeurs par défaut'));
+  // Poignées de redimensionnement (souris, tactile, clavier) ; on fige d'abord la largeur des autres colonnes.
+  const freeze = () => ths.forEach((th, i) => { if (!st.widths[labels[i]] && !th.hidden) st.widths[labels[i]] = Math.max(50, Math.round(th.getBoundingClientRect().width)); });
+  ths.forEach((th, i) => {
+    th.classList.add('crm-tbl-th');
+    const grip = h('span', {class:'crm-tbl-grip', role:'separator', 'aria-orientation':'vertical', tabindex:0, 'aria-label':'Largeur de la colonne ' + labels[i]});
+    const start = x0 => { freeze(); const w0 = th.getBoundingClientRect().width;
+      const move = ev => { const x = ev.touches ? ev.touches[0].clientX : ev.clientX; st.widths[labels[i]] = Math.max(50, Math.round(w0 + x - x0)); apply(); if (ev.cancelable) ev.preventDefault(); };
+      const stop = () => { ['mousemove', 'touchmove'].forEach(e => document.removeEventListener(e, move)); ['mouseup', 'touchend'].forEach(e => document.removeEventListener(e, stop)); save(); };
+      document.addEventListener('mousemove', move); document.addEventListener('touchmove', move, {passive:false}); document.addEventListener('mouseup', stop); document.addEventListener('touchend', stop); };
+    grip.addEventListener('mousedown', e => { e.preventDefault(); e.stopPropagation(); start(e.clientX); });
+    grip.addEventListener('touchstart', e => { e.stopPropagation(); start(e.touches[0].clientX); }, {passive:true});
+    grip.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); });
+    grip.addEventListener('keydown', e => { if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return; freeze();
+      st.widths[labels[i]] = Math.max(50, (st.widths[labels[i]] || 120) + (e.key === 'ArrowRight' ? 20 : -20)); save(); apply(); e.preventDefault(); });
+    th.append(grip);
+  });
+  // Pagination côté navigateur (tableaux non paginés par le serveur et de plus de 5 lignes).
+  const body = table.tBodies[0], pager = h('div', {class:'crm-tbl-pager'});
+  let page = 1;
+  function paginate() {
+    if (!body || table.dataset.serverPaged) { pager.hidden = true; return; }
+    const rows = [...body.rows], n = rows.length;
+    if (n <= 5) { rows.forEach(r => { r.style.display = ''; }); pager.hidden = true; return; }
+    const size = st.size || 0, pages = size ? Math.max(1, Math.ceil(n / size)) : 1;
+    page = Math.min(page, pages);
+    rows.forEach((r, i) => { r.style.display = !size || (i >= (page - 1) * size && i < page * size) ? '' : 'none'; });
+    pager.hidden = false;
+    pager.replaceChildren(h('span', {class:'muted'}, (size ? ((page - 1) * size + 1) + '–' + Math.min(page * size, n) : '1–' + n) + ' sur ' + n),
+      h('button', {type:'button', disabled: page <= 1, 'aria-label':'Page précédente', onclick: () => { page--; paginate(); }}, '‹'),
+      h('span', {class:'muted'}, 'Page ' + page + ' / ' + pages),
+      h('button', {type:'button', disabled: page >= pages, 'aria-label':'Page suivante', onclick: () => { page++; paginate(); }}, '›'),
+      h('select', {'aria-label':'Lignes par page', onchange: e => { st.size = Number(e.target.value); page = 1; save(); paginate(); }},
+        [5, 10, 20, 0].map(v => h('option', {value:v, selected: v === (st.size || 0)}, v ? v + ' par page' : 'Tout'))));
+  }
+  const anchor = table.closest('.presence-table, .crm-table-wrap, [style*="overflow"]') || table;
+  anchor.before(tools); anchor.after(pager);
+  // Lignes ajoutées ou remplacées plus tard (tri, actualisation) : on réapplique.
+  if (body) new MutationObserver(() => apply()).observe(body, {childList: true});
+  apply();
+}
+function enhanceTables(scope = root) { scope.querySelectorAll('table').forEach(t => { try { enhanceTable(t); } catch (e) {} }); }
+new MutationObserver(muts => { for (const m of muts) for (const n of m.addedNodes) if (n.nodeType === 1) { if (n.tagName === 'TABLE') enhanceTable(n); else if (n.querySelector) enhanceTables(n); } })
+  .observe(root, {childList: true, subtree: true});
+
 })();
