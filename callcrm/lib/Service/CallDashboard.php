@@ -18,11 +18,13 @@ class CallDashboard {
             $key = self::key($r);
             if (!isset($calls[$key])) {
                 $calls[$key] = ['id'=>(int)$r['id'], 'key'=>$key, 'phone'=>$r['phone'], 'direction'=>$r['direction'],
-                    'received_at'=>(int)$r['created_at'], 'agents'=>[], 'extensions'=>[], 'prospects'=>[], 'answered'=>false];
+                    'received_at'=>(int)$r['created_at'], 'agents'=>[], 'extensions'=>[], 'prospects'=>[], 'answered'=>false, 'duration'=>0];
             }
             $c =& $calls[$key];
             $c['received_at'] = min($c['received_at'], (int)$r['created_at']);
             $c['extensions'][$r['extension']] = true;
+            // Durée totale reçue du standard ; anciens détails sans cette donnée : temps passé dans le SVI / la file.
+            $c['duration'] = max($c['duration'], (int)($r['call_duration'] ?? $r['talk_duration'] ?? 0));
             $c['prospects'][(string)($r['prospect_id'] ?? '')] = true;
             // user_id is the extension association snapshotted when the CDR arrived.
             if ($r['user_id'] !== '') {
@@ -41,7 +43,7 @@ class CallDashboard {
 
     public function report(array $range, ?string $viewer, array $uids): array {
         $q = $this->db->getQueryBuilder();
-        $records = $q->select('id','pbx_url','call_id','phone','direction','created_at','extension','prospect_id','user_id','call_status','talk_duration')
+        $records = $q->select('id','pbx_url','call_id','phone','direction','created_at','extension','prospect_id','user_id','call_status','talk_duration','call_duration')
             ->from('callcrm_pbx_recordings')
             ->where($q->expr()->gte('created_at',$q->createNamedParameter($range['start'])))
             ->andWhere($q->expr()->lt('created_at',$q->createNamedParameter($range['end'])))
@@ -62,7 +64,7 @@ class CallDashboard {
                 ->where($q->expr()->in('call_key',$q->createNamedParameter($keys,IQueryBuilder::PARAM_STR_ARRAY)))
                 ->executeQuery()->fetchAll() as $r) $follow[$r['call_key']]=$r;
         }
-        $incoming = []; $totals=['inbound'=>0,'answered'=>0,'unanswered'=>0,'unmapped'=>0,'treated'=>0];
+        $incoming = []; $totals=['inbound'=>0,'answered'=>0,'unanswered'=>0,'unmapped'=>0,'treated'=>0,'short'=>0];
         foreach ($calls as $c) {
             foreach ($c['agents'] as $uid=>$a) {
                 if (!isset($agents[$uid])) continue;
@@ -78,10 +80,12 @@ class CallDashboard {
             if ($c['answered']) { $totals['answered']++; continue; }
             $kind=$c['agents'] ? 'unanswered' : 'unmapped';
             $totals[$kind]++;
+            $short=$c['duration']<YeastarRecordings::SHORT_SECONDS;
+            if ($short) $totals['short']++;
             $f=$follow[$c['key']]??null;
             if ($f && $f['state']==='done') $totals['treated']++;
             $incoming[]=['id'=>$c['id'],'phone'=>$c['phone'],'prospect_id'=>$pid,'received_at'=>$c['received_at'],
-                'extensions'=>array_keys($c['extensions']), 'kind'=>$kind,
+                'extensions'=>array_keys($c['extensions']), 'kind'=>$kind, 'short'=>$short, 'duration'=>$c['duration'],
                 'state'=>$f['state']??'open','updated_at'=>(int)($f['updated_at']??0)];
         }
         usort($incoming,fn($a,$b)=>$b['received_at']<=>$a['received_at'] ?: $b['id']<=>$a['id']);

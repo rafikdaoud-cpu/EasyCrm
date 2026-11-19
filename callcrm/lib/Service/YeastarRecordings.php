@@ -9,6 +9,8 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
 /** Durable, private audio copies. Only controllers decide who can read them. */
 class YeastarRecordings {
     public const MAX_SIZE = 67108864;
+    /** En dessous, un appel qui n'est passé par aucun poste de commercial n'a pas d'audio utile (SVI, file, raccroché). */
+    public const SHORT_SECONDS = 30;
     public function __construct(private IDBConnection $db, private IAppData $data,
         private YeastarClient $client, private YeastarSettings $settings) {}
 
@@ -32,10 +34,19 @@ class YeastarRecordings {
         if (!preg_match('/^\+?\d{3,20}$/D', $phone) || strlen($extension) > 32) throw new \InvalidArgumentException('Numéro CDR invalide.');
         $duration = filter_var($m['talk_duration'] ?? 0, FILTER_VALIDATE_INT);
         if ($duration === false || $duration < 0 || $duration > 604800) throw new \InvalidArgumentException('Durée CDR invalide.');
+        $total = $m['call_duration'] ?? $m['duration'] ?? null;
+        $total = $total === null || $total === '' ? null : filter_var($total, FILTER_VALIDATE_INT);
+        if ($total === false || ($total !== null && ($total < 0 || $total > 604800))) $total = null;
         return ['source_key'=>hash('sha256', json_encode([(string)($event['sn'] ?? ''), $call, (string)($m['uid'] ?? ''), $file])),
             'call_id'=>$call, 'phone'=>$phone, 'extension'=>$extension, 'direction'=>$direction,
             'call_status'=>substr((string)($m['status'] ?? ''),0,32), 'started_at'=>substr((string)($m['time_start'] ?? ''),0,32),
-            'talk_duration'=>$duration, 'recording'=>$file];
+            'talk_duration'=>$duration, 'call_duration'=>$total, 'recording'=>$file];
+    }
+
+    /** Appel court (moins de 30 s au total) qui n'a touché aucun poste de commercial : audio non récupéré. */
+    public static function shortWithoutAgent(array $row, array $agentExtensions): bool {
+        if (in_array((string)$row['extension'], array_map('strval', $agentExtensions), true)) return false;
+        return (int)($row['call_duration'] ?? $row['talk_duration'] ?? 0) < self::SHORT_SECONDS;
     }
 
     public static function validFilename(string $name): bool {
@@ -56,7 +67,7 @@ class YeastarRecordings {
         $q=$this->db->getQueryBuilder();$q->select('*')->from('callcrm_pbx_recordings');
         $q->where($pid===null ? $q->expr()->isNull('prospect_id') : $q->expr()->eq('prospect_id',$q->createNamedParameter($pid)));
         $rows=$q->orderBy('id','DESC')->setFirstResult(max(0,$offset))->setMaxResults(51)->executeQuery()->fetchAll();
-        return ['rows'=>array_map(fn($r)=>array_intersect_key($r,array_flip(['id','phone','extension','user_id','direction','call_status','started_at','talk_duration','state','error','size','created_at'])),array_slice($rows,0,50)), 'has_more'=>count($rows)>50];
+        return ['rows'=>array_map(fn($r)=>array_intersect_key($r,array_flip(['id','phone','extension','user_id','direction','call_status','started_at','talk_duration','state','error','size','created_at','call_duration'])),array_slice($rows,0,50)), 'has_more'=>count($rows)>50];
     }
     /** Filtres communs à la liste détaillée et à la liste groupée par numéro. */
     private function filters(IQueryBuilder $q, array $f): void {

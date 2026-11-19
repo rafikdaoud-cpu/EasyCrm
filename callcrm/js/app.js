@@ -525,7 +525,7 @@ function yeastarRecordingsCard(pid=null){
   try{
    const result=await api((pid===null?'/yeastar/recordings':'/prospects/'+pid+'/yeastar-recordings')+'?offset='+offset);
    const nodes=result.rows.map(r=>{
-    const row=h('div',{class:'card'}),status={ready:'Audio enregistré dans Nextcloud',queued:'Récupération automatique en attente',processing:'Récupération en cours',failed:'Récupération en échec',no_recording:'Aucun audio signalé par Yeastar'};
+    const row=h('div',{class:'card'}),status={ready:'Audio enregistré dans Nextcloud',skipped_short:'Appel de moins de 30 s sans commercial : audio non récupéré',queued:'Récupération automatique en attente',processing:'Récupération en cours',failed:'Récupération en échec',no_recording:'Aucun audio signalé par Yeastar'};
     row.append(h('p',{},(r.started_at||fmt(Number(r.created_at)))+' · '+(r.direction==='inbound'?'Entrant':'Sortant')+' · '+r.phone),h('p',{},'Poste '+r.extension+(r.user_id?' · '+r.user_id:'')+' · Conversation : '+r.talk_duration+' s · '+r.call_status),h('p',{},status[r.state]||r.state));
     if(r.error && r.state!=='ready')row.append(h('p',{class:'muted'},r.error));
     if(r.state==='ready'){
@@ -563,7 +563,7 @@ function recordingsPage(){
   from=h('input',{type:'date',value:iso(today),'aria-label':'Du'}),to=h('input',{type:'date',value:iso(today),'aria-label':'Au'}),
   group=h('input',{type:'checkbox',checked:true}),audio=h('input',{type:'checkbox',checked:false}),body=h('div',{class:'crm-recordings-list'}),message=h('p',{class:'muted',role:'status'});
  const names=Object.fromEntries((me.commerciaux||[]).map(u=>[u.uid,u.name]));
- const status={ready:'Audio disponible',queued:'Récupération en attente',processing:'Récupération en cours',failed:'Récupération en échec',no_recording:'Pas d’audio (appel sans conversation enregistrée)'};
+ const status={ready:'Audio disponible',skipped_short:'Moins de 30 s sans commercial : audio non récupéré',queued:'Récupération en attente',processing:'Récupération en cours',failed:'Récupération en échec',no_recording:'Pas d’audio (appel sans conversation enregistrée)'};
  const callStatus={'ANSWERED':'Répondu','NO ANSWER':'Sans réponse','BUSY':'Occupé','FAILED':'Échec'};
  let offset=0,seq=0;
  const params=extra=>new URLSearchParams({q:q.value.trim(),direction:dir.value,user:user.value,link:link.value,from:from.value,to:to.value,audio:audio.checked?'1':'',...extra});
@@ -1487,7 +1487,7 @@ function callDashboardCard() {
   const body = h('div', {role:'status'}, 'Chargement…');
   const incoming = h('div');
   const state = h('select', {'aria-label':'État du suivi'},
-    h('option', {value:'open'}, 'À vérifier / rappeler'), h('option', {value:'done'}, 'Traités'), h('option', {value:'all'}, 'Tous'));
+    h('option', {value:'open'}, 'À vérifier / rappeler'), h('option', {value:'short'}, 'Raccrochés en moins de 30 s'), h('option', {value:'long'}, 'Sans réponse, 30 s et plus'), h('option', {value:'done'}, 'Traités'), h('option', {value:'all'}, 'Tous'));
   const search = h('input', {type:'search', 'aria-label':'Rechercher un numéro', placeholder:'Rechercher un numéro…'});
   const duration = value => { const s = Number(value) || 0; return Math.floor(s / 3600) + ' h ' + String(Math.floor(s % 3600 / 60)).padStart(2, '0') + ' min ' + String(s % 60).padStart(2, '0') + ' s'; };
   const time = value => new Date(value * 1000).toLocaleString('fr-FR', {timeZone:report.timezone});
@@ -1500,8 +1500,9 @@ function callDashboardCard() {
       g.calls.push(r); if (r.prospect_id) g.prospect_id = r.prospect_id; r.extensions.forEach(x => g.extensions.add(x)); g.kinds.add(r.kind);
       groups.set(r.phone, g);
     }
-    for (const g of groups.values()) { g.calls.sort((x, y) => y.received_at - x.received_at); g.open = g.calls.filter(c => c.state !== 'done'); g.state = g.open.length ? 'open' : 'done'; g.last = g.calls[0].received_at; }
-    const rows = [...groups.values()].filter(g => (state.value === 'all' || g.state === state.value) && g.phone.includes(search.value.trim())).sort((x, y) => y.last - x.last);
+    for (const g of groups.values()) { g.calls.sort((x, y) => y.received_at - x.received_at); g.open = g.calls.filter(c => c.state !== 'done'); g.state = g.open.length ? 'open' : 'done'; g.last = g.calls[0].received_at; g.short = g.calls.every(c => c.short); }
+    const keep = g => state.value === 'all' || (state.value === 'short' ? g.short : state.value === 'long' ? !g.short : g.state === state.value);
+    const rows = [...groups.values()].filter(g => keep(g) && g.phone.includes(search.value.trim())).sort((x, y) => y.last - x.last);
     page = Math.max(0, Math.min(page, Math.ceil(rows.length / 20) - 1));
     const items = rows.slice(page * 20, (page + 1) * 20);
     const callCount = rows.reduce((n, g) => n + g.calls.length, 0);
@@ -1515,9 +1516,10 @@ function callDashboardCard() {
           catch (error) { feedback.textContent = error.message; }
           finally { button.disabled = false; }
         }}, g.state === 'done' ? 'Rouvrir le suivi' : 'Marquer traité' + (g.open.length > 1 ? ' (' + g.open.length + ' appels)' : '')) : '';
-        return h('div', {class:'card crm-incoming-group'}, h('div', {class:'bar'}, h('strong', {}, g.phone), h('span', {class:'crm-count' + (g.calls.length > 1 ? ' hot' : '')}, String(g.calls.length)),
+        return h('div', {class:'card crm-incoming-group' + (g.short ? ' crm-short' : '')}, h('div', {class:'bar'}, h('strong', {}, g.phone), h('span', {class:'crm-count' + (g.calls.length > 1 ? ' hot' : '')}, String(g.calls.length)),
+            g.short ? h('span', {class:'crm-short-badge', title:'Le client a raccroché avant 30 secondes, sans arriver chez un commercial'}, 'Raccroché < 30 s') : '',
             h('span', {class:'muted'}, (g.calls.length > 1 ? 'appels sans réponse · dernier ' : 'appel sans réponse · ') + time(g.last))),
-          g.calls.length > 1 ? h('details', {}, h('summary', {class:'muted'}, 'Voir les ' + g.calls.length + ' appels'), h('ul', {}, g.calls.map(c => h('li', {}, time(c.received_at) + (c.state === 'done' ? ' · traité' : ''))))) : '',
+          g.calls.length > 1 ? h('details', {}, h('summary', {class:'muted'}, 'Voir les ' + g.calls.length + ' appels'), h('ul', {}, g.calls.map(c => h('li', {}, time(c.received_at) + ' · ' + c.duration + ' s' + (c.short ? ' (moins de 30 s)' : '') + (c.state === 'done' ? ' · traité' : ''))))) : h('p', {class:'muted'}, 'Durée de l’appel : ' + g.calls[0].duration + ' s'),
           h('p', {}, g.kinds.has('unanswered') ? 'Aucune réponse d’un commercial associé dans les détails reçus.' : 'SVI / file / poste non associé : réponse commerciale à vérifier.'),
           h('p', {class:'muted'}, 'Destination(s) : ' + [...g.extensions].join(', ') + (g.state === 'done' ? ' · Traité le ' + time(Math.max(...g.calls.map(c => c.updated_at))) : ' · Suivi ouvert')),
           g.prospect_id ? h('button', {onclick:() => detail(g.prospect_id)}, 'Ouvrir le dossier / rappeler') : h('span', {class:'muted'}, 'Numéro sans dossier unique : rattachement dans les enregistrements Yeastar.'), ' ', action, feedback);
@@ -1539,8 +1541,9 @@ function callDashboardCard() {
       const labels = ['Commercial', 'Dossiers', 'Appels Yeastar', 'Temps', 'Résultats des dossiers'];
       const line = (label, value) => h('div', {class:'dashboard-metric'}, h('span', {}, label), h('strong', {}, String(value)));
       body.replaceChildren(h('p', {class:'muted'}, r.range.from + ' au ' + r.range.to + ' · ' + r.timezone),
-        h('div', {class:'dashboard-kpis'}, ...[['Dossiers traités par agent',sums.processed],['Sortants par agent',sums.outbound],['Réponses agent',sums.answered],['Temps de conversation',duration(sums.talk)],['Suivis entrants ouverts¹',r.totals.unanswered + r.totals.unmapped - r.totals.treated]].map(([label,value]) => h('div', {class:'card'}, h('strong', {}, String(value)), h('div', {}, label)))),
+        h('div', {class:'dashboard-kpis'}, ...[['Dossiers traités par agent',sums.processed],['Sortants par agent',sums.outbound],['Réponses agent',sums.answered],['Temps de conversation',duration(sums.talk)],['Suivis entrants ouverts¹',r.totals.unanswered + r.totals.unmapped - r.totals.treated],['Raccrochés en moins de 30 s²',r.totals.short,'kpi-short']].map(([label,value,cls]) => h('div', {class:'card' + (cls ? ' ' + cls : '')}, h('strong', {}, String(value)), h('div', {}, label)))),
         h('p', {class:'muted'}, '¹ Appels à vérifier, y compris SVI et postes non associés. Ce chiffre ne représente pas les appels perdus.'),
+        h('p', {class:'muted'}, '² Appels entrants sans réponse d’un commercial, raccrochés moins de 30 secondes après l’arrivée (pendant l’accueil ou l’attente). Leur audio n’est pas récupéré.'),
         h('table', {class:'t dashboard-table'}, h('caption', {}, 'Performance commerciale et téléphonie'),
           h('thead', {}, h('tr', {}, labels.map(label => h('th', {scope:'col'}, label)))),
           h('tbody', {}, r.rows.map(row => { const t = row.telephony, p = row.totals.selected; return h('tr', {},
@@ -1551,7 +1554,7 @@ function callDashboardCard() {
             h('td', {'data-label':'Résultats des dossiers'}, results.length ? results.map(k => line(ST[k] || k, row.by_result[k] || 0)) : 'Aucun résultat')); }))),
         h('p', {class:'muted'}, 'Dossiers : une fois par commercial, avec le dernier résultat de la période. Téléphonie : une fois par identifiant d’appel et commercial ; un transfert peut concerner plusieurs agents. Durée : maximum reçu par appel et agent. La présence mesure la connexion au CRM.'),
         h('h3', {}, 'Appels entrants : suivi des réponses et rappels'),
-        h('p', {}, r.totals.inbound + ' identifiant(s) entrant(s) · ' + r.totals.answered + ' avec réponse agent · ' + r.totals.unanswered + ' sans réponse agent · ' + r.totals.unmapped + ' SVI / non associés · ' + r.totals.treated + ' suivi(s) traité(s).'),
+        h('p', {}, r.totals.inbound + ' identifiant(s) entrant(s) · ' + r.totals.answered + ' avec réponse agent · ' + r.totals.unanswered + ' sans réponse agent · ' + r.totals.unmapped + ' SVI / non associés · ' + r.totals.treated + ' suivi(s) traité(s) · ', h('strong', {class:'crm-short-text'}, r.totals.short + ' raccroché(s) en moins de 30 s'), '.'),
         h('p', {class:'muted'}, 'Seuls les détails Yeastar reçus sont connus. Des identifiants différents restent séparés : cette liste signale des appels à vérifier, pas un taux définitif d’appels perdus. « Traité » est une validation manuelle du responsable, pas une preuve de rappel abouti.'),
         h('p', {class:'muted'}, manager ? 'Vue équipe. Les numéros inconnus restent réservés aux responsables.' : 'Les compteurs téléphoniques sont ceux de votre poste associé. La liste entrante concerne uniquement vos dossiers actuellement affectés.'));
       drawIncoming();

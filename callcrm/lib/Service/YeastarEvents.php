@@ -73,9 +73,10 @@ class YeastarEvents {
   $q=$this->db->getQueryBuilder();$q->select('id')->from('callcrm_pbx_recordings')->where($q->expr()->eq('source_key',$q->createNamedParameter($row['source_key'])));
   if($q->executeQuery()->fetchOne())return;
   $p=$this->match($row['phone']);$uid='';
-  foreach($this->settings->settings()['extensions'] as $mapping)if($mapping['extension']===$row['extension'])$uid=$mapping['uid'];
   $config=$this->settings->settings();
-  $row+=['storage_folder'=>$config['recordings_folder'],'pbx_url'=>$config['url'],'prospect_id'=>$p?(int)$p['id']:null,'user_id'=>$uid,'state'=>$row['recording']===''?'no_recording':'queued',
+  foreach($config['extensions'] as $mapping)if($mapping['extension']===$row['extension'])$uid=$mapping['uid'];
+  $state=$row['recording']===''?'no_recording':(YeastarRecordings::shortWithoutAgent($row,array_column($config['extensions'],'extension'))?'skipped_short':'queued');
+  $row+=['storage_folder'=>$config['recordings_folder'],'pbx_url'=>$config['url'],'prospect_id'=>$p?(int)$p['id']:null,'user_id'=>$uid,'state'=>$state,
    'error'=>'','mime'=>'','size'=>0,'attempts'=>0,'next_attempt'=>0,'lease_until'=>0,'created_at'=>time()];
   $q=$this->db->getQueryBuilder();$q->insert('callcrm_pbx_recordings');foreach($row as $k=>$v)$q->setValue($k,$q->createNamedParameter($v));
   try{$q->executeStatement();}catch(\Throwable $e){
