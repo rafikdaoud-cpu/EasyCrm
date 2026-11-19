@@ -9,6 +9,7 @@ namespace OCP {
  class Server { public static function get($type) { return new class { public function getAppValue(...$args) { return ''; } }; } }
 }
 namespace OCP\DB\QueryBuilder { interface IQueryBuilder { public const PARAM_STR_ARRAY = 102; } }
+namespace OCP\AppFramework\Bootstrap { interface IBootstrap {} interface IRegistrationContext {} interface IBootContext {} }
 namespace OCP\AppFramework {
  class App {}
  class Controller { protected $request; public function __construct($id, $r) { $this->request = $r; } }

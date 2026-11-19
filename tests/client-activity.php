@@ -1,6 +1,7 @@
 <?php
 namespace OCP { interface IDBConnection {} interface IConfig {} interface IUserManager {} interface IUserSession {} interface IGroupManager {} interface IRequest {} class Server { public static $config;public static function get($class){return self::$config;} } }
 namespace OCP\DB\QueryBuilder { interface IQueryBuilder { const PARAM_INT=1,PARAM_STR=2,PARAM_NULL=0,PARAM_STR_ARRAY=102,PARAM_INT_ARRAY=101; } }
+namespace OCP\AppFramework\Bootstrap { interface IBootstrap {} interface IRegistrationContext {} interface IBootContext {} }
 namespace OCP\AppFramework { class App {} class Controller { protected $request;public function __construct($name,$request){$this->request=$request;} } class Http {const STATUS_BAD_REQUEST=400,STATUS_FORBIDDEN=403,STATUS_NOT_FOUND=404,STATUS_CONFLICT=409;} }
 namespace OCP\AppFramework\Http { class JSONResponse {public function __construct(public $data,public $status=200){} } }
 namespace {

@@ -2943,6 +2943,9 @@ function crmChat() {
     }
   }
   go(me.role === 'commercial' ? 'journee' : 'dossiers');
+  // Lien d'une notification « documents reçus » : #fiche=<id> ouvre directement la fiche du client.
+  const openHash=()=>{const m=/^#fiche=(\d+)$/.exec(location.hash||'');if(m){detail(Number(m[1]));history.replaceState(null,'',location.pathname+location.search);}};
+  openHash();window.addEventListener('hashchange',openHash);
   try { crmChat(); } catch (e) {}
   refreshYeastarRuntime().then(pollYeastar);setInterval(pollYeastar,3000);setInterval(refreshYeastarRuntime,30000);
   setInterval(() => updateMyPresence(), 30000);

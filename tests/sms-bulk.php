@@ -6,6 +6,7 @@ namespace OCP\Files { interface IAppData {} class NotFoundException extends \Exc
 namespace OCP\Mail { interface IMailer {} }
 namespace OCP\Security { interface ICrypto {} }
 namespace OCP\Http\Client { interface IClientService {} }
+namespace OCP\AppFramework\Bootstrap { interface IBootstrap {} interface IRegistrationContext {} interface IBootContext {} }
 namespace OCP\AppFramework { class App {} class Controller { protected $request;public function __construct($n,$r){$this->request=$r;} } class Http {const STATUS_BAD_REQUEST=400,STATUS_FORBIDDEN=403,STATUS_NOT_FOUND=404,STATUS_CONFLICT=409;} }
 namespace OCP\AppFramework\Http { class JSONResponse {public function __construct(public $data,public $status=200){}} class DataDownloadResponse {} }
 namespace OCP\AppFramework\Http\Attribute { #[\Attribute] class NoAdminRequired {} #[\Attribute] class NoCSRFRequired {} }

@@ -27,7 +27,7 @@ class MemRoot implements \OCP\Files\IRootFolder{public array $users=[];public fu
 class NoTemp implements \OCP\ITempManager{public function getTemporaryFolder($p){return sys_get_temp_dir();}}
 class NoCrypto implements \OCP\Security\ICrypto{public function encrypt($v){return $v;}public function decrypt($v){return $v;}}
 class Urls implements \OCP\IURLGenerator{public function linkToRouteAbsolute($route,$args=[]){return 'https://cloud.test/apps/callcrm/collecte/'.$args['token'];}public function linkToRoute($route,$args=[]){return '/apps/callcrm';}}
-class Logs implements \Psr\Log\LoggerInterface{public array $logs=[];public function error($m,$c=[]){$this->logs[]=$m;}}
+class Logs implements \Psr\Log\LoggerInterface{public array $logs=[];public function error($m,$c=[]){$this->logs[]=$m;}public function warning($m,$c=[]){}public function debug($m,$c=[]){}}
 
 $db->pdo->exec("CREATE TABLE {$app}_collect_links(id INTEGER PRIMARY KEY AUTOINCREMENT,prospect_id INTEGER,token_hash TEXT UNIQUE,created_by TEXT,owner TEXT,state TEXT,folder_path TEXT,documents TEXT,created_at INTEGER DEFAULT 0,expires_at INTEGER DEFAULT 0,submitted_at INTEGER DEFAULT 0);
  CREATE TABLE {$app}_collect_files(id INTEGER PRIMARY KEY AUTOINCREMENT,link_id INTEGER,doc_index INTEGER,file_token TEXT,name TEXT,mime TEXT,size INTEGER DEFAULT 0,created_at INTEGER DEFAULT 0,UNIQUE(link_id,doc_index));

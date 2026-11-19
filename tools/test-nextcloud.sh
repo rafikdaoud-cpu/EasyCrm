@@ -23,6 +23,7 @@ node tests/callcrm-neglected-ui.cjs
 "$PHP_BIN" tests/yeastar-routing.php
 "$PHP_BIN" tests/inactive-owners.php
 "$PHP_BIN" tests/team-move.php
+"$PHP_BIN" tests/notifier.php
 node tests/callcrm-sms-ui.cjs
 node tests/callcrm-chat-ui.cjs
 "$PHP_BIN" tests/yeastar-settings.php

@@ -290,6 +290,8 @@ class ApiController extends Controller {
 		if (!$this->a->can('view')) { return $this->deny(); }
 		$p = $this->visible($id);
 		if (!$p) { return $this->err('Introuvable', Http::STATUS_NOT_FOUND); }
+		// Fiche ouverte : la notification « documents reçus » de cette fiche est lue.
+		try { $nm = \OCP\Server::get(\OCP\Notification\IManager::class); $n = $nm->createNotification(); $n->setApp('callcrm')->setUser($this->a->uid())->setObject('prospect', (string)$id); $nm->markProcessed($n); } catch (\Throwable $e) {}
 		$role = $this->a->role();
 		$recs = in_array($role, ['admin', 'superviseur'], true) ? $this->s->recordingsFor($id, null) : ($role === 'commercial' ? $this->s->recordingsFor($id, $this->a->uid()) : []);
 		foreach ($recs as &$r) { $r['user_name'] = $this->um->getDisplayName($r['user_id']) ?: $r['user_id']; unset($r['file']); }

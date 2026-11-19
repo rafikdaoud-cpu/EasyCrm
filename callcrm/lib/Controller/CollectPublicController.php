@@ -82,7 +82,7 @@ class CollectPublicController extends Controller {
   try{
    // Livraison immédiate : le document arrive chez le commercial dès cet envoi.
    $r=$this->collect->upload($l,$p,$owner,$index,(string)file_get_contents($f['tmp_name']));
-   if($r['first'])try{$this->activity->event((int)$p['id'],$owner,'documents',['action'=>'started']);}catch(\Throwable $e){}
+   if($r['first']){try{$this->activity->event((int)$p['id'],$owner,'documents',['action'=>'started']);}catch(\Throwable $e){}$this->notify($p,$owner,'documents_started',0);}
    unset($r['first']);
    return $this->json(['ok'=>true]+$r+['view'=>$this->collect->publicView($this->collect->find((int)$l['id']))]);
   }
@@ -112,6 +112,20 @@ class CollectPublicController extends Controller {
   catch(\InvalidArgumentException $e){return $this->json(['error'=>$e->getMessage()],400);}
   catch(\Throwable $e){$this->logger->error('Call CRM : envoi final des documents client impossible',['app'=>'callcrm','exception'=>$e]);return $this->json(['error'=>'L’envoi n’a pas abouti. Vos documents sont conservés : réessayez dans un instant.'],500);}
   try{$this->activity->event((int)$p['id'],$owner,'documents',['action'=>'received','count'=>$r['count'],'folder'=>$r['folder']]);}catch(\Throwable $e){}
+  $this->notify($p,$owner,'documents_received',(int)$r['count']);
   return $this->json(['ok'=>true,'count'=>$r['count']]);
+ }
+
+ /** Prévient le commercial de la fiche (cloche Nextcloud) ; une seule notification active par fiche. */
+ private function notify(array $p,string $owner,string $subject,int $count):void{
+  if($owner==='')return;
+  try{
+   $m=\OCP\Server::get(\OCP\Notification\IManager::class);
+   $old=$m->createNotification();$old->setApp('callcrm')->setUser($owner)->setObject('prospect',(string)(int)$p['id']);$m->markProcessed($old);
+   $n=$m->createNotification();
+   $n->setApp('callcrm')->setUser($owner)->setDateTime(new \DateTime())->setObject('prospect',(string)(int)$p['id'])
+     ->setSubject($subject,['name'=>trim(($p['firstname']??'').' '.($p['lastname']??'')),'count'=>$count]);
+   $m->notify($n);
+  }catch(\Throwable $e){$this->logger->warning('Call CRM : notification de documents impossible',['app'=>'callcrm','exception'=>$e]);}
  }
 }
