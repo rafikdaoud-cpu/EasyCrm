@@ -1507,7 +1507,8 @@ function callDashboardCard() {
 
 async function stats() {
   const nameOf = u => (me.commerciaux.find(c => c.uid === u) || {name:u}).name;
-  const box = h('div', {}, skel()), sum = h('div');
+  const box = h('div', {}, skel()), kpis = h('div', {class:'stats-kpis', 'aria-live':'polite'}), overview = h('div'), team = h('div'), teamTable = h('div');
+  let perfSort = {k:'n', d:'desc'};
   const from = h('input', {type:'date'}), to = h('input', {type:'date'});
   const usr = multi('Commerciaux', me.commerciaux.map(u => ({v:u.uid, t:u.name})));
   const grp = multi('Groupes', me.groups.map(g => ({v:g.id, t:g.name})));
@@ -1573,26 +1574,54 @@ async function stats() {
       const pct = (a, b) => b ? Math.round(100 * a / b) + ' %' : '—';
       const goal = Number(s.goal) || 0;
       const rsum = (s.reasons || []).reduce((a, x) => a + Number(x.n), 0);
-      sum.replaceChildren(
-        h('h3', {}, 'Résultats d’appels par type de réponse'),
-        h('p', {class:'muted'}, 'Nombre de résultats d’appel sur la période des statistiques, y compris les rappels et les réponses personnalisées. Plusieurs appels sur un dossier sont comptés ici séparément.'),
-        callResponsesTable(s.calls),
-        h('h3', {}, 'Performance par commercial'),
-        Object.keys(perf).length ? h('div', {style:'overflow-x:auto'}, h('table', {class:'t'},
-          h('thead', {}, h('tr', {}, ['Commercial', goal ? 'Aujourd’hui / objectif' : 'Aujourd’hui', 'Appels (période)', 'Contacts', 'Taux de contact', 'Intéressés', 'Taux d’intérêt'].map(x => h('th', {}, x)))),
-          h('tbody', {}, Object.entries(perf).map(([u, o]) => { const t = Number((s.today || {})[u] || 0); return h('tr', {},
-            h('td', {}, nameOf(u)), h('td', {}, t + (goal ? ' / ' + goal + ' ' : ''), goal ? h('span', {class:'pbar'}, h('span', {style:'width:' + Math.min(100, Math.round(100 * t / goal)) + '%'})) : ''),
-            h('td', {}, o.n), h('td', {}, o.ct), h('td', {}, pct(o.ct, o.n)), h('td', {}, o.it), h('td', {}, pct(o.it, o.ct))); })))) : h('p', {class:'muted'}, 'Aucun appel sur la période.'),
-        h('p', {class:'muted'}, 'Contact = appel abouti (hors « sans réponse / à rappeler » et faux numéro). Taux d’intérêt = intéressés / contacts.'),
-        ...((s.reasons || []).length ? [h('h3', {}, 'Motifs de refus'), h('div', {class:'card'}, s.reasons.map(x => h('div', {}, x.reason + ' : ', h('strong', {}, x.n), ' (' + Math.round(100 * Number(x.n) / rsum) + ' %)')))] : []),
-        h('h3', {}, 'Nombre d’appels par heure'),
-        hbox,
-        h('h3', {}, 'Nombre de dossiers par statut'),
-        statusChart(s.status),
-        h('h3', {}, 'Prospects par statut'),
-        h('div', {class:'card'}, s.status.length ? s.status.map(r => h('div', {}, (ST[r.status] || r.status) + ' : ', h('strong', {}, r.n))) : 'Aucun prospect.'),
-        h('h3', {}, me.can.all ? 'Appels par commercial' : 'Mes appels'),
-        ...Object.entries(by).map(([u, r]) => h('div', {class:'card'}, h('strong', {}, nameOf(u)), RES.map(k => h('div', {}, ST[k] + ' : ' + (r[k] || 0))))));
+      const totals = Object.values(perf).reduce((a, o) => ({n:a.n + o.n, ct:a.ct + o.ct, it:a.it + o.it}), {n:0, ct:0, it:0});
+      const byResult = {}; s.calls.forEach(c => { byResult[c.result] = (byResult[c.result] || 0) + Number(c.n); });
+      const callbacks = [...cbk].reduce((a, k) => a + (byResult[k] || 0), 0);
+      const kpi = (label, value, note, tone = '') => h('div', {class:'stats-kpi' + (tone ? ' ' + tone : '')}, h('span', {}, label), h('strong', {}, String(value)), note ? h('small', {}, note) : '');
+      const todayAll = Object.values(s.today || {}).reduce((a, n) => a + Number(n), 0);
+      kpis.replaceChildren(
+        kpi('Appels', totals.n, 'sur la période'),
+        kpi('Contacts', totals.ct, 'taux de contact ' + pct(totals.ct, totals.n), 'ok'),
+        kpi('Intéressés', totals.it, 'taux d’intérêt ' + pct(totals.it, totals.ct), 'hot'),
+        kpi('À rappeler', callbacks, 'sans réponse ou rappel'),
+        kpi('Faux numéros', byResult.faux_numero || 0, pct(byResult.faux_numero || 0, totals.n) + ' des appels', 'warn'),
+        kpi('Aujourd’hui', todayAll, goal && me.role === 'commercial' ? 'objectif ' + goal : 'appels du jour'));
+      const bars = (entries, colorOf) => {
+        const max = Math.max(1, ...entries.map(([, n]) => n)), sumN = entries.reduce((a, [, n]) => a + n, 0);
+        return entries.length ? h('div', {class:'stats-bars'}, entries.map(([label, n, key]) => h('div', {class:'stats-bar'},
+          h('span', {class:'stats-bar-label', title:label}, label),
+          h('span', {class:'stats-bar-track'}, h('span', {style:'width:' + (n / max * 100) + '%;background:' + colorOf(key)})),
+          h('span', {class:'stats-bar-value'}, h('strong', {}, String(n)), ' ' + pct(n, sumN))))) : h('p', {class:'muted'}, 'Aucune donnée sur la période.');
+      };
+      const resultEntries = Object.entries(byResult).map(([k, n]) => [ST[k] || k, n, k]).sort((a, b) => b[1] - a[1]);
+      const reasonEntries = (s.reasons || []).map(x => [x.reason, Number(x.n), '']).sort((a, b) => b[1] - a[1]);
+      overview.replaceChildren(
+        h('div', {class:'stats-grid'},
+          h('section', {class:'card stats-panel'}, h('h3', {}, 'Résultats des appels'), h('p', {class:'muted'}, 'Tous les résultats de la période, rappels compris ; plusieurs appels sur un dossier comptent séparément.'), bars(resultEntries, k => STC[k] || '#3b82f6')),
+          h('section', {class:'card stats-panel'}, h('h3', {}, 'Appels par heure'), hbox),
+          h('section', {class:'card stats-panel'}, h('h3', {}, 'Motifs de refus'), bars(reasonEntries, () => '#f97316')),
+          h('section', {class:'card stats-panel'}, h('h3', {}, 'Dossiers par statut'), statusChart(s.status))));
+      const perfRows = Object.entries(perf).map(([u, o]) => ({u, name:nameOf(u), today:Number((s.today || {})[u] || 0), ...o, rc:o.n ? o.ct / o.n : 0, ri:o.ct ? o.it / o.ct : 0}));
+      const cols = [['name','Commercial'],['today', goal ? 'Aujourd’hui / objectif' : 'Aujourd’hui'],['n','Appels'],['ct','Contacts'],['rc','Taux de contact'],['it','Intéressés'],['ri','Taux d’intérêt']];
+      const best = k => Math.max(0, ...perfRows.map(r => r[k]));
+      const drawTeam = () => {
+        const rows = perfRows.slice().sort((a, b) => { const o = perfSort.k === 'name' ? a.name.localeCompare(b.name, 'fr') : a[perfSort.k] - b[perfSort.k]; return (perfSort.d === 'desc' ? -o : o) || a.name.localeCompare(b.name, 'fr'); });
+        const cell = (r, k) => {
+          if (k === 'name') return h('td', {}, h('strong', {}, r.name));
+          if (k === 'today') return h('td', {}, r.today + (goal ? ' / ' + goal + ' ' : ''), goal ? h('span', {class:'pbar'}, h('span', {style:'width:' + Math.min(100, Math.round(100 * r.today / goal)) + '%'})) : '');
+          const v = k === 'rc' ? pct(r.ct, r.n) : k === 'ri' ? pct(r.it, r.ct) : r[k];
+          return h('td', {class: r[k] && r[k] === best(k) && perfRows.length > 1 ? 'stats-best' : ''}, String(v));
+        };
+        teamTable.replaceChildren(perfRows.length ? h('div', {class:'presence-table'}, h('table', {class:'t'},
+          h('thead', {}, h('tr', {}, cols.map(([k, t]) => h('th', {scope:'col', 'aria-sort': perfSort.k === k ? (perfSort.d === 'asc' ? 'ascending' : 'descending') : 'none'},
+            h('button', {type:'button', class:'stats-sort', onclick:() => { perfSort = {k, d: perfSort.k === k && perfSort.d === 'desc' ? 'asc' : (k === 'name' ? 'asc' : 'desc')}; drawTeam(); }}, t, ' ', h('small', {}, perfSort.k === k ? (perfSort.d === 'asc' ? '▲' : '▼') : '⇅')))))),
+          h('tbody', {}, rows.map(r => h('tr', {}, cols.map(([k]) => cell(r, k))))))) : h('p', {class:'muted'}, 'Aucun appel sur la période.'));
+      };
+      drawTeam();
+      team.replaceChildren(
+        h('section', {class:'card stats-panel'}, h('h3', {}, me.can.all ? 'Performance par commercial' : 'Ma performance'), teamTable,
+          h('p', {class:'muted'}, 'Contact = appel abouti (hors « sans réponse / à rappeler » et faux numéro). Taux d’intérêt = intéressés / contacts. En vert : meilleur résultat de l’équipe.')),
+        h('section', {class:'card stats-panel'}, h('h3', {}, 'Résultats par commercial'), callResponsesTable(s.calls)));
     } catch (e) { box.replaceChildren(h('p', {class:'err'}, e.message)); }
     rbtn.disabled = false; rbtn.textContent = '↻ Actualiser';
   };
@@ -1612,12 +1641,23 @@ async function stats() {
       document.body.append(a); a.click(); a.remove(); URL.revokeObjectURL(u);
     } catch (e) { alert(e.message); }
   };
-  show(h('h2', {}, me.can.all ? 'Statistiques' : 'Mes statistiques'),
-    callDashboardCard(),
-    me.role === 'commercial' ? personalTimesCard() : '',
-    h('div', {class:'bar'}, me.can.all ? [usr.el, grp.el] : '', cat.el, res, h('label', {}, 'Du ', from), h('label', {}, 'Au ', to), presets, rbtn, me.can.export ? h('button', {onclick: xl, title: me.can.export_phone ? '' : 'Export sans numéros de téléphone'}, '⬇ Télécharger Excel' + (me.can.export_phone ? '' : ' (sans téléphone)')) : '', upd),
-    h('h3', {}, 'Journal des appels'), h('div', {class:'bar'}, jq), jpg,
-    h('div', {style:'overflow-x:auto'}, box), sum);
+  const panels = {overview:h('div', {class:'stats-tabpanel'}, kpis, overview, me.role === 'commercial' ? personalTimesCard() : ''),
+    team:h('div', {class:'stats-tabpanel'}, team),
+    calls:h('div', {class:'stats-tabpanel'}, callDashboardCard()),
+    journal:h('div', {class:'stats-tabpanel'}, h('h3', {}, 'Journal des appels'), h('div', {class:'bar'}, jq), jpg, h('div', {style:'overflow-x:auto'}, box))};
+  const tabs = [['overview','Vue d’ensemble'],['team', me.can.all ? 'Équipe' : 'Ma performance'],['calls','Appels entrants'],['journal','Journal des appels']].filter(([k]) => k !== 'calls' || panels.calls.textContent);
+  let current = 'overview'; try { const v = localStorage.getItem('callcrm_stats_tab'); if (tabs.some(([k]) => k === v)) current = v; } catch (e) {}
+  const tabButtons = tabs.map(([k, t]) => h('button', {type:'button', role:'tab', id:'stats-tab-' + k, 'aria-controls':'stats-panel-' + k, onclick:() => pick(k)}, t));
+  const pick = k => { current = k; try { localStorage.setItem('callcrm_stats_tab', k); } catch (e) {}
+    tabs.forEach(([key], i) => { const on = key === k; tabButtons[i].setAttribute('aria-selected', String(on)); tabButtons[i].tabIndex = on ? 0 : -1; panels[key].hidden = !on; }); };
+  Object.entries(panels).forEach(([k, el]) => { el.id = 'stats-panel-' + k; el.setAttribute('role', 'tabpanel'); el.setAttribute('aria-labelledby', 'stats-tab-' + k); });
+  const tablist = h('div', {class:'stats-tabs', role:'tablist', 'aria-label':'Sections des statistiques', onkeydown:e => {
+    if (!['ArrowLeft','ArrowRight'].includes(e.key)) return; const i = tabs.findIndex(([k]) => k === current), n = tabs.length;
+    const next = tabs[(i + (e.key === 'ArrowRight' ? 1 : n - 1)) % n][0]; pick(next); tabButtons[tabs.findIndex(([k]) => k === next)].focus(); }}, tabButtons);
+  show(h('div', {class:'stats-head'}, h('h2', {}, me.can.all ? 'Statistiques' : 'Mes statistiques'), upd),
+    h('div', {class:'card stats-filters bar'}, me.can.all ? [usr.el, grp.el] : '', cat.el, res, h('label', {}, 'Du ', from), h('label', {}, 'Au ', to), presets, rbtn, me.can.export ? h('button', {onclick: xl, title: me.can.export_phone ? '' : 'Export sans numéros de téléphone'}, '⬇ Excel' + (me.can.export_phone ? '' : ' (sans téléphone)')) : ''),
+    tablist, ...tabs.map(([k]) => panels[k]));
+  pick(current);
   [usr.el, grp.el, cat.el, res, from, to].forEach(e => e.addEventListener('change', load));
   load();
 }
