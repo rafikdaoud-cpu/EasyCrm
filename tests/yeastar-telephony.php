@@ -28,6 +28,8 @@ $settings->save(['allow_self_signed'=>true]);$pbx->test();check(end($http->reque
 $event=['type'=>30011,'msg'=>json_encode(['call_id'=>'c1','members'=>[['extension'=>['number'=>'1029','member_status'=>'RING']],['inbound'=>['from'=>'+213770322647']]]])];
 $rows=\OCA\CallCrm\Service\YeastarEvents::parse($event);check(count($rows)===1&&$rows[0]['extension']==='1029'&&$rows[0]['direction']==='inbound','documented 30011 JSON-string payload parsed');
 $event['msg']=json_decode($event['msg'],true);check(\OCA\CallCrm\Service\YeastarEvents::parse($event)===$rows,'object payload also supported');check(\OCA\CallCrm\Service\YeastarEvents::parse(['type'=>30009])===[],'unrelated events ignored');check(\OCA\CallCrm\Service\YeastarEvents::number('00213 770-322-647')==='+213770322647','international Algerian number normalized');
+$only=['type'=>30011,'msg'=>json_encode(['call_id'=>'c2','members'=>[['extension'=>['number'=>'1008','member_status'=>'ANSWERED','call_path'=>'6400']]]])];
+$r2=\OCA\CallCrm\Service\YeastarEvents::parse($only);check(count($r2)===1&&$r2[0]['phone']===''&&$r2[0]['state']==='ANSWERED','extension-only 30011 (caller in an earlier event of the same call) kept with empty number, completed by call_id');
 class FakeDb implements \OCP\IDBConnection{}
 $events=new \OCA\CallCrm\Service\YeastarEvents(new FakeDb(),$settings);
 $settings->save(['webhook_secret'=>str_repeat('a',32)]);$raw=json_encode(['event'=>'test']);$signature=base64_encode(hash_hmac('sha256',$raw,str_repeat('a',32),true));$events->receive($raw,$signature);check(true,'official base64 HMAC-SHA256 webhook signature accepted');

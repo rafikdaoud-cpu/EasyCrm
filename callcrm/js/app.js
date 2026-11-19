@@ -2399,8 +2399,8 @@ function adminPanels() {
 function admin() {
   const m2 = h('div', {class:'muted'}), m3 = h('span', {class:'muted'});
   const file = h('input', {type:'file', accept:'.xlsx,.xls,.csv,.txt'});
-  const asg = h('select', {}, h('option', {value:'auto'}, 'Équitablement entre les commerciaux cochés'), h('option', {value:'categorie'}, 'Par catégorie (groupe de la catégorie, parmi les cochés)'));
-  const impPick = commPicker('Affecter les prospects importés à (obligatoire) :'), dstPick = commPicker('Répartir entre (obligatoire) :');
+  const asg = h('select', {'aria-label':'Affectation des prospects importés'}, h('option', {value:'auto'}, 'Équitablement entre les commerciaux cochés'), h('option', {value:'categorie'}, 'Par catégorie (groupe de la catégorie, parmi les cochés)'), h('option', {value:'none'}, 'Ne pas affecter : importer en « Nouveau », non assignés'));
+  const impPick = commPicker('Affecter les prospects importés à (sauf si « Ne pas affecter ») :'), dstPick = commPicker('Répartir entre (obligatoire) :');
   const dsel = h('select', {}, modeOpts(false));
   const allCb = h('input', {type:'checkbox'});
   const orph = h('div');
@@ -2457,7 +2457,7 @@ function admin() {
         const f0 = file.files[0];
         if (!f0) { m2.textContent = 'Choisissez un fichier Excel ou CSV.'; return; }
         const who = impPick.values();
-        if (!who.length) { m2.textContent = 'Sélectionnez au moins un commercial à qui affecter les prospects.'; return; }
+        if (!who.length && asg.value !== 'none') { m2.textContent = 'Sélectionnez au moins un commercial à qui affecter les prospects, ou choisissez « Ne pas affecter ».'; return; }
         const fd = new FormData(); fd.append('assign', asg.value); fd.append('uids', JSON.stringify(who));
         m2.textContent = 'Import en cours…';
         try {
@@ -2469,7 +2469,7 @@ function admin() {
           } else { fd.append('file', f0); }
           const r = await api('/import', {method:'POST', body:fd});
           m2.replaceChildren(pre + `${r.imported} importés, ${r.duplicates} déjà dans la base (doublons), ${r.skipped} sans nom, ${r.invalid} numéros invalides`
-            + (r.unrecognized ? `, ${r.unrecognized} avec valeur non reconnue (voir commentaire)` : '') + (r.unassigned ? `, ${r.unassigned} sans commercial (groupe vide ou catégorie vide).` : '.'),
+            + (r.unrecognized ? `, ${r.unrecognized} avec valeur non reconnue (voir commentaire)` : '') + (r.unassigned ? (asg.value === 'none' ? `, tous en « Nouveau », non affectés : répartissez-les avec « Répartir les prospects non assignés ».` : `, ${r.unassigned} sans commercial (groupe vide ou catégorie vide).`) : '.'),
             ...r.samples.map(x => h('div', {class:'err'}, x)));
         } catch (e) { m2.textContent = e.message; }
       }}, 'Importer'), m2),
@@ -2707,9 +2707,11 @@ function waComposer({windowOpen, clientName, send, done}) {
 }
 
 function callDone() { callBusy = {pid:null, until:0}; setTimeout(checkReminders, 1500); }
-/** Vrai tant que le commercial traite un appel : les rappels attendent la fin (contrôle toutes les 30 s). */
+/** Vrai tant que le commercial traite un appel ou une fiche : les rappels attendent la fin (contrôle toutes les 30 s). */
 function busyWithCall() {
   if (callBusy.pid && Date.now() < callBusy.until && root.querySelector('.cols[data-pid="' + callBusy.pid + '"]')) return true;
+  // Une fiche client est ouverte : le commercial la traite, les rappels attendent qu'il la quitte.
+  if (root.querySelector('.cols[data-pid]')) return true;
   if ([...dirtyChecks.values()].some(v => v.check()) || root.querySelector('.crm-new-client')) return true;
   for (const p of yeastarPopups.values()) if (p.box.isConnected && p.state.textContent !== pbxState('BYE')) return true;
   return !!document.querySelector('dialog[open], .crm-dialog-bg, .sim-bg, .ccp-bg');

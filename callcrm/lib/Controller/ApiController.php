@@ -806,9 +806,10 @@ class ApiController extends Controller {
 		$f = $this->request->getUploadedFile('file');
 		if (!$f || empty($f['tmp_name']) || !is_uploaded_file($f['tmp_name'])) { return $this->err('Fichier manquant'); }
 		$mode = (string)$this->request->getParam('assign', 'auto');
-		if (!in_array($mode, ['auto', 'categorie'], true)) { return $this->err('Affectation invalide'); }
-		$team = $this->pickedTeam();
-		if (!$team) { return $this->err('Sélectionnez au moins un commercial à qui affecter les prospects'); }
+		if (!in_array($mode, ['auto', 'categorie', 'none'], true)) { return $this->err('Affectation invalide'); }
+		// « none » : prospects importés en « Nouveau », non affectés (à répartir plus tard).
+		$team = $mode === 'none' ? [] : $this->pickedTeam();
+		if ($mode !== 'none' && !$team) { return $this->err('Sélectionnez au moins un commercial à qui affecter les prospects'); }
 		$teams = $this->getTeams();
 		$exKeys = [];
 		$cust = array_column(array_filter(Fields::all(), fn($x) => !$x['builtin']), null, 'key');
@@ -835,7 +836,7 @@ class ApiController extends Controller {
 			if ($row[3] !== '' && $cat === '') { $why[] = 'Catégorie : ' . $row[3]; }
 			if ($row[4] !== '' && $job === '') { $why[] = 'Emploi : ' . $row[4]; }
 			if ($why) { $unk++; $rem = trim($rem . ' [Import, valeur non reconnue — ' . implode(' ; ', $why) . ']'); }
-			$to = $this->pick($mode, $cat, $team, $teams, $rr) ?? $this->pick('auto', $cat, $team, $teams, $rr);
+			$to = $mode === 'none' ? null : ($this->pick($mode, $cat, $team, $teams, $rr) ?? $this->pick('auto', $cat, $team, $teams, $rr));
 			if ($to === null) { $na++; }
 			$extra = [];
 			foreach ($exKeys as $xi => $xk) { $xv = trim((string)$row[7 + $xi]); if ($xk && $xv !== '') { $extra[$xk] = mb_substr($xv, 0, 4000); } }
@@ -845,7 +846,7 @@ class ApiController extends Controller {
 			$n++;
 		}
 		fclose($h);
-		$this->s->audit($this->a->uid(), 'import', null, $n . ' importé(s), ' . $dup . ' doublon(s), répartis entre : ' . implode(', ', $team) . ' (' . $mode . ')');
+		$this->s->audit($this->a->uid(), 'import', null, $n . ' importé(s), ' . $dup . ' doublon(s), ' . ($mode === 'none' ? 'non affectés (Nouveau)' : 'répartis entre : ' . implode(', ', $team) . ' (' . $mode . ')'));
 		return new JSONResponse(['imported' => $n, 'duplicates' => $dup, 'skipped' => $skip, 'invalid' => $bad, 'samples' => $samples, 'unassigned' => $na, 'unrecognized' => $unk]);
 	}
 

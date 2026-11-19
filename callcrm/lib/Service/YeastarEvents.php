@@ -42,7 +42,9 @@ class YeastarEvents {
    foreach(['inbound'=>'from','outbound'=>'to'] as $kind=>$field)if(isset($member[$kind][$field])){$external=self::number((string)$member[$kind][$field]);$direction=$kind;}
    if(isset($member['extension']['number']))$extensions[]=$member['extension'];
   }
-  if($external===null||!preg_match('/^\+?\d{3,20}$/D',$external))return [];
+  // Événement réduit aux postes (le numéro du client était dans un événement précédent du même appel) : phone vide, complété par receive().
+  if($external!==null&&!preg_match('/^\+?\d{3,20}$/D',$external))return [];
+  $external??='';
   $out=[];foreach($extensions as $ext){$state=(string)($ext['member_status']??'');if(!in_array($state,['ALERT','RING','ANSWERED','ANSWER','HOLD','BYE'],true))continue;
    $out[]=['call_id'=>(string)$msg['call_id'],'extension'=>(string)$ext['number'],'phone'=>$external,'direction'=>$direction,'state'=>$state];
   }return $out;
@@ -59,6 +61,7 @@ class YeastarEvents {
    $cfg->setAppValue('callcrm','yeastar_debug_log',json_encode(array_slice($log,-20),JSON_UNESCAPED_UNICODE));}}catch(\Throwable $e){}
   if((int)($event['type']??0)===30012){$this->receiveCdr($event);return;}
   foreach(self::parse($event) as $row){
+   if($row['phone']===''){$known=$this->byCall($row['call_id']);if(!$known)continue;$row['phone']=$known['phone'];$row['direction']=$known['direction'];}
    foreach($s['extensions'] as $mapping)if($mapping['extension']===$row['extension']){
     $p=$this->match($row['phone']);
     $this->record(hash('sha256',$raw.'|'.$mapping['uid']),$row['call_id'],$mapping['uid'],$row['phone'],$row['direction'],$row['state'],$p?(int)$p['id']:null);
@@ -79,6 +82,12 @@ class YeastarEvents {
    $check=$this->db->getQueryBuilder();$check->select('id')->from('callcrm_pbx_recordings')->where($check->expr()->eq('source_key',$check->createNamedParameter($row['source_key'])));
    if(!$check->executeQuery()->fetchOne())throw $e;
   }
+ }
+ /** Numéro et sens d'un appel déjà vus (même call_id) dans les 2 dernières heures. */
+ private function byCall(string $call):?array{
+  $q=$this->db->getQueryBuilder();$q->select('phone','direction')->from('callcrm_pbx_events')->where($q->expr()->eq('call_id',$q->createNamedParameter($call)))->andWhere($q->expr()->neq('phone',$q->createNamedParameter('')))
+   ->andWhere($q->expr()->gte('created_at',$q->createNamedParameter(time()-7200,IQueryBuilder::PARAM_INT)))->orderBy('id','DESC')->setMaxResults(1);
+  $r=$q->executeQuery()->fetch();return $r?:null;
  }
  public function recent(string $uid,int $after):array {
   $q=$this->db->getQueryBuilder();$q->select('*')->from('callcrm_pbx_events')->where($q->expr()->eq('user_id',$q->createNamedParameter($uid)))->andWhere($q->expr()->gt('id',$q->createNamedParameter(max(0,$after),IQueryBuilder::PARAM_INT)))->andWhere($q->expr()->gte('created_at',$q->createNamedParameter(time()-120,IQueryBuilder::PARAM_INT)))->orderBy('id','ASC')->setMaxResults(50);
