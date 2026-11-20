@@ -2764,7 +2764,10 @@ function busyWithCall() {
   for (const p of yeastarPopups.values()) if (p.box.isConnected && p.state.textContent !== pbxState('BYE')) return true;
   return !!document.querySelector('dialog[open], .crm-dialog-bg, .sim-bg, .ccp-bg');
 }
+const REMINDER_POPUP_OFF = true;
 async function checkReminders() {
+  // Fenêtre « Rappel client » désactivée (jugée dérangeante) : les rappels restent dans « À rappeler » et l'Agenda.
+  if (REMINDER_POPUP_OFF) return;
   if (!me.can.call || popup || myPresence?.paused || busyWithCall()) return;
   try {
     const rows = await api('/prospects?rappels=1');

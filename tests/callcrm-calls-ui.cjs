@@ -29,24 +29,15 @@ test('answered inbound call opens the known file, offers a new file for an unkno
  assert.deepEqual(opened,[42],'outbound calls do not navigate');
 });
 
-test('callback reminder waits while a call or a client file is being handled and appears once the file is left',async()=>{
- const dom=new JSDOM('<main><div class="cols" data-pid="5"></div></main>',{url:'https://cloud.example.test'}),document=dom.window.document,root=document.querySelector('main');
- const due={id:9,assigned_to:'alice',callback_at:1,phone:'0770000009',lastname:'Client'};
+test('callback reminder popup is disabled: no window and no request, even when a callback is due and nothing is open',async()=>{
+ const dom=new JSDOM('<main></main>',{url:'https://cloud.example.test'}),document=dom.window.document,root=document.querySelector('main');
+ const due={id:9,assigned_to:'alice',callback_at:1,phone:'0770000009',lastname:'Client'};let calls=0;
  const ctx=vm.createContext({document,window:dom.window,Node:dom.window.Node,root,setTimeout:()=>{},fmt:String,nm:p=>p.lastname,waNum:String,waOf:p=>String(p.phone),saveSnooze:()=>{},snooze:{},popup:false,myPresence:null,
-  dirtyChecks:new Map(),yeastarPopups:new Map(),pbxState:s=>s==='BYE'?'Terminé':s,detail:()=>{},me:{uid:'alice',can:{call:true}},callBusy:{pid:null,until:0},api:async()=>[due]});
+  dirtyChecks:new Map(),yeastarPopups:new Map(),pbxState:s=>s==='BYE'?'Terminé':s,detail:()=>{},me:{uid:'alice',can:{call:true}},callBusy:{pid:null,until:0},api:async()=>{calls++;return [due];}});
  vm.runInContext(part('const h =','async function api(')+source.slice(source.indexOf('function callDone()'),source.lastIndexOf('(async () => {')),ctx);
- const check=async()=>{await vm.runInContext('checkReminders()',ctx);await tick();return document.querySelectorAll('.ccp-bg').length;};
- ctx.callBusy={pid:'5',until:Date.now()+60000};
- assert.equal(await check(),0,'call started from the open file');
- ctx.callBusy={pid:'5',until:Date.now()-1};
- ctx.dirtyChecks.set('call',{label:'r',check:()=>true});assert.equal(await check(),0,'result being typed');ctx.dirtyChecks.clear();
- const popup={box:document.createElement('aside'),state:document.createElement('p')};popup.state.textContent='Décroché';document.body.append(popup.box);ctx.yeastarPopups.set('c',popup);
- assert.equal(await check(),0,'line still active');popup.state.textContent='Terminé';
- const form=document.createElement('div');form.className='card crm-new-client';root.append(form);assert.equal(await check(),0,'new file being created');form.remove();
- ctx.callBusy={pid:'5',until:Date.now()+60000};vm.runInContext('callDone()',ctx);
- assert.equal(await check(),0,'call finished but the file is still open: no reminder while the commercial handles it');
- root.querySelector('.cols').remove();
- assert.equal(await check(),1,'shown once the commercial leaves the file');
+ await vm.runInContext('checkReminders()',ctx);await tick();
+ assert.equal(document.querySelectorAll('.ccp-bg').length,0);
+ assert.equal(calls,0);
 });
 
 test('recordings tab groups calls by number, opens a number, and still offers the detailed list',async()=>{
