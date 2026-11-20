@@ -45,8 +45,18 @@ class YeastarRecordings {
 
     /** Appel court (moins de 30 s au total) qui n'a touché aucun poste de commercial : audio non récupéré. */
     public static function shortWithoutAgent(array $row, array $agentExtensions): bool {
-        if (in_array((string)$row['extension'], array_map('strval', $agentExtensions), true)) return false;
+        $agents = array_map('strval', $agentExtensions);
+        if (in_array((string)$row['extension'], $agents, true)) return false;
+        // Appel passé par une file : le détail ne porte que le numéro de la file ; le poste qui a décroché figure dans le nom de l'audio.
+        $answeredBy = self::answeredBy((string)($row['recording'] ?? ''));
+        if ($answeredBy !== '' && (in_array($answeredBy, $agents, true)
+            || (($row['call_status'] ?? '') === 'ANSWERED' && $answeredBy !== (string)$row['extension']))) return false;
         return (int)($row['call_duration'] ?? $row['talk_duration'] ?? 0) < self::SHORT_SECONDS;
+    }
+
+    /** Poste qui a pris l'appel, lu dans le nom de l'audio Yeastar (« …-<numéro>-<poste>-Inbound.wav »), sinon ''. */
+    public static function answeredBy(string $file): string {
+        return preg_match('/-(\d{1,10})-Inbound\.(?:wav|mp3)$/iD', $file, $m) ? $m[1] : '';
     }
 
     public static function validFilename(string $name): bool {

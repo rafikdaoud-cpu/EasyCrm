@@ -20,6 +20,10 @@ ok(!YeastarRecordings::shortWithoutAgent(['extension'=>'1008','call_duration'=>1
 ok(!YeastarRecordings::shortWithoutAgent(['extension'=>'6400','call_duration'=>95,'talk_duration'=>60],$ext),'file, appel long : récupéré');
 ok(YeastarRecordings::shortWithoutAgent(['extension'=>'6400','call_duration'=>null,'talk_duration'=>20],$ext),'ancien détail sans durée totale : temps de conversation utilisé');
 ok(!YeastarRecordings::shortWithoutAgent(['extension'=>'6200','call_duration'=>30,'talk_duration'=>30],$ext),'30 s pile : pas court');
+ok(!YeastarRecordings::shortWithoutAgent(['extension'=>'6400','call_status'=>'ANSWERED','call_duration'=>null,'talk_duration'=>20,'recording'=>'20261119133921-1795091755.7937-0553544976-1006-Inbound.wav'],$ext),'file, 20 s, pris par le poste 1006 (hors liste) : récupéré');
+ok(!YeastarRecordings::shortWithoutAgent(['extension'=>'6401','call_status'=>'ANSWERED','call_duration'=>null,'talk_duration'=>1,'recording'=>'20261119152928-1795098506.9840-0797695124-1005-Inbound.wav'],$ext),'file, 1 s, pris par un commercial : récupéré');
+ok(YeastarRecordings::shortWithoutAgent(['extension'=>'6200','call_status'=>'ANSWERED','call_duration'=>15,'talk_duration'=>15,'recording'=>'20261119100000-1.1-0550123456-6200-Inbound.wav'],$ext),'SVI seul, 15 s : toujours écarté');
+ok(YeastarRecordings::answeredBy('x-0550-1005-Inbound.wav')==='1005'&&YeastarRecordings::answeredBy('a.wav')==='','poste lu dans le nom de l’audio');
 $row=fn($id,$call,$ext,$st,$talk,$dur,$uid='')=>['id'=>$id,'pbx_url'=>'p','call_id'=>$call,'phone'=>'0550','direction'=>'inbound','created_at'=>100+$id,'extension'=>$ext,'prospect_id'=>null,'user_id'=>$uid,'call_status'=>$st,'talk_duration'=>$talk,'call_duration'=>$dur];
 $c=CallDashboard::aggregate([$row(1,'A','6200','ANSWERED',9,12),$row(2,'A','6400','NO ANSWER',0,12)]);
 ok(count($c)===1&&$c[0]['duration']===12&&!$c[0]['answered'],'appel A : 12 s, sans réponse');
