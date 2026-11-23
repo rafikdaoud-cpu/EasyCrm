@@ -304,3 +304,11 @@ Chronologie : événement `documents` `started` au premier document, `received` 
 
 ## Call CRM 0.29.4 — nouvelle icône (conseiller avec casque)
 - `img/app.svg` (blanc, barre Nextcloud) et `img/app-dark.svg` (noir, menus clairs) ; même icône dans le logo de la barre latérale (`crm-brand-mark`).
+
+## Call CRM 0.56.0 · Fiches partagées et historique Yeastar
+
+Le partage permanent d’une fiche après décrochage est propre à Call CRM. La migration 1023 crée `callcrm_shared_clients`. La contrainte unique empêche les doublons lors des nouvelles livraisons d’un événement. L’ajout du droit et sa trace dans la chronologie sont enregistrés dans la même transaction. La fiche, la liste, la recherche et la chronologie prennent en compte ce droit pour le commercial concerné. Les notes au dossier et les différences de champs alimentent `callcrm_client_events`.
+
+Le menu **Historique des appels** lit les détails d’appels Yeastar stockés dans `callcrm_pbx_recordings`, y compris les lignes sans audio. Le serveur fixe le filtre du commercial à l’utilisateur connecté. Les rôles administrateur et superviseur peuvent demander l’historique global. La procédure de recette et les limites des données historiques sont décrites dans [Historique des appels](../callcrm/HISTORIQUE_APPELS.md).
+
+Validation locale sur PHP 8.4, SQLite et jsdom. La suite `tools/test-nextcloud.sh` couvre les droits dossier, les notes, la traçabilité, la répétabilité de la migration et l’envoi des filtres et du tri par l’interface. Une instance Nextcloud 32 avec SQLite a servi à vérifier l’installation, le traitement d’événements signés simulés et les requêtes d’historique. La recette sur un standard Yeastar et la base de production reste à faire.

@@ -100,6 +100,64 @@ class YeastarRecordings {
         $rows=$q->orderBy('r.id','DESC')->setFirstResult(max(0,$offset))->setMaxResults(51)->executeQuery()->fetchAll();
         return ['rows'=>array_map(function($r){$r['client']=$r['prospect_id']?trim(($r['lastname']??'').' '.($r['firstname']??'')):'';unset($r['lastname'],$r['firstname']);return $r;},array_slice($rows,0,50)),'has_more'=>count($rows)>50];
     }
+    /** One page of CDRs, including calls without an audio file. */
+    public function callHistory(?string $uid, array $filters, int $offset, array $agentNames = []): array {
+        $q = $this->db->getQueryBuilder();
+        $q->select('r.id', 'r.phone', 'r.user_id', 'r.direction', 'r.call_status', 'r.started_at',
+            'r.talk_duration', 'p.lastname', 'p.firstname')->selectAlias('p.id', 'prospect_id')->from('callcrm_pbx_recordings', 'r');
+        $client = $q->expr()->eq('p.id', 'r.prospect_id');
+        if ($uid !== null) {
+            $filters['user'] = $uid;
+            $q->leftJoin('r', 'callcrm_shared_clients', 'shared',
+                $q->expr()->andX($q->expr()->eq('shared.prospect_id', 'r.prospect_id'),
+                    $q->expr()->eq('shared.grantee', $q->createNamedParameter($uid))));
+            $client = $q->expr()->andX($client, $q->expr()->orX(
+                $q->expr()->eq('p.assigned_to', $q->createNamedParameter($uid)),
+                $q->expr()->isNotNull('shared.grantee')));
+            $q->andWhere($q->expr()->orX($q->expr()->eq('r.direction', $q->createNamedParameter('outbound')),
+                $q->expr()->eq('r.call_status', $q->createNamedParameter('ANSWERED'))));
+        }
+        $q->leftJoin($uid === null ? 'r' : 'shared', 'callcrm_prospects', 'p', $client);
+        $this->filters($q, $filters);
+        if ($filters['status'] !== '') $q->andWhere($q->expr()->eq('r.call_status', $q->createNamedParameter($filters['status'])));
+        if ($filters['client'] !== '') {
+            // Match either name regardless of the order in which the user enters it.
+            foreach (preg_split('/\s+/u', trim($filters['client'])) as $part) {
+                $term = '%' . $this->db->escapeLikeParameter($part) . '%';
+                $q->andWhere($q->expr()->orX($q->expr()->iLike('p.lastname', $q->createNamedParameter($term)),
+                    $q->expr()->iLike('p.firstname', $q->createNamedParameter($term))));
+            }
+        }
+        if ($filters['number'] !== '') {
+            $number = $this->db->escapeLikeParameter($filters['number']);
+            $q->andWhere($q->expr()->like('r.phone', $q->createNamedParameter('%' . $number . '%')));
+        }
+        $columns = ['date'=>'r.started_at', 'agent'=>'r.user_id', 'client'=>'p.lastname', 'phone'=>'r.phone',
+            'direction'=>'r.direction', 'status'=>'r.call_status', 'duration'=>'r.talk_duration'];
+        $order = $columns[$filters['sort']] ?? 'r.started_at';
+        if ($order === 'r.user_id' && $agentNames) {
+            $cases = [];
+            foreach ($agentNames as $agent => $name) {
+                $key = $q->createNamedParameter((string)$agent);
+                $label = $q->createNamedParameter($name);
+                $cases[] = 'WHEN ' . $key . ' THEN ' . $label;
+            }
+            $q->selectAlias($q->createFunction('CASE r.user_id ' . implode(' ', $cases) . ' ELSE r.user_id END'), 'agent_sort');
+            $order = 'agent_sort';
+        }
+        $q->orderBy($order, $filters['dir'] === 'asc' ? 'ASC' : 'DESC')
+            ->addOrderBy('r.id', 'DESC')->setFirstResult(max(0, $offset))->setMaxResults(51);
+        $rows = $q->executeQuery()->fetchAll();
+        foreach ($rows as &$row) unset($row['agent_sort']);
+        unset($row);
+        return ['rows'=>array_slice($rows, 0, 50), 'has_more'=>count($rows) > 50];
+    }
+    public function callHistoryAgentIds(): array {
+        $q = $this->db->getQueryBuilder();
+        $q->select('user_id')->from('callcrm_pbx_recordings')
+            ->where($q->expr()->neq('user_id', $q->createNamedParameter('')))->groupBy('user_id');
+        return array_column($q->executeQuery()->fetchAll(), 'user_id');
+    }
     /**
      * Même sélection, regroupée par numéro (50 numéros par page) : appels distincts (identifiant PBX), entrants,
      * sortants, appels répondus par une personne (poste d'un commercial ou conversation ≥ $minTalk s), audios, dernier appel.

@@ -1,6 +1,7 @@
 <?php
 return ['routes' => [
 	['name'=>'yeastar_recording#list','url'=>'/api/prospects/{id}/yeastar-recordings','verb'=>'GET'],
+	['name'=>'yeastar_recording#callHistory','url'=>'/api/yeastar/call-history','verb'=>'GET'],
 	['name'=>'yeastar_recording#inbox','url'=>'/api/yeastar/recordings','verb'=>'GET'],
 	['name'=>'yeastar_recording#all','url'=>'/api/yeastar/recordings/all','verb'=>'GET'],
 	['name'=>'yeastar_recording#audio','url'=>'/api/yeastar/recordings/{id}/audio','verb'=>'GET'],
@@ -49,6 +50,7 @@ return ['routes' => [
 	['name'=>'activity#search','url'=>'/api/search','verb'=>'GET'],
 	['name'=>'activity#neglected','url'=>'/api/neglected','verb'=>'GET'],
 	['name'=>'activity#agenda','url'=>'/api/agenda','verb'=>'GET'],
+	['name'=>'api#addNote','url'=>'/api/prospects/{id}/notes','verb'=>'POST'],
 	['name'=>'activity#timeline','url'=>'/api/prospects/{id}/timeline','verb'=>'GET'],
 	['name'=>'activity#appointments','url'=>'/api/prospects/{id}/appointments','verb'=>'GET'],
 	['name'=>'activity#saveAppointment','url'=>'/api/prospects/{id}/appointments','verb'=>'POST'],

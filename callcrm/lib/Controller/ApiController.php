@@ -226,18 +226,23 @@ class ApiController extends Controller {
 		return $t ?: null;
 	}
 	/** Retourne le prospect si l'utilisateur a le droit de le voir */
-	private function visible(int $id): ?array {
+	private function visible(int $id, bool $includeShared = false): ?array {
 		$p = $this->s->get($id);
 		if (!$p) { return null; }
 		$sc = $this->scope();
-		return (($sc === null && TeamScope::canSee($p['assigned_to'])) || $p['assigned_to'] === $sc) ? $p : null;
+		return (($sc === null && TeamScope::canSee($p['assigned_to'])) || $p['assigned_to'] === $sc || ($includeShared && $this->a->role() === 'commercial' && $this->s->hasSharedAccess($id, $this->a->uid()))) ? $p : null;
+	}
+
+	private function canEditClient(array $prospect): bool {
+		return $this->a->role() !== 'commercial' || $prospect['assigned_to'] === $this->a->uid()
+			|| $this->s->hasSharedAccess((int)$prospect['id'], $this->a->uid());
 	}
 
 	#[NoAdminRequired]
 	public function me(): JSONResponse {
 		if (!$this->a->can('view')) { return $this->deny(); }
 		$can = [];
-		foreach (['call', 'assign', 'create', 'import', 'invite', 'teams', 'fields', 'labels', 'delete', 'all', 'audit', 'export', 'export_phone'] as $k) { $can[$k] = $this->a->can($k); }
+		foreach (['call', 'assign', 'create', 'import', 'invite', 'teams', 'fields', 'labels', 'delete', 'all', 'audit', 'export', 'export_phone', 'mask'] as $k) { $can[$k] = $this->a->can($k); }
 		return new JSONResponse(['statuses' => Statuses::all(), 'fields' => Fields::all(), 'role' => $this->a->role(), 'uid' => $this->a->uid(), 'name' => $this->um->get($this->a->uid())?->getDisplayName() ?: $this->a->uid(), 'labels' => $this->getLabels(), 'options' => self::OPT + ['c5' => array_keys(Lookup::WILAYAS)], 'teams' => $this->visibleTeams(), 'groups' => array_values(array_filter(array_map(fn($g, $n) => ['id' => $g, 'name' => $n, 'cats' => array_keys(array_filter(Access::cats(), fn($x) => $x === $g))], array_keys(Access::teams()), array_values(Access::teams())), fn($x) => isset($this->visibleTeams()[$x['id']]))), 'scope_teams' => TeamScope::users() !== null, 'supervisors' => $this->a->can('teams') ? $this->supervisors() : [], 'rights' => $this->a->can('teams') ? $this->rightsMatrix() : null, 'profiles' => $this->a->can('teams') ? $this->profilesList() : null, 'custom_teams' => $this->a->can('teams') ? array_keys(Access::customTeams()) : [], 'commerciaux' => $this->commerciaux(), 'max_callbacks' => $this->maxCallbacks(), 'prefs' => Prefs::all(), 'can' => $can, 'sms' => $this->smsRuntime()]);
 	}
 
@@ -245,6 +250,7 @@ class ApiController extends Controller {
 	public function prospects(): JSONResponse {
 		if (!$this->a->can('view')) { return $this->deny(); }
 		$f = $this->listFilter();
+		$f['shared'] = $this->a->role() === 'commercial';
 		$off = max(0, (int)$this->request->getParam('offset', 0));
 		if ($this->request->getParam('paged')) {
 			$lim = (int)$this->request->getParam('limit', 10); if (!in_array($lim, [10, 20, 30, 0], true)) { $lim = 10; }
@@ -326,7 +332,7 @@ class ApiController extends Controller {
 	#[NoAdminRequired]
 	public function show(int $id): JSONResponse {
 		if (!$this->a->can('view')) { return $this->deny(); }
-		$p = $this->visible($id);
+		$p = $this->visible($id, true);
 		if (!$p) { return $this->err('Introuvable', Http::STATUS_NOT_FOUND); }
 		// Fiche ouverte : la notification « documents reçus » de cette fiche est lue.
 		try { $nm = \OCP\Server::get(\OCP\Notification\IManager::class); $n = $nm->createNotification(); $n->setApp('callcrm')->setUser($this->a->uid())->setObject('prospect', (string)$id); $nm->markProcessed($n); } catch (\Throwable $e) {}
@@ -334,17 +340,18 @@ class ApiController extends Controller {
 		$recs = in_array($role, ['admin', 'superviseur'], true) ? $this->s->recordingsFor($id, null) : ($role === 'commercial' ? $this->s->recordingsFor($id, $this->a->uid()) : []);
 		foreach ($recs as &$r) { $r['user_name'] = $this->um->getDisplayName($r['user_id']) ?: $r['user_id']; unset($r['file']); }
 		unset($r);
+		$revision = $this->editRevision($p);
 		$ex = !empty($p['extra']) ? json_decode((string)$p['extra'], true) : null; $p['extra'] = is_array($ex) ? $ex : (object)[];
 		if ($this->a->can('mask')) { $p['phone'] = $this->maskPhone($p['phone']); $p['email'] = ''; $p['remarque'] = ''; }
-		return new JSONResponse(['prospect' => $p, 'calls' => $this->s->calls($id), 'recordings' => $recs, 'sims' => $this->s->simsFor($id)]);
+		return new JSONResponse(['prospect' => $p, 'edit_revision' => $revision, 'calls' => $this->s->calls($id), 'recordings' => $recs, 'sims' => $this->s->simsFor($id)]);
 	}
 
 	#[NoAdminRequired]
 	public function call(int $id): JSONResponse {
 		if (!$this->a->can('call')) { return $this->deny(); }
-		$p = $this->visible($id);
+		$p = $this->visible($id, true);
 		if (!$p) { return $this->err('Introuvable', Http::STATUS_NOT_FOUND); }
-		if ($this->a->role() === 'commercial' && $p['assigned_to'] !== $this->a->uid()) { return $this->deny(); }
+		if (!$this->canEditClient($p)) return $this->deny();
 		$res = (string)$this->request->getParam('result', '');
 		$note = trim((string)$this->request->getParam('note', ''));
 		$reason = trim((string)$this->request->getParam('reason', ''));
@@ -1081,12 +1088,22 @@ class ApiController extends Controller {
 		return new JSONResponse(['ok' => true, 'id' => $id]);
 	}
 
+	private function editRevision(array $prospect): string {
+		$values = ['extra' => (string)($prospect['extra'] ?? ''), 'assigned_to' => (string)($prospect['assigned_to'] ?? '')];
+		foreach (Fields::all() as $field) {
+			if ($field['builtin'] && !$field['hidden']) $values[$field['key']] = (string)($prospect[$field['key']] ?? '');
+		}
+		return hash('sha256', json_encode($values, JSON_THROW_ON_ERROR));
+	}
+
 	#[NoAdminRequired]
 	public function update(int $id): JSONResponse {
 		if (!$this->a->can('call')) { return $this->deny(); }
-		$p = $this->visible($id);
+		$p = $this->visible($id, true);
 		if (!$p) { return $this->err('Introuvable', Http::STATUS_NOT_FOUND); }
-		if ($this->a->role() === 'commercial' && $p['assigned_to'] !== $this->a->uid()) { return $this->deny(); }
+		if (!$this->canEditClient($p)) return $this->deny();
+		$revision = $this->request->getParam('_edit_revision');
+		if ($revision !== null && $revision !== $this->editRevision($p)) return $this->err('La fiche a changé. Rechargez-la avant d’enregistrer.', 409);
 		[$v, $extra, $err] = $this->buildFields($p);
 		if ($err) { return $this->err($err); }
 		if (!empty($v['phone']) && $v['phone'] !== ($p['phone'] ?? '') && ($dup = $this->s->prospectByPhone($v['phone']))) { return $this->err($this->dupMsg($dup)); }
@@ -1095,7 +1112,21 @@ class ApiController extends Controller {
 		$base=$this->request->getParam('_base_note');
 		if ($base!==null && (!is_string($base) || $base!==(string)($p['remarque']??''))) return $this->err('La note a changé. Rechargez la fiche avant de sauvegarder.',409);
 		try { $this->s->update($id, $v, $this->a->uid(), $p); } catch (\DomainException $e) { return $this->err($e->getMessage(),409); }
-		return new JSONResponse(['ok' => true]);
+		return new JSONResponse(['ok' => true, 'edit_revision' => $this->editRevision(array_replace($p, $v))]);
+	}
+
+	#[NoAdminRequired]
+	public function addNote(int $id): JSONResponse {
+		if (!$this->a->can('view') || !$this->a->can('call')) return $this->deny();
+		$prospect = $this->visible($id, true);
+		if (!$prospect) return $this->err('Introuvable', Http::STATUS_NOT_FOUND);
+		if (!$this->canEditClient($prospect)) return $this->deny();
+		$note = $this->request->getParam('note', '');
+		if (!is_string($note) || trim($note) === '' || mb_strlen($note) > 4000) {
+			return $this->err('Saisissez une note de 1 à 4 000 caractères.');
+		}
+		$this->s->addClientNote($id, $this->a->uid(), trim($note));
+		return new JSONResponse(['ok'=>true]);
 	}
 
 	#[NoAdminRequired]

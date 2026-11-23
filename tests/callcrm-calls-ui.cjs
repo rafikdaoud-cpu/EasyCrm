@@ -72,3 +72,42 @@ test('recordings tab groups calls by number, opens a number, and still offers th
  [...second.querySelectorAll('button')].find(b=>b.textContent==='Rattacher au dossier').click();await tick();
  assert.equal(JSON.stringify(requests.find(([p])=>p==='/yeastar/recordings/2/attach')[1].body),'{"prospect_id":42}');
 });
+
+test('call history sends filters and sorts, and only managers get the commercial column', async () => {
+  for (const role of ['commercial', 'superviseur']) {
+    const dom = new JSDOM('<main></main>', {url:'https://cloud.example.test'});
+    const document = dom.window.document;
+    const main = document.querySelector('main');
+    const requests = [];
+    const ctx = vm.createContext({
+      document, Node:dom.window.Node, URLSearchParams,
+      me:{role, commerciaux:[{uid:'a', name:'Jeanne'}]}, detail:()=>{},
+      show:box=>main.replaceChildren(box),
+      api:async path=>{
+        requests.push(new URLSearchParams(path.split('?')[1]));
+        return {rows:[{started_at:'2026-11-23 14:00:00',user_id:'a',lastname:'Client',
+          prospect_id:12,phone:'0550123456',direction:'inbound',call_status:'ANSWERED',talk_duration:32}],has_more:true};
+      }
+    });
+    vm.runInContext(part('const h =','async function api(')+part('function callHistoryPage()','function recordingsPage()'),ctx);
+    vm.runInContext('callHistoryPage()',ctx);
+    await tick();
+    const manager = role==='superviseur';
+    assert.equal(!!document.querySelector('[aria-label=Commercial]'),manager);
+    assert.equal([...document.querySelectorAll('th')].some(th=>th.textContent.includes('Commercial')),manager);
+    document.querySelector('[aria-label=Client]').value='Client Exemple';
+    document.querySelector('[aria-label="Numéro de téléphone"]').value='0550';
+    if(manager)document.querySelector('[aria-label=Commercial]').value='a';
+    document.querySelector('form').dispatchEvent(new dom.window.Event('submit',{cancelable:true}));
+    await tick();
+    assert.equal(requests.at(-1).get('client'),'Client Exemple');
+    assert.equal(requests.at(-1).get('number'),'0550');
+    assert.equal(requests.at(-1).get('user'),manager?'a':'');
+    [...document.querySelectorAll('th button')].find(button=>button.textContent==='Durée parlée').click();
+    await tick();
+    assert.equal(requests.at(-1).get('sort'),'duration');
+    assert.equal(requests.at(-1).get('dir'),'asc');
+    assert.match(main.textContent,/Répondu/);
+    dom.window.close();
+  }
+});

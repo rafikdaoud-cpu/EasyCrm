@@ -6,8 +6,42 @@ class Store {
 	public const RESULTS = ['interesse', 'injoignable', 'rappel', 'pas_interesse', 'non_eligible', 'faux_numero'];
 	public function __construct(private IDBConnection $db) {}
 
+	public function hasSharedAccess(int $id, string $uid): bool {
+		$q = $this->db->getQueryBuilder();
+		$q->select('prospect_id')->from('callcrm_shared_clients')
+			->where($q->expr()->eq('prospect_id', $q->createNamedParameter($id, IQueryBuilder::PARAM_INT)))
+			->andWhere($q->expr()->eq('grantee', $q->createNamedParameter($uid)));
+		return (bool)$q->executeQuery()->fetchOne();
+	}
+
+	public function grantSharedAccess(int $id, string $uid, string $call): void {
+		if ($uid === '' || $this->hasSharedAccess($id, $uid)) return;
+		$this->db->beginTransaction();
+		try {
+			$q = $this->db->getQueryBuilder();
+			$q->insert('callcrm_shared_clients')
+				->setValue('prospect_id', $q->createNamedParameter($id, IQueryBuilder::PARAM_INT))
+				->setValue('grantee', $q->createNamedParameter($uid))->executeStatement();
+			$this->clientEvent($id, $uid, 'share', ['call_id' => $call]);
+			$this->db->commit();
+		} catch (\Throwable $error) {
+			$this->db->rollBack();
+			// A concurrent webhook may have recorded the same grant and its audit entry.
+			if (!$this->hasSharedAccess($id, $uid)) throw $error;
+		}
+	}
+
+	public static function includeSharedClients(IQueryBuilder $q, string $uid): void {
+		$user = $q->createNamedParameter($uid);
+		$q->leftJoin('p', 'callcrm_shared_clients', 'shared',
+			$q->expr()->andX($q->expr()->eq('shared.prospect_id', 'p.id'), $q->expr()->eq('shared.grantee', $user)));
+		$q->andWhere($q->expr()->orX($q->expr()->eq('p.assigned_to', $q->createNamedParameter($uid)),
+			$q->expr()->isNotNull('shared.grantee')));
+	}
+
 	private function where(IQueryBuilder $qb, ?string $uid, array $f): void {
-		if ($uid !== null) { $qb->andWhere($qb->expr()->eq('assigned_to', $qb->createNamedParameter($uid))); }
+		if ($uid !== null && !empty($f['shared'])) { self::includeSharedClients($qb, $uid); }
+		elseif ($uid !== null) { $qb->andWhere($qb->expr()->eq('assigned_to', $qb->createNamedParameter($uid))); }
 		TeamScope::prospects($qb);
 		if (!empty($f['status'])) { $qb->andWhere($qb->expr()->eq('status', $qb->createNamedParameter($f['status']))); }
 		if (!empty($f['assigned'])) { $qb->andWhere($qb->expr()->eq('assigned_to', $qb->createNamedParameter($f['assigned']))); }
@@ -31,7 +65,7 @@ class Store {
 	}
 	public function search(?string $uid, array $f, int $limit, int $off): array {
 		$qb = $this->db->getQueryBuilder();
-		$qb->select('*')->from('callcrm_prospects');
+		$qb->select('p.*')->from('callcrm_prospects', 'p');
 		$this->where($qb, $uid, $f);
 		$cols = ['nom' => 'lastname', 'date' => 'created_at', 'statut' => 'status', 'wilaya' => 'c5', 'categorie' => 'c2', 'source' => 'source', 'appel' => 'last_call_at', 'rappel' => 'callback_at'];
 		if (!empty($f['sort']) && isset($cols[$f['sort']])) {
@@ -42,7 +76,7 @@ class Store {
 	}
 	public function count(?string $uid, array $f): int {
 		$qb = $this->db->getQueryBuilder();
-		$qb->select($qb->func()->count('*', 'n'))->from('callcrm_prospects');
+		$qb->select($qb->func()->count('*', 'n'))->from('callcrm_prospects', 'p');
 		$this->where($qb, $uid, $f);
 		return (int)$qb->executeQuery()->fetchOne();
 	}
@@ -67,12 +101,32 @@ class Store {
 	private function clientEvent(int $id, string $actor, string $kind, array $body): void {
 		$this->insert('callcrm_client_events',['prospect_id'=>$id,'user_id'=>$actor,'kind'=>$kind,'body'=>json_encode($body,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),'created_at'=>time()]);
 	}
+	public function addClientNote(int $id, string $actor, string $note): void {
+		$this->clientEvent($id, $actor, 'note', ['note'=>$note, 'added'=>true]);
+	}
+
 	private function changedClient(int $id, string $actor, array $old, array $values): void {
-		if (array_key_exists('remarque',$values) && (string)($old['remarque']??'')!==(string)$values['remarque']) $this->clientEvent($id,$actor,'note',['note'=>(string)$values['remarque']]);
+		if (array_key_exists('remarque',$values) && (string)($old['remarque']??'')!==(string)$values['remarque']) $this->clientEvent($id,$actor,'note',['note'=>(string)$values['remarque'], 'from'=>$old['remarque']??null]);
 		if (array_key_exists('assigned_to',$values) && ($old['assigned_to']??null)!==$values['assigned_to']) $this->clientEvent($id,$actor,'assign',['from'=>$old['assigned_to']??null,'to'=>$values['assigned_to']]);
+		$changes = [];
+		foreach (array_diff_key($values, array_flip(['remarque', 'assigned_to'])) as $field => $value) {
+			if ((string)($old[$field] ?? '') === (string)$value) continue;
+			if ($field === 'extra') {
+				$before = json_decode((string)($old['extra'] ?? ''), true) ?: [];
+				$after = json_decode((string)$value, true) ?: [];
+				foreach (array_keys($before + $after) as $key) {
+					if (($before[$key] ?? null) !== ($after[$key] ?? null)) {
+						$changes[$key] = ['from' => $before[$key] ?? null, 'to' => $after[$key] ?? null];
+					}
+				}
+				continue;
+			}
+			$changes[$field] = ['from' => $old[$field] ?? null, 'to' => $value];
+		}
+		if ($changes) $this->clientEvent($id, $actor, 'edit', ['changes' => $changes]);
 	}
 	public function update(int $id, array $v, ?string $actor=null, ?array $expected=null): void {
-		$track=$actor!==null && (array_key_exists('remarque',$v)||array_key_exists('assigned_to',$v));
+		$track = $actor !== null;
 		if ($track) $this->db->beginTransaction();
 		try {
 			$old=$track?$this->get($id):null;
@@ -81,21 +135,22 @@ class Store {
 			foreach ($v as $k=>$x) $q->set($k,$q->createNamedParameter($x));
 			$q->where($q->expr()->eq('id',$q->createNamedParameter($id)));
 			if ($expected!==null) {
-				$note=$expected['remarque']??null;$assigned=$expected['assigned_to']??null;
-				$q->andWhere($note===null?$q->expr()->isNull('remarque'):$q->expr()->eq('remarque',$q->createNamedParameter($note)));
-				$q->andWhere($assigned===null?$q->expr()->isNull('assigned_to'):$q->expr()->eq('assigned_to',$q->createNamedParameter($assigned)));
+				foreach (array_unique(array_merge(array_keys($v), ['remarque', 'assigned_to'])) as $field) {
+					$previous = $expected[$field] ?? null;
+					$q->andWhere($previous === null ? $q->expr()->isNull($field) : $q->expr()->eq($field, $q->createNamedParameter($previous)));
+				}
 			}
 			$changed=$q->executeStatement();
 			// MySQL returns zero on an unchanged row; check expectations before treating it as a conflict.
 			if ($expected!==null && $changed===0) { $now=$this->get($id);foreach ($v as $column=>$value) { if (!$now || (string)($now[$column]??'')!==(string)$value) throw new \DomainException('La fiche a changé. Rechargez-la avant d’enregistrer.'); } if (!$now || (string)($now['remarque']??'')!==(string)($v['remarque']??$expected['remarque']??'') || ($now['assigned_to']??null)!==($expected['assigned_to']??null)) throw new \DomainException('La fiche a changé. Rechargez-la avant d’enregistrer.'); }
-			if ($track) { $this->changedClient($id,$actor,$old,$v);$this->db->commit(); }
+			if ($track) { if ($expected === null || $changed > 0) $this->changedClient($id,$actor,$expected ?? $old,$v);$this->db->commit(); }
 		} catch (\Throwable $e) { if ($track) $this->db->rollBack();throw $e; }
 	}
 	public function delete(int $id): void {
 		$this->db->beginTransaction();try {
 		$q=$this->db->getQueryBuilder();$q->update('callcrm_documents')->set('prospect_id',$q->createNamedParameter(null))->where($q->expr()->eq('prospect_id',$q->createNamedParameter($id)))->executeStatement();
 		$q=$this->db->getQueryBuilder();$q->update('callcrm_pbx_recordings')->set('prospect_id',$q->createNamedParameter(null))->where($q->expr()->eq('prospect_id',$q->createNamedParameter($id)))->executeStatement();
-		foreach (['callcrm_client_events'=>'prospect_id', 'callcrm_appointments'=>'prospect_id', 'callcrm_recordings' => 'prospect_id', 'callcrm_calls' => 'prospect_id', 'callcrm_prospects' => 'id'] as $t => $c) {
+		foreach (['callcrm_shared_clients'=>'prospect_id', 'callcrm_client_events'=>'prospect_id', 'callcrm_appointments'=>'prospect_id', 'callcrm_recordings' => 'prospect_id', 'callcrm_calls' => 'prospect_id', 'callcrm_prospects' => 'id'] as $t => $c) {
 			$qb = $this->db->getQueryBuilder();
 			$qb->delete($t)->where($qb->expr()->eq($c, $qb->createNamedParameter($id)))->executeStatement();
 		}

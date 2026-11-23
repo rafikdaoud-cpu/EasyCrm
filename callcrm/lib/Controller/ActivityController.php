@@ -25,7 +25,7 @@ class ActivityController extends Controller {
  #[NoAdminRequired]
  public function timeline(int $id): JSONResponse {
   if (!$this->access->can('view')) return $this->error('Accès refusé',403);
-  if (!$this->visible($id)) return $this->error('Dossier introuvable',404);
+  if (!$this->visible($id) && !($this->access->role()==='commercial' && $this->store->get($id) && $this->store->hasSharedAccess($id, $this->access->uid()))) return $this->error('Dossier introuvable',404);
   if ($this->access->can('mask')) return new JSONResponse(['rows'=>[],'has_more'=>false,'cursor'=>'']);
   $kind=$this->request->getParam('kind','all');$cursor=$this->request->getParam('cursor','');
   if (!is_string($kind)||!is_string($cursor)||strlen($cursor)>256) return $this->error('Page invalide',400);
@@ -52,7 +52,7 @@ class ActivityController extends Controller {
  public function search(): JSONResponse {
   if(!$this->access->can('view'))return $this->error('Accès refusé',403);
   $q=$this->request->getParam('q','');if(!is_string($q))return $this->error('Recherche invalide',400);
-  $r=$this->activity->globalSearch($this->scope(),$q,(int)$this->request->getParam('offset',0));
+  $r=$this->activity->globalSearch($this->scope(),$q,(int)$this->request->getParam('offset',0),$this->access->role()==='commercial');
   if($this->access->can('mask'))foreach($r['rows'] as &$row)$row['phone']='';unset($row);return new JSONResponse($r);
  }
  #[NoAdminRequired]

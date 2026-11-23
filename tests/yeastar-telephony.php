@@ -2,7 +2,7 @@
 namespace OCP {interface ICacheFactory{} interface IDBConnection{}}
 namespace OCP\Http\Client {interface IClientService{}}
 namespace OCP\Lock {interface ILockingProvider{const LOCK_EXCLUSIVE=2;} class LockedException extends \Exception {}}
-namespace OCA\CallCrm\Service {class Store {public array $rows=[];public function get($id){return $this->rows[$id]??null;}}}
+namespace OCA\CallCrm\Service {class Store {public array $rows=[];public function get($id){return $this->rows[$id]??null;}public function hasSharedAccess(int $id,string $uid):bool{return false;}}}
 namespace {
 require __DIR__.'/yeastar-settings.php';
 require __DIR__.'/../callcrm/lib/Service/YeastarClient.php';
@@ -36,7 +36,7 @@ $settings->save(['webhook_secret'=>str_repeat('a',32)]);$raw=json_encode(['event
 try{$events->receive($raw,'forged');throw new LogicException('Expected refusal');}catch(DomainException $e){check(true,'forged webhook refused before database access');}
 $settings->save(['enabled'=>false]);try{$events->receive($raw,$signature);throw new LogicException('Expected refusal');}catch(DomainException $e){check(true,'disabled integration refuses webhook');}
 class FakeEvents extends \OCA\CallCrm\Service\YeastarEvents {public ?array $prospect=null;public array $records=[];public function __construct(){}public function match(string $number):?array{return $this->prospect;}public function record(string $hash,string $call,string $uid,string $phone,string $direction,string $state,?int $pid):void{$this->records[]=func_get_args();}}
-class UserAccess extends \OCA\CallCrm\Service\Access {public function __construct(private string $role){}public function uid(){return 'alice';}public function can($action){return $this->role==='admin'||($this->role==='commercial'&&in_array($action,['view','call'],true));}}
+class UserAccess extends \OCA\CallCrm\Service\Access {public function __construct(private string $role){}public function role(){return $this->role;}public function uid(){return 'alice';}public function can($action){return $this->role==='admin'||($this->role==='commercial'&&in_array($action,['view','call'],true));}}
 class FakeClient extends \OCA\CallCrm\Service\YeastarClient {public array $calls=[];public function __construct(){}public function dial(string $extension,string $number):string{$this->calls[]=[$extension,$number];return 'call-2';}}
 $settings->save(['enabled'=>true]);$fe=new FakeEvents();$fc=new FakeClient();$store=new \OCA\CallCrm\Service\Store();$request->params=['phone'=>'0770322647'];
 $controller=new \OCA\CallCrm\Controller\TelephonyController($request,new UserAccess('commercial'),$store,$settings,$fc,$fe);

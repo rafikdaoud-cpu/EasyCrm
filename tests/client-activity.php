@@ -18,6 +18,7 @@ namespace {
  class DB implements \OCP\IDBConnection {
   public PDO $pdo;public bool $failEvents=false;public string $prefix;
   public function __construct($prefix){$this->prefix=$prefix;$this->pdo=new PDO('sqlite::memory:');$this->pdo->setAttribute(PDO::ATTR_ERRMODE,PDO::ERRMODE_EXCEPTION);$this->pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE,PDO::FETCH_ASSOC);
+   $this->pdo->exec("CREATE TABLE {$prefix}_shared_clients(prospect_id INTEGER, grantee TEXT, PRIMARY KEY(prospect_id,grantee))");
    $this->pdo->exec("CREATE TABLE {$prefix}_pbx_recordings(id INTEGER PRIMARY KEY,prospect_id INTEGER,created_at INTEGER DEFAULT 0,talk_duration INTEGER DEFAULT 0,direction TEXT DEFAULT 'inbound',state TEXT DEFAULT 'queued')");
    $this->pdo->exec("CREATE TABLE {$prefix}_prospects(id INTEGER PRIMARY KEY,lastname TEXT,firstname TEXT,phone TEXT,email TEXT,c5 TEXT,status TEXT,assigned_to TEXT,callback_at INTEGER,last_note TEXT,remarque TEXT,last_call_at INTEGER,reset_at INTEGER);CREATE TABLE {$prefix}_calls(id INTEGER PRIMARY KEY,prospect_id INTEGER,user_id TEXT,result TEXT,reason TEXT,note TEXT,callback_at INTEGER,created_at INTEGER);CREATE TABLE {$prefix}_client_events(id INTEGER PRIMARY KEY,prospect_id INTEGER,user_id TEXT,kind TEXT,body TEXT,created_at INTEGER);CREATE TABLE {$prefix}_appointments(id INTEGER PRIMARY KEY,prospect_id INTEGER,starts_at INTEGER,title TEXT,notes TEXT,state TEXT,revision INTEGER,created_by TEXT,updated_at INTEGER);CREATE TABLE {$prefix}_audit(id INTEGER PRIMARY KEY,prospect_id INTEGER,user_id TEXT,action TEXT,detail TEXT,created_at INTEGER)");
   }
@@ -31,6 +32,7 @@ namespace {
   public function eq($a,$b){return "$a = $b";}public function neq($a,$b){return "$a <> $b";}public function gt($a,$b){return "$a > $b";}public function isNotNull($a){return "$a IS NOT NULL";}public function lt($a,$b){return "$a < $b";}public function gte($a,$b){return "$a >= $b";}public function in($a,$b){return "$a IN $b";}public function isNull($a){return "$a IS NULL";}public function like($a,$b){return "$a LIKE $b ESCAPE '\\'";}public function iLike($a,$b){return "LOWER($a) LIKE LOWER($b) ESCAPE '\\'";}
   public function andX(...$parts){return new Expression('AND',$parts);}public function orX(...$parts){return new Expression('OR',$parts);}
   public function select(...$columns){$this->kind='SELECT';$this->columns=implode(',',$columns);return $this;}public function from($table,$alias=''){$this->table=$table;$this->alias=$alias;return $this;}
+  public function leftJoin($base,$table,$alias,$on){$this->joins[]="LEFT JOIN $table $alias ON $on";return $this;}
   public function innerJoin($base,$table,$alias,$on){$this->joins[]="INNER JOIN $table $alias ON $on";return $this;}public function where($condition){$this->where=[(string)$condition];return $this;}public function andWhere($condition){$this->where[]=(string)$condition;return $this;}
   public function having($expression){$this->having=(string)$expression;return $this;}public function groupBy(...$columns){$this->group=$columns;return $this;}public function orderBy($key,$dir){$this->order=["$key $dir"];return $this;}public function addOrderBy($key,$dir){$this->order[]="$key $dir";return $this;}public function setMaxResults($n){$this->limit=$n;return $this;}public function setFirstResult($n){$this->offset=$n;return $this;}
   public function delete($table){$this->kind='DELETE';$this->table=$table;return $this;}public function insert($table){$this->kind='INSERT';$this->table=$table;return $this;}public function setValue($key,$v){$this->values[$key]=$v;return $this;}public function update($table){$this->kind='UPDATE';$this->table=$table;return $this;}public function set($key,$v){return $this->setValue($key,$v);}
@@ -109,6 +111,32 @@ namespace {
  $s=array_column($activity->neglected(null,'idle',7,0,['sort'=>'source','dir'=>'asc'])['rows'],'source');$e=$s;sort($e);check($s===$e,'sort by source');
  try{$activity->neglected(null,'idle',7,0,['source'=>'pirate']);check(false,'unknown source is rejected');}catch(\InvalidArgumentException $e){check(true,'unknown source is rejected');}
  try{$activity->neglected(null,'idle',7,0,['sort'=>'p.id;DROP']);check(false,'unknown sort key is rejected');}catch(\InvalidArgumentException $e){check(true,'unknown sort key is rejected');}
+ }
+
+ if ($folder==='callcrm') {
+  $db->failEvents=true;
+  try {$store->grantSharedAccess(1,'bob','crm-call');throw new LogicException('Expected failure');} catch (PDOException $e) {}
+  check(!$store->hasSharedAccess(1,'bob'),'failed audit rolls back shared access');
+  $db->failEvents=false;
+  $store->grantSharedAccess(1,'bob','crm-call');
+  $store->grantSharedAccess(1,'bob','crm-call');
+  check($store->get(1)['assigned_to']==='alice' && $store->hasSharedAccess(1,'bob'),'shared access leaves owner assigned');
+  $shares=$activity->timeline(1,'share')['rows'];
+  check(count($shares)===1 && $shares[0]['author']==='Nom bob' && $shares[0]['body']['call_id']==='crm-call','duplicate delivery has one attributed grant event');
+  $request->params=[];
+  check($controller('bob')->timeline(1)->status===200,'collaborator can read the timeline');
+  check($controller('carol')->timeline(1)->status===403,'outsider cannot read a shared timeline');
+  check(array_column($activity->globalSearch('bob','Nadia',0,true)['rows'],'id')===[1],'collaborator can find the shared client');
+  $session->uid='bob';
+  $request->params=['note'=>'Test note from another commercial'];
+  check($api->addNote(1)->status===200,'collaborator can append a note');
+  check($activity->timeline(1,'note')['rows'][0]['author']==='Nom bob','new note records its author');
+  $before=$store->get(1);
+  $store->update(1,['firstname'=>'Nouvelle valeur'],'bob',$before);
+  $event=$activity->timeline(1,'edit')['rows'][0];
+  check($event['author']==='Nom bob' && $event['body']['changes']['firstname']===['from'=>$before['firstname'],'to'=>'Nouvelle valeur'],'field edit records actor and both values');
+  try {$store->update(1,['firstname'=>'Stale edit'],'alice',$before);throw new LogicException('Expected conflict');}
+  catch (DomainException $e) {check($store->get(1)['firstname']==='Nouvelle valeur','stale edit preserves the more recent value');}
  }
  echo "$folder: $count activity checks passed\n";
 }

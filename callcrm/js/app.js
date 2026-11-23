@@ -183,7 +183,7 @@ function chronology(pid){
  const box=h('div',{class:'card crm-chronology'}),items=h('div'),message=h('p',{class:'muted'});let kind='all',cursor='',sequence=0;
  setTimeout(()=>{if(box.isConnected){box.after(yeastarHistory(pid));if(me.can.assign||me.can.call)box.after(yeastarRecordingsCard(pid));}},0);
  const more=h('button',{onclick:()=>load(true)},'Afficher les événements précédents');
- const title={call:'Appel',note:'Commentaire modifié',sim:'Simulation enregistrée',assign:'Affectation modifiée',appointment:'Rendez-vous',documents:'Documents client',sms:'SMS envoyé'};
+ const title={call:'Appel',note:'Note',edit:'Fiche modifiée',share:'Accès accordé après un appel entrant',sim:'Simulation enregistrée',assign:'Affectation modifiée',appointment:'Rendez-vous',documents:'Documents client',sms:'SMS envoyé'};
  const render=e=>{const b=e.body||{};let body;
   if(e.kind==='call')body=[h('strong',{},ST[b.result]||b.result),b.reason?h('p',{},'Motif : '+b.reason):'',b.note?h('p',{},b.note):'',b.callback_at?h('small',{},'Rappel : '+fmt(b.callback_at)):'',e.recording?h('div',{class:'crm-event-audio'},h('audio',{controls:true,preload:'none',src:API+'/yeastar/recordings/'+e.recording.id+'/audio','aria-label':'Écouter l’appel'}),h('small',{class:'muted'},'Enregistrement · '+e.recording.talk+' s de conversation')):''];
   else if(e.kind==='assign')body=[b.from+' → '+b.to];
@@ -191,15 +191,31 @@ function chronology(pid){
   else if(e.kind==='appointment')body=[h('strong',{},b.title),h('p',{},fmt(b.starts_at)+' · '+({open:'Prévu',done:'Terminé',cancelled:'Annulé'}[b.state]||'')),b.notes||''];
   else if(e.kind==='documents')body=[b.action==='received'?'Le client a terminé l’envoi : '+b.count+' document(s)'+(b.folder?' · '+b.folder:''):b.action==='started'?'Le client a commencé à envoyer ses documents (livrés au fur et à mesure)':'Lien envoyé au client : '+b.count+' document(s) demandé(s)'+(b.expires_at?', valable jusqu’au '+fmt(b.expires_at):'')];
   else if(e.kind==='sms')body=[h('p',{class:'crm-sms-text'},b.text||''),h('small',{class:b.ok?'muted':'err'},(b.ok?'Envoyé':'Échec : '+(b.error||'refusé'))+(b.segments?' · '+b.segments+' SMS':'')+(b.batch?' · envoi groupé':''))];
-  else body=[b.note||'Commentaire effacé'];
+  else if(e.kind==='share')body=[b.call_id ? 'Appel Yeastar '+b.call_id : ''];
+  else if(e.kind==='edit')body=Object.entries(b.changes||{}).map(([key,v])=>h('p',{},h('strong',{},(me.fields||[]).find(f=>f.key===key)?.label||key), ' · '+(v.from??'—')+' → '+(v.to??'—')));
+  else body=[b.note||'Commentaire effacé', b.from!=null ? h('small',{},'Avant : '+b.from) : ''];
   return h('article',{class:'crm-event','data-kind':e.kind},h('div',{class:'bar'},h('strong',{},title[e.kind]||'Événement'),h('small',{},fmt(e.created_at))),h('div',{class:'crm-event-body'},body),h('small',{},e.author));
  };
  async function load(append=false){const request=++sequence;more.disabled=true;message.textContent='Chargement…';
   try{const r=await api('/prospects/'+pid+'/timeline?'+new URLSearchParams({kind,cursor:append?cursor:''}));if(request!==sequence)return;if(!box.isConnected)return;
    if(!append)items.replaceChildren();items.append(...r.rows.map(render));cursor=r.cursor;more.hidden=!r.has_more;message.textContent=items.children.length?'':'Aucun événement pour ce filtre.';
   }catch(e){if(request===sequence)message.textContent=e.message;}finally{if(request===sequence)more.disabled=false;}}
- const filters=h('div',{class:'bar crm-timeline-filters'},[['all','Tout'],['call','Appels'],['note','Notes'],['sim','Simulations'],['assign','Affectations'],['appointment','Rendez-vous'],...(me.sms?.enabled?[['sms','SMS']]:[])].map(([key,label])=>h('button',{class:key==='all'?'on':'',onclick:e=>{kind=key;filters.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b===e.currentTarget));load();}},label)));
- box.append(h('h3',{},'Chronologie du client'),filters,message,items,more);setTimeout(()=>load(),0);return box;
+ const filters=h('div',{class:'bar crm-timeline-filters'},[['all','Tout'],['call','Appels'],['note','Notes'],['edit','Modifications'],['share','Accès partagés'],['sim','Simulations'],['assign','Affectations'],['appointment','Rendez-vous'],...(me.sms?.enabled?[['sms','SMS']]:[])].map(([key,label])=>h('button',{class:key==='all'?'on':'',onclick:e=>{kind=key;filters.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b===e.currentTarget));load();}},label)));
+ const noteForm = me.can.call ? h('form',{class:'bar crm-shared-note'},h('textarea',{rows:2,maxlength:4000,required:true,'aria-label':'Note au dossier',placeholder:'Note au dossier'}),h('button',{class:'primary',type:'submit'},'Ajouter une note'),h('span',{role:'status'})) : null;
+ if(noteForm) noteForm.onsubmit=async e=>{
+  e.preventDefault();
+  const input=noteForm.querySelector('textarea'),button=noteForm.querySelector('button'),feedback=noteForm.querySelector('[role=status]');
+  button.disabled=true;
+  try {
+   await api('/prospects/'+pid+'/notes',{method:'POST',body:{note:input.value}});
+   input.value='';feedback.textContent='Note ajoutée.';
+   if(kind==='all'||kind==='note') await load();
+  } catch(error){feedback.textContent=error.message;}
+  finally{button.disabled=false;}
+ };
+ box.append(h('h3',{},'Chronologie du client'));
+ if(noteForm)box.append(noteForm);
+ box.append(filters,message,items,more);setTimeout(()=>load(),0);return box;
 }
 function appointmentEditor(pid,appointment=null,after=()=>{}){
  const zone=me.prefs?.tz||'Africa/Algiers';const local=t=>{const parts=new Intl.DateTimeFormat('sv-SE',{timeZone:zone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(t*1000));return parts.replace(' ','T');};
@@ -213,6 +229,8 @@ function appointmentEditor(pid,appointment=null,after=()=>{}){
 function clientWorkspace(p,info,form,note,reason,cb,getResult,saveCall){
  let baseline=JSON.stringify(collect(info));const saved=e=>{baseline=JSON.stringify(e.detail||collect(info));};
  watchEdits('client','Informations du client modifiées',()=>info.isConnected&&JSON.stringify(collect(info))!==baseline);
+ const dossierNote=root.querySelector('.crm-shared-note textarea');
+ if(dossierNote)watchEdits('dossier-note','Note au dossier non enregistrée',()=>dossierNote.isConnected&&!!dossierNote.value.trim());
  watchEdits('call','Résultat d’appel non enregistré',()=>form.isConnected&&!!getResult());
  info.addEventListener('crm-saved',saved);
  const wrap=h('details',{class:'card crm-client-info'},h('summary',{},'Informations du client'));info.classList.remove('card');info.replaceWith(wrap);wrap.append(info);if(window.innerWidth>760)wrap.open=true;
@@ -554,6 +572,74 @@ function yeastarRecordingsCard(pid=null){
  box.addEventListener('toggle',()=>{if(box.open){offset=0;load();}});return box;
 }
 /** Onglet « Enregistrements » (admin, superviseurs) : appels Yeastar regroupés par numéro ou détaillés, avec écoute, filtres et rattachement. */
+function callHistoryPage() {
+  const manager = ['admin','superviseur'].includes(me.role);
+  const input = (label, type='text') => h('input',{type,'aria-label':label,placeholder:label});
+  const from = input('Date de début','date'), to = input('Date de fin','date');
+  const client = input('Client'), number = input('Numéro de téléphone','tel');
+  const select = (label, options) => h('select',{'aria-label':label},
+    options.map(([value,text])=>h('option',{value},text)));
+  const user = select('Commercial',[['','Tous les commerciaux'],...(me.commerciaux||[]).map(u=>[u.uid,u.name])]);
+  const direction = select('Sens',[['','Tous les sens'],['inbound','Entrant'],['outbound','Sortant']]);
+  const statuses = {ANSWERED:'Répondu', 'NO ANSWER':'Sans réponse', BUSY:'Occupé', FAILED:'Échec', CANCEL:'Annulé'};
+  const status = select('Statut',[['','Tous les statuts'],...Object.entries(statuses)]);
+  const filters = h('form',{class:'bar'},
+    h('label',{},'Du ',from),h('label',{},'Au ',to),manager?user:'',client,number,direction,status,
+    h('button',{type:'submit',class:'primary'},'Filtrer'));
+  const columns = [['date','Date'],...(manager?[['agent','Commercial']]:[]),['client','Client'],
+    ['phone','Téléphone'],['direction','Sens'],['status','Statut'],['duration','Durée parlée']];
+  const feedback = h('p',{role:'status'}), table = h('div',{class:'scroll'});
+  const previous = h('button',{onclick:()=>load(Math.max(0,offset-50))},'Précédent');
+  const next = h('button',{onclick:()=>load(offset+50)},'Suivant');
+  const box = h('div',{class:'card'},h('h2',{},'Historique des appels'),filters,feedback,table,h('div',{class:'bar'},previous,next));
+  const names = new Map((me.commerciaux||[]).map(u=>[u.uid,u.name]));
+  let sort='date',dir='desc',offset=0,request=0;
+  let applied={}, askForAgents=manager;
+  filters.onsubmit=e=>{
+    e.preventDefault();
+    applied={from:from.value,to:to.value,client:client.value,number:number.value,
+      direction:direction.value,status:status.value,user:manager?user.value:''};
+    load(0);
+  };
+  async function load(page) {
+    const sequence=++request;
+    previous.disabled=next.disabled=true;
+    feedback.textContent='Chargement…';
+    table.replaceChildren();
+    try {
+      const data=await api('/yeastar/call-history?'+new URLSearchParams({...applied,sort,dir,offset:page,agents:askForAgents?'1':''}));
+      if(sequence!==request||!box.isConnected)return;
+      offset=page;
+      if(data.agents){
+        askForAgents=false;
+        const current=user.value;
+        user.replaceChildren(h('option',{value:''},'Tous les commerciaux'),
+          ...data.agents.map(agent=>h('option',{value:agent.uid},agent.name)));
+        user.value=current;
+      }
+      const header=columns.map(([key,label])=>h('th',{scope:'col','aria-sort':key===sort?(dir==='asc'?'ascending':'descending'):'none'},
+        h('button',{onclick:()=>{dir=sort===key&&dir==='asc'?'desc':'asc';sort=key;load(0);}},label+(key===sort?(dir==='asc'?' ↑':' ↓'):''))));
+      const rows=data.rows.map(r=>{
+        const name=[r.lastname,r.firstname].filter(Boolean).join(' ');
+        return h('tr',{},h('td',{},r.started_at||'—'),
+          manager?h('td',{},r.user_name||names.get(r.user_id)||r.user_id||'—'):'',
+          h('td',{},r.prospect_id?h('button',{onclick:()=>detail(r.prospect_id)},name||'Ouvrir la fiche'):'—'),
+          h('td',{},r.phone),h('td',{},r.direction==='inbound'?'Entrant':'Sortant'),
+          h('td',{},statuses[r.call_status]||r.call_status||'—'),h('td',{},r.talk_duration+' s'));
+      });
+      if(rows.length)table.append(h('table',{},h('thead',{},h('tr',{},header)),h('tbody',{},rows)));
+      feedback.textContent=rows.length?'Appels '+(page+1)+' à '+(page+rows.length)+'.':'Aucun appel sur cette page.';
+      previous.disabled=page===0;next.disabled=!data.has_more;
+    }catch(error){
+      if(sequence!==request||!box.isConnected)return;
+      feedback.textContent=error.message;
+      previous.disabled=offset===0;
+    }
+  }
+  show(box);
+  load(0);
+}
+
 function recordingsPage(){
  const today=new Date(),iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
  const q=h('input',{type:'search',placeholder:'Numéro, client ou poste…','aria-label':'Rechercher un enregistrement'}),
@@ -717,8 +803,9 @@ function nav() {
   t.push(['sim','Simulateur']);
   t.push(['stats',me.can.all ? 'Statistiques' : 'Mes statistiques']);
   if (me.can.import) t.push(['admin','Administration']);
+  if (['admin','superviseur','commercial'].includes(me.role) && !me.can.mask) t.push(['call-history','Historique des appels']);
   if (['admin','superviseur'].includes(me.role)) t.push(['manques','Appels manqués'],['commerciaux','Commerciaux'],['documents','Pièces reçues'],['enregistrements','Enregistrements'],['annonce','Annonce']);
-  const SEC = {journee:'Travail', agenda:'Travail', neglected:'Travail', manques:'Pilotage', commerciaux:'Pilotage', search:'Clients', dossiers:'Clients', wa:'Clients', sim:'Outils', stats:'Outils', admin:'Gestion', documents:'Gestion', enregistrements:'Gestion', annonce:'Gestion'};
+  const SEC = {journee:'Travail', agenda:'Travail', 'call-history':'Travail', neglected:'Travail', manques:'Pilotage', commerciaux:'Pilotage', search:'Clients', dossiers:'Clients', wa:'Clients', sim:'Outils', stats:'Outils', admin:'Gestion', documents:'Gestion', enregistrements:'Gestion', annonce:'Gestion'};
   const items = []; let last = '';
   for (const [key, label] of t) { const sec = SEC[key] || 'Outils'; if (sec !== last) { items.push(h('div', {class:'crm-nav-sec'}, sec)); last = sec; }
     items.push(h('button', {class:(key === 'dossiers' ? inDossiers : tab === key) ? 'on' : '', 'data-k':key,
@@ -733,7 +820,7 @@ function nav() {
     h('button', {type:'button', class:'crm-glass-toggle', 'aria-pressed':String(glassOn()), onclick: e => { setGlass(!glassOn()); e.currentTarget.setAttribute('aria-pressed', String(glassOn())); }}, '◇ Effet verre'),
     h('div', {class:'crm-credit muted'}, 'By Rafik DAOUD'));
 }
-function go(k) { if(typeof canLeave==='function'&&!canLeave(()=>go(k)))return; if (k === 'dossiers') k = 'nouveaux'; if (k === 'sim') { openSim(null); return; } tab = k; if(k==='documents'){show(h('h2',{},'Pièces reçues'),documentsCard());return;} if(k==='search'||k==='neglected'){discovery(k);return;} if(k==='enregistrements'){recordingsPage();return;} if(k==='manques'){missedPage();return;} if(k==='agenda'){agenda();return;} if (k === 'journee' && me.role === 'commercial') myDay(); else if (k === 'wa') waList(); else if (k === 'stats') stats(); else if (k === 'admin') admin(); else if (k === 'annonce') show(h('h2', {}, 'Annonce'), announcementCard()); else if (k === 'commerciaux') presenceBoard(); else list(k); }
+function go(k) { if(typeof canLeave==='function'&&!canLeave(()=>go(k)))return; if (k === 'dossiers') k = 'nouveaux'; if (k === 'sim') { openSim(null); return; } tab = k; if(k==='documents'){show(h('h2',{},'Pièces reçues'),documentsCard());return;} if(k==='search'||k==='neglected'){discovery(k);return;} if(k==='call-history'){callHistoryPage();return;} if(k==='enregistrements'){recordingsPage();return;} if(k==='manques'){missedPage();return;} if(k==='agenda'){agenda();return;} if (k === 'journee' && me.role === 'commercial') myDay(); else if (k === 'wa') waList(); else if (k === 'stats') stats(); else if (k === 'admin') admin(); else if (k === 'annonce') show(h('h2', {}, 'Annonce'), announcementCard()); else if (k === 'commerciaux') presenceBoard(); else list(k); }
 /** Onglets des états de dossiers (au-dessus de la liste). */
 function dossierTabs() {
   const states = TABS.slice(); if (me.can.all) states.push(['tous','Tous']);
@@ -898,6 +985,7 @@ function listGridColumns(card) {
 }
 async function addForm(preset = {}, note = '', origin = '') {
   const msg = h('div', {class:'err'});
+  savedFields=collect(info);
   const asg = me.can.assign ? h('label', {style:'display:block;margin:5px 0'}, h('span', {class:'muted'}, 'Assigner à'),
     h('select', {'data-k':'assigned_to', style:'width:100%;box-sizing:border-box'}, h('option', {value:''}, 'Non assigné'), me.commerciaux.map(u => h('option', {value:u.uid}, u.name)))) : '';
   const box = h('div', {class:'card crm-new-client'}, h('h3', {style:'margin-top:0'}, 'Nouveau client'),
@@ -1066,11 +1154,15 @@ async function detail(id) {
   const edit = h('div', {class:'crm-info-edit'});
   const toggle = h('button', {type:'button', class:'crm-info-toggle', onclick: () => { edit.hidden = !edit.hidden; view.hidden = !edit.hidden; toggle.textContent = edit.hidden ? '✎ Modifier' : 'Fermer'; }}, '✎ Modifier');
   const info = h('div', {class:'card'}, h('div', {class:'crm-card-head'}, h('h3', {}, 'Informations client'), ro ? '' : toggle), view, edit);
+  let savedFields;
   edit.append(fieldsGrid(p, ro),
     ro ? '' : h('button', {class:'primary', style:'margin-top:8px', onclick: async () => {
       imsg.className = 'err'; imsg.textContent = '';
-      try { const snapshot=collect(info); await api('/prospects/' + id + '/update', {method:'POST', body: {...snapshot,_base_note:String(p.remarque||'')}}); if('remarque' in snapshot)p.remarque=snapshot.remarque;
-        for (const f of visF) if (f.key in snapshot) { if (f.builtin) p[f.key] = snapshot[f.key]; else (p.extra = p.extra || {})[f.key] = snapshot[f.key]; } paintView(); info.dispatchEvent(new CustomEvent('crm-saved',{detail:snapshot})); imsg.className = 'muted'; imsg.textContent = 'Informations enregistrées.'; }
+      try { const current=collect(info);
+        const snapshot=Object.fromEntries(Object.entries(current).filter(([key,value])=>JSON.stringify(savedFields[key])!==JSON.stringify(value)));
+        const result=await api('/prospects/' + id + '/update', {method:'POST', body: {...snapshot,_base_note:String(p.remarque||''),_edit_revision:d.edit_revision}});
+        d.edit_revision=result.edit_revision;savedFields=current; if('remarque' in snapshot)p.remarque=snapshot.remarque;
+        for (const f of visF) if (f.key in snapshot) { if (f.builtin) p[f.key] = snapshot[f.key]; else (p.extra = p.extra || {})[f.key] = snapshot[f.key]; } paintView(); info.dispatchEvent(new CustomEvent('crm-saved',{detail:current})); imsg.className = 'muted'; imsg.textContent = 'Informations enregistrées.'; }
       catch (e) { imsg.textContent = e.message; }
     }}, 'Enregistrer les informations'), imsg);
   const asg = me.can.assign ? h('select', {onchange: async e => { try { await api('/prospects/' + id + '/assign', {method:'POST', body:{uid:e.target.value}}); } catch (x) { alert(x.message); } }},

@@ -107,7 +107,7 @@ class ClientActivity {
  }
  /** Stable cursor across the three sources, including equal-second events. */
  public function timeline(int $pid, string $filter, string $cursor='', int $limit=30): array {
-  if (!in_array($filter,['all','call','note','sim','assign','appointment','sms'],true)) throw new \InvalidArgumentException('Filtre de chronologie invalide.');
+  if (!in_array($filter,['all','call','note','sim','assign','appointment','sms','edit','share'],true)) throw new \InvalidArgumentException('Filtre de chronologie invalide.');
   $limit=max(1,min(100,$limit));$boundary=null;
   if ($cursor!=='') { $boundary=json_decode(base64_decode($cursor,true) ?: '',true);if (!is_array($boundary) || count($boundary)!==3 || !is_int($boundary[0]) || !is_int($boundary[1]) || !is_int($boundary[2])) throw new \InvalidArgumentException('Page de chronologie invalide.'); }
   $events=[];
@@ -154,13 +154,15 @@ class ClientActivity {
   }
  }
  /** Search all visible client fields, with an optional commercial-name match. */
- public function globalSearch(?string $scope, string $search, int $offset=0): array {
+ public function globalSearch(?string $scope, string $search, int $offset=0, bool $shared=false): array {
   $search=trim($search);if(mb_strlen($search)<2) return ['rows'=>[],'has_more'=>false,'next_offset'=>0];
   $search=mb_substr($search,0,120);$q=$this->db->getQueryBuilder();$q->select('p.id','p.lastname','p.firstname','p.phone','p.assigned_to','p.status','p.remarque')->from('callcrm_prospects','p');
   $term='%'.$this->db->escapeLikeParameter($search).'%';$or=$q->expr()->orX();
   foreach(['lastname','firstname','phone','remarque','last_note','email'] as $col)$or->add($q->expr()->iLike('p.'.$col,$q->createNamedParameter($term)));
   if($scope===null){$uids=[];foreach($this->users->search($search,30,0) as $u)$uids[]=$u->getUID();if($uids)$or->add($q->expr()->in('p.assigned_to',$q->createNamedParameter($uids,IQueryBuilder::PARAM_STR_ARRAY)));}
-  $q->where($or);$this->scoped($q,$scope);$offset=max(0,min(10000,$offset));$q->orderBy('p.id','DESC')->setMaxResults(21)->setFirstResult($offset);$rows=$q->executeQuery()->fetchAll();
+  $q->where($or);
+  if ($scope!==null && $shared) Store::includeSharedClients($q,$scope);
+  else $this->scoped($q,$scope);$offset=max(0,min(10000,$offset));$q->orderBy('p.id','DESC')->setMaxResults(21)->setFirstResult($offset);$rows=$q->executeQuery()->fetchAll();
   foreach($rows as &$r){$r['owner']=$this->userName($r['assigned_to']);unset($r['remarque']);}unset($r);
   return ['rows'=>array_slice($rows,0,20),'has_more'=>count($rows)>20,'next_offset'=>$offset+20];
  }

@@ -30,12 +30,20 @@ class YeastarEvents {
   if(strlen($call)>128||strlen($phone)>40||strlen($state)>24)return;
   $q=$this->db->getQueryBuilder();$q->insert('callcrm_pbx_events');
   foreach(['event_hash'=>$hash,'call_id'=>$call,'user_id'=>$uid,'phone'=>$phone,'direction'=>$direction,'state'=>$state,'prospect_id'=>$pid,'created_at'=>time()] as $k=>$v)$q->setValue($k,$q->createNamedParameter($v));
-  try{$q->executeStatement();}catch(\Throwable $e){$check=$this->db->getQueryBuilder();$check->select('id')->from('callcrm_pbx_events')->where($check->expr()->eq('event_hash',$check->createNamedParameter($hash)));if(!$check->executeQuery()->fetchOne())throw $e;}
+  try{$q->executeStatement();}catch(\Throwable $e){if(!$this->recorded($hash))throw $e;}
+ }
+ private function recorded(string $hash): bool {
+  $q = $this->db->getQueryBuilder();
+  $q->select('id')->from('callcrm_pbx_events')->where($q->expr()->eq('event_hash', $q->createNamedParameter($hash)));
+  return (bool)$q->executeQuery()->fetchOne();
  }
  public static function parse(array $event):array {
   if((int)($event['type']??0)!==30011)return [];
   $msg=$event['msg']??[];if(is_string($msg))$msg=json_decode($msg,true,32,JSON_THROW_ON_ERROR);
   if(!is_array($msg)||empty($msg['call_id'])||!is_array($msg['members']??null))throw new \InvalidArgumentException('Événement d’appel invalide.');
+  if (!is_scalar($msg['call_id']) || strlen((string)$msg['call_id']) > 128) {
+   throw new \InvalidArgumentException('Identifiant d’appel invalide.');
+  }
   $external=null;$direction='';$extensions=[];
   foreach($msg['members'] as $member){
    if(!is_array($member))continue;
@@ -63,10 +71,29 @@ class YeastarEvents {
   foreach(self::parse($event) as $row){
    if($row['phone']===''){$known=$this->byCall($row['call_id']);if(!$known)continue;$row['phone']=$known['phone'];$row['direction']=$known['direction'];}
    foreach($s['extensions'] as $mapping)if($mapping['extension']===$row['extension']){
-    $p=$this->match($row['phone']);
-    $this->record(hash('sha256',$raw.'|'.$mapping['uid']),$row['call_id'],$mapping['uid'],$row['phone'],$row['direction'],$row['state'],$p?(int)$p['id']:null);
+    $hash = hash('sha256', $raw . '|' . $mapping['uid']);
+    $answered = $row['direction'] === 'inbound' && in_array($row['state'], ['ANSWER','ANSWERED'], true);
+    if (!$answered || !$this->recorded($hash)) {
+     $p = $this->match($row['phone']);
+     if ($answered && $p && !empty($p['assigned_to']) && $p['assigned_to'] !== $mapping['uid']) {
+      (new Store($this->db))->grantSharedAccess((int)$p['id'], $mapping['uid'], $row['call_id']);
+     }
+     $this->record($hash, $row['call_id'], $mapping['uid'], $row['phone'], $row['direction'], $row['state'], $p ? (int)$p['id'] : null);
+    }
+    if ($answered) $this->attributePendingCdr($row['call_id'], $row['phone'], $mapping['uid']);
    }
   }
+ }
+ private function attributePendingCdr(string $call, string $phone, string $uid): void {
+  $q = $this->db->getQueryBuilder();
+  $q->update('callcrm_pbx_recordings')->set('user_id', $q->createNamedParameter($uid))
+   ->where($q->expr()->eq('call_id', $q->createNamedParameter($call)))
+   ->andWhere($q->expr()->eq('phone', $q->createNamedParameter($phone)))
+   ->andWhere($q->expr()->eq('direction', $q->createNamedParameter('inbound')))
+   ->andWhere($q->expr()->eq('call_status', $q->createNamedParameter('ANSWERED')))
+   ->andWhere($q->expr()->eq('user_id', $q->createNamedParameter('')))
+   ->andWhere($q->expr()->gte('created_at', $q->createNamedParameter(time()-86400, IQueryBuilder::PARAM_INT)))
+   ->executeStatement();
  }
  private function receiveCdr(array $event):void {
   $row=YeastarRecordings::parse($event);if($row===null)return;
@@ -74,7 +101,23 @@ class YeastarEvents {
   if($q->executeQuery()->fetchOne())return;
   $p=$this->match($row['phone']);$uid='';
   $config=$this->settings->settings();
-  foreach($config['extensions'] as $mapping)if($mapping['extension']===$row['extension'])$uid=$mapping['uid'];
+  $extension = $row['extension'];
+  if ($row['direction'] === 'inbound' && $row['call_status'] === 'ANSWERED') {
+   $answeredBy = YeastarRecordings::answeredBy($row['recording']);
+   if ($answeredBy !== '') $extension = $answeredBy;
+  }
+  foreach($config['extensions'] as $mapping)if($mapping['extension']===$extension)$uid=$mapping['uid'];
+  if ($uid === '' && $row['direction'] === 'inbound' && $row['call_status'] === 'ANSWERED') {
+   $q = $this->db->getQueryBuilder();
+   $q->select('user_id')->from('callcrm_pbx_events')
+    ->where($q->expr()->eq('call_id', $q->createNamedParameter($row['call_id'])))
+    ->andWhere($q->expr()->eq('phone', $q->createNamedParameter($row['phone'])))
+    ->andWhere($q->expr()->eq('direction', $q->createNamedParameter('inbound')))
+    ->andWhere($q->expr()->in('state', $q->createNamedParameter(['ANSWER','ANSWERED'], IQueryBuilder::PARAM_STR_ARRAY)))
+    ->andWhere($q->expr()->gte('created_at', $q->createNamedParameter(time()-86400, IQueryBuilder::PARAM_INT)))
+    ->orderBy('id', 'DESC')->setMaxResults(1);
+   $uid = (string)$q->executeQuery()->fetchOne();
+  }
   $state=$row['recording']===''?'no_recording':(YeastarRecordings::shortWithoutAgent($row,array_column($config['extensions'],'extension'))?'skipped_short':'queued');
   $row+=['storage_folder'=>$config['recordings_folder'],'pbx_url'=>$config['url'],'prospect_id'=>$p?(int)$p['id']:null,'user_id'=>$uid,'state'=>$state,
    'error'=>'','mime'=>'','size'=>0,'attempts'=>0,'next_attempt'=>0,'lease_until'=>0,'created_at'=>time()];

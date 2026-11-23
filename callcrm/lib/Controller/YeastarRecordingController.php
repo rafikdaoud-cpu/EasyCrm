@@ -30,6 +30,53 @@ class YeastarRecordingController extends Controller {
         if(!$this->manager())return new JSONResponse(['error'=>'Accès refusé'],403);
         return new JSONResponse($this->recordings->list(null,max(0,(int)$this->request->getParam('offset',0))));
     }
+    #[NoAdminRequired]
+    public function callHistory(): JSONResponse {
+        $role = $this->access->role();
+        if (!$this->access->can('view') || $this->access->can('mask') || (!$this->manager() && $role !== 'commercial')) {
+            return new JSONResponse(['error'=>'Accès refusé'],403);
+        }
+        $filters = [];
+        foreach (['from','to','user','client','number','status','direction','sort','dir'] as $key) {
+            $value = $this->request->getParam($key, '');
+            if (!is_string($value)) return new JSONResponse(['error'=>'Filtre invalide'],400);
+            $filters[$key] = mb_substr(trim($value), 0, 120);
+        }
+        foreach (['from','to'] as $key) {
+            $value = $filters[$key];
+            if ($value === '') continue;
+            $date = \DateTimeImmutable::createFromFormat('!Y-m-d', $value);
+            if (!$date || $date->format('Y-m-d') !== $value) return new JSONResponse(['error'=>'Date invalide'],400);
+        }
+        if ($filters['from'] !== '' && $filters['to'] !== '' && $filters['from'] > $filters['to']) {
+            return new JSONResponse(['error'=>'La date de fin précède la date de début.'],400);
+        }
+        $filters['number'] = preg_replace('/[^0-9+]/', '', $filters['number']);
+        if (preg_match('/^(?:0|(?:00|\+)?213)(\d{9})$/D', $filters['number'], $match)) $filters['number'] = $match[1];
+        $uid = $role === 'commercial' ? $this->access->uid() : null;
+        $includeAgents = $uid === null && $this->request->getParam('agents', '') === '1';
+        $names = [];
+        $users = $uid === null ? \OCP\Server::get(\OCP\IUserManager::class) : null;
+        if ($includeAgents || ($uid === null && $filters['sort'] === 'agent')) {
+            foreach ($this->recordings->callHistoryAgentIds() as $agent) {
+                $names[$agent] = $users->getDisplayName($agent) ?: $agent;
+            }
+        }
+        $result = $this->recordings->callHistory($uid, $filters, (int)$this->request->getParam('offset', 0), $names);
+        if ($users) {
+            foreach ($result['rows'] as &$row) {
+                $agent = $row['user_id'];
+                $row['user_name'] = $agent === '' ? '' : ($names[$agent] ??= $users->getDisplayName($agent) ?: $agent);
+            }
+            unset($row);
+        }
+        if ($includeAgents) {
+            asort($names, SORT_NATURAL | SORT_FLAG_CASE);
+            $result['agents'] = [];
+            foreach ($names as $agent => $name) $result['agents'][] = ['uid'=>(string)$agent,'name'=>$name];
+        }
+        return new JSONResponse($result);
+    }
     /** Onglet « Enregistrements » : tous les appels, réservé à l'administrateur et aux superviseurs. */
     #[NoAdminRequired]
     public function all(): JSONResponse {
