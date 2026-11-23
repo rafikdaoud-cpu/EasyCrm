@@ -312,3 +312,7 @@ Le partage permanent d’une fiche après décrochage est propre à Call CRM. La
 Le menu **Historique des appels** lit les détails d’appels Yeastar stockés dans `callcrm_pbx_recordings`, y compris les lignes sans audio. Le serveur fixe le filtre du commercial à l’utilisateur connecté. Les rôles administrateur et superviseur peuvent demander l’historique global. La procédure de recette et les limites des données historiques sont décrites dans [Historique des appels](../callcrm/HISTORIQUE_APPELS.md).
 
 Validation locale sur PHP 8.4, SQLite et jsdom. La suite `tools/test-nextcloud.sh` couvre les droits dossier, les notes, la traçabilité, la répétabilité de la migration et l’envoi des filtres et du tri par l’interface. Une instance Nextcloud 32 avec SQLite a servi à vérifier l’installation, le traitement d’événements signés simulés et les requêtes d’historique. La recette sur un standard Yeastar et la base de production reste à faire.
+
+## Call CRM 0.56.1 · Création de dossier
+
+La version 0.56.0 initialisait l’état du formulaire de modification dans le formulaire de création, ce qui bloquait l’ouverture du nouveau dossier. L’état est maintenant initialisé dans la fiche existante. Le test de régression exécute le vrai formulaire en création manuelle et après le décroché d’un appel Yeastar entrant inconnu. Il vérifie le numéro prérempli, l’envoi de la fiche et son ouverture après enregistrement. Ce correctif JavaScript ne comporte aucune nouvelle migration.

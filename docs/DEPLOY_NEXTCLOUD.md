@@ -1,5 +1,7 @@
 # Déployer Call CRM / EasyCrm
 
+**Call CRM 0.56.1** rétablit la création manuelle et l’ouverture de la fiche vierge au décroché d’un appel inconnu. Cette révision ne comporte aucune nouvelle migration. Une mise à jour depuis une version antérieure à 0.56.0 doit appliquer la migration 1023.
+
 **Call CRM 0.56.0** ajoute l’accès permanent aux fiches après décroché, la chronologie des modifications et le menu Historique des appels. La migration additive 1023 nécessite `occ upgrade`. Suivre la [recette Yeastar et Nextcloud](../callcrm/HISTORIQUE_APPELS.md) avant la mise en production.
 
 Mise à jour du 2026-11-10 : **Call CRM 0.30.2**, connecteur Yeastar entrant/sortant,

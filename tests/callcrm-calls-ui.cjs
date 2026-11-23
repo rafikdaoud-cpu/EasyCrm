@@ -111,3 +111,80 @@ test('call history sends filters and sorts, and only managers get the commercial
     dom.window.close();
   }
 });
+
+test('commercial can open and save the real new-client form manually and after an incoming call', async () => {
+  const dom = new JSDOM('<main></main>', {url:'https://cloud.example.test'});
+  const {document} = dom.window;
+  const root = document.querySelector('main');
+  const created = [], opened = [];
+  let rows = [];
+  const ctx = vm.createContext({
+    document, Node:dom.window.Node, root, setTimeout, tab:'nouveaux',
+    dirtyChecks:new Map(), me:{can:{create:true,assign:false},fields:[
+      {key:'lastname',label:'Nom',builtin:true,required:true},
+      {key:'phone',label:'Téléphone',type:'tel',builtin:true}
+    ]},
+    show:(...children)=>root.replaceChildren(...children),
+    detail:id=>opened.push(id),
+    api:async (path, options)=>{
+      if(path==='/yeastar/runtime')return {enabled:true,extension:'1029'};
+      if(path.startsWith('/yeastar/incoming'))return {rows};
+      if(path==='/prospects' && options.method==='POST'){
+        created.push({...options.body});
+        return {id:created.length};
+      }
+      throw new Error(path);
+    }
+  });
+  vm.runInContext(part('const h =','async function api(')+part('const fval =','// Agenda, client chronicle')+
+    part('let yeastarRuntime=','function yeastarHistory(')+part('async function addForm(','const skel'),ctx);
+  await vm.runInContext('addForm()',ctx);
+  assert.equal(root.querySelector('[data-k="phone"]').value,'');
+  root.querySelector('[data-k="lastname"]').value='Création manuelle';
+  root.querySelector('.crm-new-client button').click();
+  await tick();
+  assert.deepEqual(created[0],{lastname:'Création manuelle',phone:''});
+  assert.deepEqual(opened,[1]);
+  root.replaceChildren();
+
+  await vm.runInContext('refreshYeastarRuntime()',ctx);
+  rows=[{id:1,call_id:'new-client',phone:'0550123456',direction:'inbound',state:'RING',known:false}];
+  await vm.runInContext('pollYeastar()',ctx);
+  assert.equal(root.querySelector('.crm-new-client'),null);
+  rows=[{...rows[0],id:2,state:'ANSWERED'}];
+  await vm.runInContext('pollYeastar()',ctx);
+  assert.equal(root.querySelector('[data-k="phone"]').value,'0550123456');
+  root.querySelector('[data-k="lastname"]').value='Client appelant';
+  root.querySelector('.crm-new-client button').click();
+  await tick();
+  assert.deepEqual(created[1],{lastname:'Client appelant',phone:'0550123456',origin:'appel'});
+  assert.deepEqual(opened,[1,2]);
+  dom.window.close();
+});
+
+test('editing an existing client submits only the changed fields and the current revision', async () => {
+  const dom = new JSDOM('<main></main>');
+  const {document} = dom.window;
+  const requests = [];
+  const ctx = vm.createContext({
+    document, Node:dom.window.Node, CustomEvent:dom.window.CustomEvent, fmt:String, ro:false, id:42,
+    me:{can:{assign:false},fields:[
+      {key:'lastname',label:'Nom',builtin:true}, {key:'firstname',label:'Prénom',builtin:true}
+    ]},
+    p:{lastname:'Ancien',firstname:'Jeanne',remarque:'',created_at:1},
+    d:{edit_revision:'initial'},
+    api:async (path, options)=>{
+      requests.push([path,{...options.body}]);
+      return {edit_revision:'updated'};
+    }
+  });
+  vm.runInContext(part('const h =','async function api(')+part('const fval =','// Agenda, client chronicle')+
+    part("  const imsg = h('div', {class:'err'});",'  // Navigation dans la dernière liste affichée')+
+    '\ndocument.querySelector("main").append(info);',ctx);
+  document.querySelector('[data-k="lastname"]').value='Nouveau';
+  [...document.querySelectorAll('button')].find(b=>b.textContent==='Enregistrer les informations').click();
+  await tick();
+  assert.deepEqual(requests,[['/prospects/42/update',{lastname:'Nouveau',_base_note:'',_edit_revision:'initial'}]]);
+  assert.equal(vm.runInContext('d.edit_revision',ctx),'updated');
+  dom.window.close();
+});

@@ -985,7 +985,6 @@ function listGridColumns(card) {
 }
 async function addForm(preset = {}, note = '', origin = '') {
   const msg = h('div', {class:'err'});
-  savedFields=collect(info);
   const asg = me.can.assign ? h('label', {style:'display:block;margin:5px 0'}, h('span', {class:'muted'}, 'Assigner à'),
     h('select', {'data-k':'assigned_to', style:'width:100%;box-sizing:border-box'}, h('option', {value:''}, 'Non assigné'), me.commerciaux.map(u => h('option', {value:u.uid}, u.name)))) : '';
   const box = h('div', {class:'card crm-new-client'}, h('h3', {style:'margin-top:0'}, 'Nouveau client'),
@@ -1165,6 +1164,7 @@ async function detail(id) {
         for (const f of visF) if (f.key in snapshot) { if (f.builtin) p[f.key] = snapshot[f.key]; else (p.extra = p.extra || {})[f.key] = snapshot[f.key]; } paintView(); info.dispatchEvent(new CustomEvent('crm-saved',{detail:current})); imsg.className = 'muted'; imsg.textContent = 'Informations enregistrées.'; }
       catch (e) { imsg.textContent = e.message; }
     }}, 'Enregistrer les informations'), imsg);
+  savedFields = collect(info);
   const asg = me.can.assign ? h('select', {onchange: async e => { try { await api('/prospects/' + id + '/assign', {method:'POST', body:{uid:e.target.value}}); } catch (x) { alert(x.message); } }},
     h('option', {value:''}, 'Non assigné'), me.commerciaux.map(u => h('option', {value:u.uid, selected: p.assigned_to === u.uid}, u.name))) : '';
   edit.hidden = true;
