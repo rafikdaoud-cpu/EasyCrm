@@ -331,13 +331,9 @@ function documentsCard(pid=null){
 const collectDays=link=>Math.max(1,Math.round(((link.expires_at||0)-(link.created_at||Math.floor(Date.now()/1000)))/86400));
 /** « jours » en arabe : يوم واحد، يومان، 3 إلى 10 أيام، 11 يومًا فأكثر. */
 const arabicDays=n=>n===1?'يوم واحد':n===2?'يومين':n<=10?n+' أيام':n+' يومًا';
-/** Message unique bilingue (français puis arabe) envoyé au client avec le lien de dépôt de documents. */
-/** Lien court https://cloud…/d/<jeton> (redirection du serveur web vers la page de dépôt) : message plus court, un SMS de moins. */
-const collectShort=url=>{const m=/^(https:\/\/[^/]+)\/(?:index\.php\/)?apps\/callcrm\/collecte\/([A-Za-z0-9_-]{20,64})$/.exec(url||'');return m?m[1]+'/d/'+m[2]:url;};
 const COLLECT_DEFAULT={fr:'Bonjour {prenom}, envoyez vos documents via ce lien sécurisé, valable {jours}.',ar:'أرسلوا وثائقكم عبر هذا الرابط الآمن، صالح لمدة {jours_ar}.'};
-/** Message du modèle réglé par l'administrateur : ligne française, ligne arabe, puis le lien court. */
+/** Message du modèle réglé par l'administrateur : ligne française, ligne arabe, puis le lien public fourni par Nextcloud. */
 function collectMessage(p,url,link,tpl){
- url=collectShort(url);
  const n=collectDays(link),t=tpl||COLLECT_DEFAULT;
  const vars={prenom:(p.firstname||'').trim(),nom:[(p.firstname||'').trim(),(p.lastname||'').trim()].filter(Boolean).join(' '),jours:n+' jour'+(n>1?'s':''),jours_ar:arabicDays(n),commercial:(typeof me!=='undefined'&&me&&me.name)||''};
  const fill=s=>String(s||'').replace(/\{(prenom|nom|jours|jours_ar|commercial)\}/g,(_,k)=>vars[k]).replace(/ +([,.;:!?])/g,'$1').replace(/ {2,}/g,' ').trim();
@@ -468,7 +464,7 @@ function collectSettingsCard(){
   const days=h('input',{type:'number',min:1,max:s.max_days,value:s.days,style:'width:5em'});
   const mfr=h('textarea',{rows:2,maxlength:400,'aria-label':'Message en français'},s.message?.fr||''),mar=h('textarea',{rows:2,maxlength:400,dir:'rtl',lang:'ar','aria-label':'Message en arabe'},s.message?.ar||'');
   const preview=h('pre',{class:'crm-collect-message','aria-label':'Aperçu du message'}),pc=h('small',{class:'muted'});
-  const draw=()=>{const t=collectMessage({firstname:'Karim',lastname:'Benali'},'https://cloud.csmtaksit.dz/d/XXXXXXXXXXXXXXXXXXXXXXXX',{created_at:0,expires_at:Number(days.value||3)*86400},{fr:mfr.value||s.message_default.fr,ar:mar.value||s.message_default.ar});preview.textContent=t;const c=smsCount(t);pc.textContent=c.chars+' caractères · '+c.segments+' SMS (arabe : 70 caractères par SMS)';};
+  const draw=()=>{const t=collectMessage({firstname:'Karim',lastname:'Benali'},'https://cloud.csmtaksit.dz/index.php/apps/callcrm/collecte/XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',{created_at:0,expires_at:Number(days.value||3)*86400},{fr:mfr.value||s.message_default.fr,ar:mar.value||s.message_default.ar});preview.textContent=t;const c=smsCount(t);pc.textContent=c.chars+' caractères · '+c.segments+' SMS (arabe : 70 caractères par SMS)';};
   [mfr,mar,days].forEach(x=>x.addEventListener('input',draw));
   body.replaceChildren(h('p',{class:'muted'},'Documents demandés dans chaque lien envoyé par les commerciaux (ils ne voient pas cette liste). '+s.max_documents+' documents au maximum.'),list,
    h('button',{onclick:()=>{list.append(line('',true));list.lastChild.querySelector('input').focus();}},'+ Ajouter un document'),
@@ -783,6 +779,7 @@ function nav() {
       dossiers:['M3 7V5h6l2 2h10v13H3V7Z'],
       wa:['M20 11.5a8 8 0 0 1-11.8 7L3 20l1.5-5.2A8 8 0 1 1 20 11.5Z','M8 8c0 4 4 8 8 8l1-2-3-1-1 1-3-3 1-1-1-3-2 1Z'],
       sim:['M5 3h14v18H5Z','M8 6h8v4H8Z','M8 14h1m6 0h1m-8 3h1m6 0h1'],
+      pilotage:['M4 3v18h17','M8 16v-4m5 4V8m5 8V5'],
       stats:['M4 3v18h17','M8 16v-4m5 4V8m5 8V5'],
       admin:['M12 8a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z','M9 3h6l.5 3 2.5 1 2.5-1 2 5-2.5 1v2l2.5 1-2 5-2.5-1-2.5 1-.5 3H9l-.5-3L6 19l-2.5 1-2-5L4 14v-2L1.5 11l2-5L6 7l2.5-1L9 3Z'],
       annonce:['M3 10v5h5l11 5V5L8 10H3Z','m8 15 2 6h3l-2-5M22 9v7'],
@@ -796,6 +793,7 @@ function nav() {
   };
 
   const inDossiers = !!KINDS[tab], t = [];
+  if (['admin','superviseur'].includes(me.role) && !me.can.mask) t.push(['pilotage','Pilotage commercial']);
   if (me.role === 'commercial') t.push(['journee','Ma journée']);
   t.push(['agenda','Agenda'],['neglected','À relancer'],['search','Recherche']);
   t.push(['dossiers','Dossiers Clients']);
@@ -805,7 +803,7 @@ function nav() {
   if (me.can.import) t.push(['admin','Administration']);
   if (['admin','superviseur','commercial'].includes(me.role) && !me.can.mask) t.push(['call-history','Historique des appels']);
   if (['admin','superviseur'].includes(me.role)) t.push(['manques','Appels manqués'],['commerciaux','Commerciaux'],['documents','Pièces reçues'],['enregistrements','Enregistrements'],['annonce','Annonce']);
-  const SEC = {journee:'Travail', agenda:'Travail', 'call-history':'Travail', neglected:'Travail', manques:'Pilotage', commerciaux:'Pilotage', search:'Clients', dossiers:'Clients', wa:'Clients', sim:'Outils', stats:'Outils', admin:'Gestion', documents:'Gestion', enregistrements:'Gestion', annonce:'Gestion'};
+  const SEC = {pilotage:'Pilotage',journee:'Travail', agenda:'Travail', 'call-history':'Travail', neglected:'Travail', manques:'Pilotage', commerciaux:'Pilotage', search:'Clients', dossiers:'Clients', wa:'Clients', sim:'Outils', stats:'Outils', admin:'Gestion', documents:'Gestion', enregistrements:'Gestion', annonce:'Gestion'};
   const items = []; let last = '';
   for (const [key, label] of t) { const sec = SEC[key] || 'Outils'; if (sec !== last) { items.push(h('div', {class:'crm-nav-sec'}, sec)); last = sec; }
     items.push(h('button', {class:(key === 'dossiers' ? inDossiers : tab === key) ? 'on' : '', 'data-k':key,
@@ -820,7 +818,7 @@ function nav() {
     h('button', {type:'button', class:'crm-glass-toggle', 'aria-pressed':String(glassOn()), onclick: e => { setGlass(!glassOn()); e.currentTarget.setAttribute('aria-pressed', String(glassOn())); }}, '◇ Effet verre'),
     h('div', {class:'crm-credit muted'}, 'By Rafik DAOUD'));
 }
-function go(k) { if(typeof canLeave==='function'&&!canLeave(()=>go(k)))return; if (k === 'dossiers') k = 'nouveaux'; if (k === 'sim') { openSim(null); return; } tab = k; if(k==='documents'){show(h('h2',{},'Pièces reçues'),documentsCard());return;} if(k==='search'||k==='neglected'){discovery(k);return;} if(k==='call-history'){callHistoryPage();return;} if(k==='enregistrements'){recordingsPage();return;} if(k==='manques'){missedPage();return;} if(k==='agenda'){agenda();return;} if (k === 'journee' && me.role === 'commercial') myDay(); else if (k === 'wa') waList(); else if (k === 'stats') stats(); else if (k === 'admin') admin(); else if (k === 'annonce') show(h('h2', {}, 'Annonce'), announcementCard()); else if (k === 'commerciaux') presenceBoard(); else list(k); }
+function go(k) { if(typeof canLeave==='function'&&!canLeave(()=>go(k)))return; if (k === 'dossiers') k = 'nouveaux'; if (k === 'sim') { openSim(null); return; } tab = k; if(k==='documents'){show(h('h2',{},'Pièces reçues'),documentsCard());return;} if(k==='search'||k==='neglected'){discovery(k);return;} if(k==='call-history'){callHistoryPage();return;} if(k==='enregistrements'){recordingsPage();return;} if(k==='manques'){missedPage();return;} if(k==='agenda'){agenda();return;} if(k==='pilotage'){pilotagePage();return;} if (k === 'journee' && me.role === 'commercial') myDay(); else if (k === 'wa') waList(); else if (k === 'stats') stats(); else if (k === 'admin') admin(); else if (k === 'annonce') show(h('h2', {}, 'Annonce'), announcementCard()); else if (k === 'commerciaux') presenceBoard(); else list(k); }
 /** Onglets des états de dossiers (au-dessus de la liste). */
 function dossierTabs() {
   const states = TABS.slice(); if (me.can.all) states.push(['tous','Tous']);
@@ -1232,8 +1230,12 @@ function missedRow(r, opt) {
     actions.append(sel);
   }
   if (mine || opt.manager) actions.append(how);
+  const seconds = r.last_duration;
+  const elapsed = seconds == null ? 'non renseignée' : seconds < 60 ? seconds + ' s'
+    : Math.floor(seconds / 60) + ' min ' + (seconds % 60) + ' s';
   return h('div', {class:'crm-missed-row' + (r.count > 1 ? ' is-repeat' : '')},
     h('div', {class:'crm-missed-who'}, h('strong', {}, r.name || r.phone), h('div', {class:'muted'}, (r.name ? r.phone + ' · ' : '') + (r.count > 1 ? r.count + ' appels manqués · ' : '') + 'dernier ' + agoTxt(r.last_at)
+      + ' · Durée du dernier appel : ' + elapsed
       + (r.attempts ? ' · ' + r.attempts + ' tentative' + (r.attempts > 1 ? 's' : '') : '') + (opt.manager && r.assigned_name ? ' · ' + r.assigned_name : ''))),
     actions, msg);
 }
@@ -1462,6 +1464,9 @@ async function openSim(p) {
           msg,
           h('p', {class: 'muted'}, 'Estimation indicative, à confirmer après prise de mesures.'))),
       bar));
+  bg.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { e.preventDefault(); close(); }
+  });
   root.append(bg); upd();
   bg.querySelector('input').focus();
 }
@@ -1552,6 +1557,163 @@ function hoursChart(hrs) {
     h('div', {style:'display:flex;gap:3px;margin-top:4px'}, hrs.map((n, i) => h('span', {style:'flex:1;text-align:center;font-size:10px;color:var(--color-text-maxcontrast)'}, String(i)))),
     h('div', {class:'muted', style:'margin-top:6px'}, total + ' appel(s) — heure la plus active : ' + best + 'h–' + (best + 1) + 'h (' + hrs[best] + ')'));
 }
+function pilotagePage() {
+  const uid=me.uid;
+  const saved=pilotagePage.saved?.uid===uid?pilotagePage.saved:{uid,query:null,list:null};
+  pilotagePage.saved=saved;
+  const choose = (label, options) => h('select', {'aria-label':label},
+    options.map(([value,text]) => h('option',{value},text)));
+  const period = choose('Période',[['day','Aujourd’hui'],['week','Cette semaine'],['month','Ce mois'],['custom','Période personnalisée']]);
+  const team = choose('Équipe',[['','Toutes les équipes']]);
+  const agent = choose('Commercial',[['','Tous les commerciaux']]);
+  const from = h('input',{type:'date',required:true}), to = h('input',{type:'date',required:true});
+  const dateFields = h('form',{class:'bar',hidden:true},h('label',{},'Du ',from),h('label',{},'Au ',to),
+    h('button',{type:'submit'},'Appliquer'));
+  const message = h('p',{role:'status'}), content = h('div',{class:'crm-pilotage-content'});
+  const page = h('section',{class:'crm-pilotage'},h('h2',{},'Pilotage commercial'),
+    h('div',{class:'crm-pilotage-filters'},period,team,agent),dateFields,message,content);
+  let generation=0, sort='name', direction=1;
+  const statuses={online:'Connecté au CRM',pause:'En pause',absent:'Absent'};
+  let report, appliedQuery, selection=0, detailOpen=false, trigger;
+  const details = h('section',{class:'card crm-pilotage-details',hidden:true});
+  const names={answered:'Appels décrochés',missed:'Appels manqués',lost:'Appels perdus',processed:'Dossiers traités'};
+
+  async function openDetails(kind, offset=0, button=null, slot=null, label='') {
+    if(button)trigger=button;
+    const request=++selection, processed=kind==='processed';
+    saved.list={kind,offset,slot,label};
+    detailOpen=true;
+    details.hidden=false;
+    const title=h('h3',{tabindex:'-1'},names[kind]+(label?' · '+label:''));
+    const close=h('button',{type:'button',onclick:()=>{
+      selection++;detailOpen=false;saved.list=null;details.hidden=true;details.replaceChildren();trigger?.focus();
+    }},'Fermer la liste');
+    const status=h('p',{role:'status'},'Chargement…');
+    details.replaceChildren(h('div',{class:'crm-card-head'},title,close),status);
+    if(button)title.focus();
+    try {
+      const query={...appliedQuery,detail:kind,offset};
+      if(slot!==null)query.slot=slot;
+      const data=await api('/pilotage?'+new URLSearchParams(query));
+      if(request!==selection || !page.isConnected)return;
+      status.textContent=data.total? (offset+1)+' à '+(offset+data.rows.length)+' sur '+data.total+' · '+data.range.from+' au '+data.range.to:'Aucun résultat pour ces filtres.';
+      if(!data.rows.length)return;
+      const seconds=n=>n==null?'—':n+' s';
+      const headings=processed?['Date','Dossier','Commercial','Dernier résultat']:['Date','Numéro','Sonnerie au poste','Durée totale'];
+      if(kind==='missed')headings.push('Dossier','Responsable du rappel','Suivi du rappel');
+      if(kind==='lost')headings.push('Motif');
+      const callbackStatus={open:'À rappeler',attempted:'Rappel tenté',done:'Traité'};
+      const reason={before_ring:'Raccroché avant la sonnerie',short_ring:'Sonnerie de moins de 4 s'};
+      const client=row=>row.prospect_id?h('button',{type:'button',onclick:()=>detail(row.prospect_id)},row.client||'Ouvrir la fiche'):row.client||'—';
+      const body=data.rows.map(row=>{
+        const cells=processed?[h('td',{},client(row)),h('td',{},row.agent),h('td',{},ST[row.result]||row.result)]
+          :[h('td',{},row.phone),h('td',{},seconds(row.ring_seconds)),h('td',{},seconds(row.total_seconds))];
+        if(kind==='missed')cells.push(h('td',{},client(row)),h('td',{},row.agent||(row.callback_state?'Non attribué':'—')),
+          h('td',{},callbackStatus[row.callback_state]||'Suivi non disponible'));
+        if(kind==='lost')cells.push(h('td',{},reason[row.reason]||'—'));
+        return h('tr',{},h('td',{},fmt(row.at)),cells);
+      });
+      details.append(h('div',{class:'scroll'},h('table',{class:'t'},
+        h('thead',{},h('tr',{},headings.map(label=>h('th',{scope:'col'},label)))),h('tbody',{},body))),
+        h('div',{class:'bar'},h('button',{type:'button',disabled:offset===0,onclick:()=>openDetails(kind,Math.max(0,offset-50),null,slot,label)},'Précédent'),
+          h('button',{type:'button',disabled:offset+data.rows.length>=data.total,onclick:()=>openDetails(kind,offset+50,null,slot,label)},'Suivant')));
+    } catch(error){if(request===selection)status.textContent=error.message;}
+  }
+  const columns=[['name','Commercial'],['status','Disponibilité CRM'],['incoming','Décrochés'],['outgoing','Sortants'],
+    ['pending','À traiter'],['processed','Traités'],['late','Rappels en retard']];
+  const table=h('div',{class:'scroll'});
+  function drawTable() {
+    const ordered=[...report.rows].sort((a,b)=>{
+      const delta=typeof a[sort]==='number' ? a[sort]-b[sort] : String(a[sort]).localeCompare(String(b[sort]),'fr');
+      return direction*delta || a.name.localeCompare(b.name,'fr');
+    });
+    if(!ordered.length){table.replaceChildren(h('p',{class:'muted'},'Aucun commercial pour cette sélection.'));return;}
+    const headings=columns.map(([key,label])=>h('th',{scope:'col','aria-sort':key===sort?(direction===1?'ascending':'descending'):'none'},
+      h('button',{type:'button',class:'sort-heading',onclick:()=>{direction=sort===key?-direction:1;sort=key;drawTable();}},
+        label+(key===sort?(direction===1?' ↑':' ↓'):''))));
+    const rows=ordered.map(row=>h('tr',{},h('th',{scope:'row'},row.name),
+      h('td',{},h('span',{class:'pilotage-status '+row.status},statuses[row.status]||'Inconnu')),
+      ['incoming','outgoing','pending','processed','late'].map(key=>h('td',{},String(row[key])))));
+    table.replaceChildren(h('table',{class:'t'},h('thead',{},h('tr',{},headings)),h('tbody',{},rows)));
+  }
+  function draw() {
+    const {answered,missed,lost=0,unknown=0,series,objective,range}=report;
+    const total=answered+missed+lost, peak=Math.max(1,...series.flatMap(slot=>[slot.answered,slot.missed,slot.lost||0]));
+    const metric=(label,value,tone='',kind='')=>h(kind?'button':'div', {
+      class:'card pilotage-metric '+tone, ...(kind?{type:'button',onclick:e=>openDetails(kind,0,e.currentTarget)}:{})
+    },h('span',{},label),h('strong',{},String(value)));
+    const chart=h('div',{class:'pilotage-chart-scroll'},h('div',{class:'pilotage-chart',role:'list','aria-label':'Appels par créneau'},
+      series.map(slot=>{
+        const label=range.from===range.to?slot.label+' h':slot.label;
+        const when=range.from===range.to?label+' – '+String(Number(slot.label)+1).padStart(2,'0')+' h':label;
+        const bars=['answered','missed','lost'].map(kind=>{
+          const count=slot[kind]||0, caption=names[kind]+' · '+when+' : '+count;
+          return h('button',{type:'button',class:kind,style:'height:'+(100*count/peak)+'%',disabled:!count,
+            'aria-label':caption,title:caption,onclick:e=>openDetails(kind,0,e.currentTarget,slot.slot,when)});
+        });
+        return h('div',{class:'pilotage-slot',role:'listitem','aria-label':when},
+          h('div',{class:'pilotage-bars'},bars),
+          h('small',{},label));
+      })));
+    const progress=objective.target ? h('progress',{value:Math.min(objective.current,objective.target),max:objective.target,'aria-label':'Progression de l’objectif'}) : '';
+    content.replaceChildren(h('div',{class:'pilotage-kpis'},
+      metric('Taux de réponse',total?Math.round(100*answered/total)+' %':'—'),
+      metric('Appels manqués',missed,'negative','missed'),metric('Appels perdus',lost,'','lost'),
+      metric('Dossiers traités',report.rows.reduce((sum,r)=>sum+r.processed,0),'','processed')),details,
+      h('div',{class:'pilotage-charts'},
+        h('section',{class:'card'},h('h3',{},'Activité téléphonique'),chart,
+          h('p',{class:'pilotage-legend'},h('span',{class:'answered'},'Décrochés'),h('span',{class:'missed'},'Manqués'),h('span',{class:'lost'},'Perdus')),
+          h('p',{class:'muted'},'Détails Yeastar reçus · '+report.timezone+(unknown?' · '+unknown+' indéterminé(s)':'') )),
+        h('section',{class:'card pilotage-goal'},h('h3',{},'Objectif de l’équipe'),
+          h('p',{},h('strong',{},objective.current+' / '+(objective.target||'—')),' appels consignés'),
+          progress,h('p',{class:'muted'},'Période précédente : '+objective.previous+' appels consignés'))),
+      h('section',{class:'card'},h('h3',{},'Charge par commercial'),
+        h('p',{class:'muted'},'Disponibilité, dossiers à traiter et rappels en retard au moment de la consultation.'),table));
+    drawTable();
+  }
+  function setOptions(select, all, options) {
+    const value=select.value;
+    select.replaceChildren(h('option',{value:''},all),...options.map(([key,label])=>h('option',{value:key},label)));
+    if(options.some(([key])=>key===value)) select.value=value;
+  }
+  async function load(restore=false) {
+    if(period.value==='custom' && (!from.value || !to.value || from.value>to.value)){
+      message.textContent='Choisissez une période valide.';return;
+    }
+    const request=++generation;
+    selection++;detailOpen=false;details.hidden=true;details.replaceChildren();
+    content.replaceChildren();message.textContent='Chargement…';
+    try {
+      const query=restore && saved.query ? {...saved.query} : {period:period.value,team:team.value,agent:agent.value};
+      if(period.value==='custom')Object.assign(query,{from:from.value,to:to.value});
+      const data=await api('/pilotage?'+new URLSearchParams(query));
+      if(request!==generation || !page.isConnected)return;
+      report=data;appliedQuery=query;saved.query=query;
+      if(!restore)saved.list=null;
+      setOptions(team,'Toutes les équipes',data.teams.map(t=>[t.id,t.label]));
+      setOptions(agent,'Tous les commerciaux',data.agents.map(a=>[a.uid,a.name]));
+      if(restore){team.value=query.team;agent.value=query.agent;}
+      message.textContent='';draw();
+      if(restore && saved.list){
+        const {kind,offset,slot,label}=saved.list;
+        openDetails(kind,offset,null,slot,label);
+      }
+    }catch(error){if(request===generation)message.textContent=error.message;}
+  }
+  period.onchange=()=>{dateFields.hidden=period.value!=='custom';if(dateFields.hidden)load();};
+  dateFields.onsubmit=e=>{e.preventDefault();load();};
+  team.onchange=()=>{agent.value='';load();};
+  agent.onchange=()=>load();
+  const refresh=setInterval(()=>{if(!page.isConnected)clearInterval(refresh);else if(!detailOpen && !document.hidden && !page.contains(document.activeElement))load();},60000);
+  if(saved.query){
+    period.value=saved.query.period;
+    from.value=saved.query.from||'';
+    to.value=saved.query.to||'';
+    dateFields.hidden=period.value!=='custom';
+  }
+  show(page);load(!!saved.query);
+}
+
 function dashboardPeriodFilter(apply) {
   const from = h('input', {type:'date', 'aria-label':'Du'}), to = h('input', {type:'date', 'aria-label':'Au'});
   const error = h('span', {class:'err', role:'status'});
@@ -2005,7 +2167,7 @@ function commPicker(title) {
         h('label', {}, all, ' Tout cocher / décocher'), ...boxes.map(x => h('label', {style:'display:block'}, x.cb, ' ' + x.u.name)))),
     values: () => boxes.filter(x => x.cb.checked).map(x => x.u.uid)};
 }
-const AUDIT = {transfer:'Transfert', status:'Changement de statut', auto_close:'Clôture automatique', assign:'Affectation', import:'Import', distribute:'Répartition', release:'Réattribution', delete:'Suppression', export:'Export', settings:'Réglages', sim:'Simulation cuisine'};
+const AUDIT = {transfer:'Transfert', status:'Changement de statut', auto_close:'Clôture automatique', assign:'Affectation', import:'Import', distribute:'Répartition', release:'Réattribution', delete:'Suppression', export:'Export', settings:'Réglages', sim:'Simulation cuisine', wa_route:'Orientation WhatsApp par poste'};
 function auditCard() {
   const box = h('div'), out = h('div', {class:'muted'});
   const act = h('select', {}, h('option', {value:''}, 'Toutes les actions'), Object.entries(AUDIT).map(([k, l]) => h('option', {value:k}, l)));

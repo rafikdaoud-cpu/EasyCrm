@@ -31,5 +31,18 @@ $c=CallDashboard::aggregate([$row(3,'B','6200','ANSWERED',14,null),$row(4,'B','6
 ok($c[0]['duration']===14,'ancien appel : durée = temps SVI');
 $c=CallDashboard::aggregate([$row(5,'C','6200','ANSWERED',10,75),$row(6,'C','1008','ANSWERED',50,75,'u8')]);
 ok($c[0]['duration']===75&&$c[0]['answered'],'appel C : décroché par un commercial');
+require_once __DIR__.'/../callcrm/lib/Service/MissedCalls.php';
+require_once __DIR__.'/../callcrm/lib/Service/InboundOutcome.php';
+$ev=fn($at,$state,$uid='')=>['created_at'=>$at,'state'=>$state,'user_id'=>$uid,'phone'=>'+213550123456'];
+$classify=fn($events,$answered=false)=>\OCA\CallCrm\Service\InboundOutcome::classify($events,'0550123456',$answered);
+$start=$ev(1,'TRUNK_START');
+$end=$ev(25,'TRUNK_END');
+ok($classify([$start,$end])['kind']==='lost','closed IVR call without extension is lost');
+$short=[$start,$ev(22,'RING','a'),$ev(22,'RING','b'),$end,$ev(26,'BYE','a'),$ev(27,'BYE','b')];
+ok($classify($short)['kind']==='lost'&&$classify($short)['seconds']===3,'concurrent offers are not summed and caller hangup stops ringing');
+$threshold=[$start,$ev(21,'RING','a'),$ev(21,'RING','b'),$end];
+ok($classify($threshold)['kind']==='missed'&&$classify($threshold)['seconds']===4,'four seconds is missed');
+ok($classify([$start,$ev(21,'RING','a'),$ev(22,'ANSWER','b'),$end])['kind']==='answered','any commercial answer overrides ringing');
+ok($classify([])['kind']==='unknown','a CDR alone without a mapped answer is indeterminate');
 echo $fail?"$fail/$n short-call checks FAILED\n":"callcrm: $n short-call checks passed\n";exit($fail?1:0);
 }

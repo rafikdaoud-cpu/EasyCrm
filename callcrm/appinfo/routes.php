@@ -71,6 +71,7 @@ return ['routes' => [
 	['name' => 'api#import', 'url' => '/api/import', 'verb' => 'POST'],
 	['name' => 'api#labels', 'url' => '/api/labels', 'verb' => 'POST'],
 	['name' => 'api#stats', 'url' => '/api/stats', 'verb' => 'GET'],
+	['name' => 'dashboard#pilotage', 'url' => '/api/pilotage', 'verb' => 'GET'],
 	['name' => 'dashboard#report', 'url' => '/api/dashboard', 'verb' => 'GET'],
 	['name' => 'missed#list', 'url' => '/api/missed', 'verb' => 'GET'],
 	['name' => 'dashboard#goals', 'url' => '/api/goals', 'verb' => 'GET'],

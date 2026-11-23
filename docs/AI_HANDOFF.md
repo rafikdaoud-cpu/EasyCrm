@@ -316,3 +316,39 @@ Validation locale sur PHP 8.4, SQLite et jsdom. La suite `tools/test-nextcloud.s
 ## Call CRM 0.56.1 · Création de dossier
 
 La version 0.56.0 initialisait l’état du formulaire de modification dans le formulaire de création, ce qui bloquait l’ouverture du nouveau dossier. L’état est maintenant initialisé dans la fiche existante. Le test de régression exécute le vrai formulaire en création manuelle et après le décroché d’un appel Yeastar entrant inconnu. Il vérifie le numéro prérempli, l’envoi de la fiche et son ouverture après enregistrement. Ce correctif JavaScript ne comporte aucune nouvelle migration.
+
+## Call CRM 0.56.2 · Liens SMS de dépôt
+
+Les messages SMS, les e-mails associés et les messages WhatsApp libres conservent l’URL publique rendue par Nextcloud. L’alias `/d/` généré côté navigateur dépendait d’une redirection hors du dépôt. Le test jsdom vérifie l’URL transmise au contrôleur SMS et le texte du message. Cette révision ne comporte aucune nouvelle migration.
+
+## Call CRM 0.57.0 · Pilotage commercial et fermeture du simulateur
+
+Le menu **Pilotage commercial** est réservé aux administrateurs et superviseurs autorisés à voir les données. L’administrateur voit toutes les équipes. Le superviseur voit les équipes explicitement attribuées dans l’administration. Les filtres par équipe et commercial sont contrôlés côté serveur. La période peut couvrir une journée, la semaine, le mois ou des dates personnalisées (92 jours maximum).
+
+Le taux de réponse et le graphique reposent sur les détails d’appels reçus de Yeastar, regroupés par identifiant. Le graphique présente des créneaux horaires sur une journée et quotidiens sur plusieurs jours, dans le fuseau CRM. Pour une sélection d’équipe ou de commercial, seuls les appels associés à la sélection sont comptés. Un appel pris par un autre poste après transfert ne compte pas comme manqué pour le filtre actif. Les détails sans poste associé sont comptés dans la vue globale de l’administrateur.
+
+L’indicateur d’objectif réutilise les objectifs d’appels configurés dans le CRM et compte les résultats d’appel enregistrés. La période précédente couvre le même nombre de jours civils. Le tableau **Charge par commercial** affiche les dossiers distincts traités sur la période, les entrants décrochés et les appels sortants. La connexion au CRM, le nombre de dossiers au statut Nouveau et les rappels en retard décrivent la situation actuelle.
+
+Dans le simulateur, la confirmation de fermeture apparaît au-dessus de la fenêtre. Le bouton de fermeture et la touche Échap permettent de quitter en gardant la confirmation pour une simulation non enregistrée. La version inclut le correctif d’URL SMS de la 0.56.2. Aucune nouvelle migration n’est nécessaire pour un serveur déjà en 0.56.x.
+
+Validation avec `tools/test-nextcloud.sh`, les tests d’interface jsdom et un test local du périmètre d’équipe et des indicateurs sur Nextcloud 32 et SQLite avec des données fictives.
+
+## Call CRM 0.57.1 · Durée du dernier appel manqué
+
+La liste des appels manqués affiche la durée totale du dernier appel pour chaque numéro regroupé, telle que fournie par le détail Yeastar. Elle affiche « non renseignée » quand le détail ne permet pas de déterminer la durée. Aucun changement de schéma.
+
+## Call CRM 0.57.2 · Appels manqués et perdus
+
+Le classement rapproche les événements de sonnerie au poste avec les détails d’appels Yeastar. Sans décroché, le seuil de 4 secondes distingue un appel manqué à rappeler d’un appel perdu. Les sonneries simultanées ne s’additionnent pas. La migration 1024 ajoute un index de recherche sur les événements. Voir les [règles de classement et leurs limites](../callcrm/APPELS_MANQUES.md#call-crm-0572--appels-manqués-et-appels-perdus).
+
+## Call CRM 0.57.3 · Détail des compteurs de Pilotage
+
+Les compteurs **Appels manqués**, **Appels perdus** et **Dossiers traités** ouvrent leur liste dans Pilotage. Le détail réutilise les mêmes filtres, le même périmètre et la même classification côté serveur. Il est paginé à 50 lignes. Une sonnerie de 4 secondes ou plus sans décroché correspond à un appel manqué. Les appels perdus sont séparés. Le détail des dossiers retient le dernier résultat par commercial et dossier sur la période. La fiche peut être ouverte si elle est accessible. Aucun changement de schéma depuis 0.57.2.
+
+## Call CRM 0.57.4 · Suivi et navigation dans Pilotage
+
+La liste des appels manqués indique le dossier accessible, le responsable et l’état du rappel quand l’appel peut être rattaché à un épisode de la liste Appels manqués. Les appels perdus indiquent un raccroché avant la sonnerie ou une sonnerie de moins de 4 secondes. Chaque barre de l’activité téléphonique ouvre le détail du créneau, par heure sur une journée et par jour sur une période plus longue. Le retour d’une fiche restaure la période, l’équipe, le commercial, la liste et sa page pendant la session. Aucun changement de schéma depuis 0.57.3.
+
+## Call CRM 0.57.5 · Orientation de WhatsApp par poste
+
+Un message WhatsApp entrant de type texte composé uniquement d’un numéro de poste, par exemple `1014`, affecte la conversation au commercial actif associé à ce poste dans les réglages Yeastar. La migration 1025 ajoute l’affectation propre à WhatsApp. La fiche client garde son titulaire et les droits de consultation habituels. Les messages sortants, les légendes, les numéros inconnus et les numéros intégrés à un texte ne déclenchent aucune affectation. L’orientation est inscrite dans le journal d’activité avec la référence de la conversation, le poste et les affectations avant et après.

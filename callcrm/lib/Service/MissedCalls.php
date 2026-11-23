@@ -27,11 +27,10 @@ class MissedCalls {
         $d = preg_replace('/\D+/', '', $raw);
         if (str_starts_with($d, '00213')) $d = '0' . substr($d, 5);
         elseif (str_starts_with($d, '213') && strlen($d) === 12) $d = '0' . substr($d, 3);
+        elseif (preg_match('/^00[567]\d{8}$/D',$d)) $d = substr($d,1);
         return substr($d, 0, 40);
     }
 
-    /** Durée minimale de conversation (s) pour considérer qu'une file a vraiment été répondue. */
-    public function minTalk(): int { return max(0, min(600, (int)$this->config->getAppValue('callcrm', 'missed_min_talk', '25'))); }
     /** Commerciaux (groupe des commerciaux). */
     public function commercials(): array {
         $g = $this->groups->get(Access::groups()['commercial']);
@@ -54,26 +53,30 @@ class MissedCalls {
                     ->where($q->expr()->lt('created_at', $q->createNamedParameter($now - 3 * 86400, IQueryBuilder::PARAM_INT)))->executeQuery()->fetchOne();
             }
             $q = $this->db->getQueryBuilder();
-            $minTalk = $this->minTalk();
-            $rows = $q->select('id', 'pbx_url', 'call_id', 'phone', 'direction', 'call_status', 'prospect_id', 'created_at', 'user_id', 'talk_duration')->from('callcrm_pbx_recordings')
+            $rows = $q->select('id', 'pbx_url', 'call_id', 'phone', 'direction', 'call_status', 'prospect_id', 'created_at', 'user_id')->from('callcrm_pbx_recordings')
                 ->where($q->expr()->gt('id', $q->createNamedParameter($last, IQueryBuilder::PARAM_INT)))
                 ->andWhere($q->expr()->lt('created_at', $q->createNamedParameter($now - self::SETTLE, IQueryBuilder::PARAM_INT)))
                 ->orderBy('id', 'ASC')->setMaxResults(3000)->executeQuery()->fetchAll();
             $calls = [];
             foreach ($rows as $r) {
                 $k = hash('sha256', json_encode([$r['pbx_url'], $r['call_id'], $r['direction'], $r['phone']]));
-                $c = $calls[$k] ?? ['phone' => self::phone((string)$r['phone']), 'direction' => $r['direction'], 'at' => (int)$r['created_at'], 'answered' => false, 'pid' => null];
+                $c = $calls[$k] ?? ['phone' => self::phone((string)$r['phone']), 'direction' => $r['direction'], 'call_id' => $r['call_id'], 'at' => (int)$r['created_at'], 'answered' => false, 'pid' => null];
                 $c['at'] = min($c['at'], (int)$r['created_at']);
-                // Répondu par une personne : poste d'un commercial, ou conversation assez longue.
-                // Une file ou un accueil vocal « répond » aussi, quelques secondes, sans que personne ne parle au client.
+                // Le statut ANSWERED seul sur une ligne IVR ne prouve aucun décroché commercial.
                 $ok = strtoupper(trim((string)$r['call_status'])) === 'ANSWERED';
-                $c['answered'] = $c['answered'] || ($ok && ($r['direction'] === 'outbound' || (string)$r['user_id'] !== '' || (int)$r['talk_duration'] >= $minTalk));
+                $c['answered'] = $c['answered'] || ($ok && ($r['direction'] === 'outbound' || (string)$r['user_id'] !== ''));
                 if ($r['prospect_id']) $c['pid'] = (int)$r['prospect_id'];
                 $calls[$k] = $c; $last = max($last, (int)$r['id']);
             }
             uasort($calls, fn($a, $b) => $a['at'] <=> $b['at']);
+            $evidence = (new InboundOutcome($this->db))->events(array_column($calls,'call_id'));
             foreach ($calls as $c) {
                 if (strlen($c['phone']) < 6) continue;
+                if ($c['direction'] === 'inbound') {
+                    $result = InboundOutcome::classify($evidence[$c['call_id']] ?? [],$c['phone'],$c['answered']);
+                    if (in_array($result['kind'],['lost','unknown'],true)) continue;
+                    $c['answered'] = $result['kind'] === 'answered';
+                }
                 $this->apply($c);
             }
             $this->resolveByCrmResults();
@@ -185,14 +188,45 @@ class MissedCalls {
         else TeamScope::prospects($q, 'm.assigned_to');
         $rows = $q->orderBy('m.last_at', 'DESC')->setMaxResults(500)->executeQuery()->fetchAll();
         $names = $this->commercials();
-        return array_map(function ($r) use ($uid, $names) {
+        $durations = $this->lastDurations($rows);
+        return array_map(function ($r) use ($uid, $names, $durations) {
             // Le nom n'est montré que pour une fiche que l'utilisateur peut ouvrir.
             $visible = $r['prospect_id'] && ($uid === null || $r['p_owner'] === $uid || $r['p_owner'] === null);
             return ['id' => (int)$r['id'], 'phone' => $r['phone'], 'count' => (int)$r['count'], 'first_at' => (int)$r['first_at'], 'last_at' => (int)$r['last_at'],
+                'last_duration' => $durations[(int)$r['last_at']][$r['phone']] ?? null,
                 'attempts' => (int)$r['attempts'], 'first_attempt_at' => (int)$r['first_attempt_at'],
                 'prospect_id' => $visible ? (int)$r['prospect_id'] : null, 'name' => $visible ? trim(($r['p_lastname'] ?? '') . ' ' . ($r['p_firstname'] ?? '')) : '',
                 'assigned_to' => $r['assigned_to'], 'assigned_name' => $r['assigned_to'] ? ($names[$r['assigned_to']] ?? $this->users->getDisplayName($r['assigned_to']) ?? $r['assigned_to']) : ''];
         }, $rows);
+    }
+
+    /** Look up the latest missed call in the stored CDRs, including episodes from older versions. */
+    private function lastDurations(array $rows): array {
+        $wanted = $calls = $durations = [];
+        foreach ($rows as $row) $wanted[(int)$row['last_at']][$row['phone']] = true;
+        foreach (array_chunk(array_keys($wanted), 100) as $timestamps) {
+            $q = $this->db->getQueryBuilder();
+            $records = $q->select('created_at', 'phone', 'call_id', 'pbx_url', 'call_duration')->from('callcrm_pbx_recordings')
+                ->where($q->expr()->in('created_at', $q->createNamedParameter($timestamps, IQueryBuilder::PARAM_INT_ARRAY)))
+                ->andWhere($q->expr()->eq('direction', $q->createNamedParameter('inbound')))
+                ->executeQuery()->fetchAll();
+            foreach ($records as $record) {
+                $at = (int)$record['created_at'];
+                $phone = self::phone($record['phone']);
+                if (!isset($wanted[$at][$phone])) continue;
+                $key = json_encode([$record['pbx_url'], $record['call_id'], $record['phone']]);
+                $calls[$at][$phone][$key] ??= null;
+                if ($record['call_duration'] !== null) {
+                    $calls[$at][$phone][$key] = max($calls[$at][$phone][$key] ?? 0, (int)$record['call_duration']);
+                }
+            }
+        }
+        foreach ($calls as $at => $numbers) {
+            foreach ($numbers as $phone => $matches) {
+                if (count($matches) === 1) $durations[$at][$phone] = reset($matches);
+            }
+        }
+        return $durations;
     }
 
     public function take(int $id, string $uid): bool {

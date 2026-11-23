@@ -188,3 +188,87 @@ test('editing an existing client submits only the changed fields and the current
   assert.equal(vm.runInContext('d.edit_revision',ctx),'updated');
   dom.window.close();
 });
+
+test('pilotage renders calls, progress and a sortable workload with team and period filters', async () => {
+  const dom=new JSDOM('<main></main>');
+  const {document,Node,Event}=dom.window, root=document.querySelector('main');
+  const queries=[];
+  const rows=[{uid:'a',name:'Alice',status:'online',incoming:2,outgoing:5,pending:3,processed:4,late:2},
+    {uid:'b',name:'Brahim',status:'pause',incoming:5,outgoing:2,pending:7,processed:6,late:1}];
+  const ctx=vm.createContext({document,Node,URLSearchParams,setInterval:()=>0,clearInterval:()=>{},
+    me:{uid:'manager'},show:page=>root.replaceChildren(page),fmt:String,ST:{interesse:'Intéressé'},detail:()=>root.replaceChildren(),
+    api:async path=>{
+      const query=new URLSearchParams(path.split('?')[1]);queries.push(query);
+      if(query.has('detail')) {
+        const rows=query.get('detail')==='processed' ? [{at:200,client:'Dossier de test',agent:'Brahim',result:'interesse',prospect_id:7}]
+          : [{at:100,phone:'0550000000',ring_seconds:query.get('detail')==='missed'?4:2,total_seconds:12,
+            callback_state:'attempted',agent:'Brahim',client:'Dossier à rappeler',prospect_id:12,reason:'short_ring'}];
+        return {rows,total:1,range:{from:'2026-11-01',to:'2026-11-03'}};
+      }
+      return {answered:7,missed:3,series:[{slot:1763899200,label:'09',answered:7,missed:3,lost:1}],timezone:'Africa/Algiers',
+        objective:{current:12,target:20,previous:9},range:{from:'2026-11-23',to:'2026-11-23'},
+        teams:[{id:'e1',label:'Équipe 1'}],agents:rows,rows};
+    }
+  });
+  vm.runInContext(part('const h =','async function api(')+part('function pilotagePage()','function dashboardPeriodFilter('),ctx);
+  vm.runInContext('pilotagePage()',ctx);
+  await tick();
+  assert.match(root.textContent,/70 %/);
+  assert.match(root.textContent,/12 \/ 20 appels consignés/);
+  const sort=[...root.querySelectorAll('thead button')].find(button=>button.textContent==='Rappels en retard');
+  sort.click();
+  assert.equal(root.querySelector('tbody th').textContent,'Brahim');
+  const team=root.querySelector('[aria-label="Équipe"]');
+  team.value='e1';team.dispatchEvent(new Event('change'));
+  await tick();
+  assert.equal(queries.at(-1).get('team'),'e1');
+  const agent=root.querySelector('[aria-label="Commercial"]');
+  agent.value='b';agent.dispatchEvent(new Event('change'));
+  await tick();
+  assert.equal(queries.at(-1).get('agent'),'b');
+  const period=root.querySelector('[aria-label="Période"]');
+  period.value='custom';period.dispatchEvent(new Event('change'));
+  const dates=root.querySelectorAll('input[type="date"]');
+  dates[0].value='2026-11-01';dates[1].value='2026-11-03';
+  root.querySelector('form').dispatchEvent(new Event('submit',{cancelable:true}));
+  await tick();
+  assert.equal(queries.at(-1).get('from'),'2026-11-01');
+  assert.equal(queries.at(-1).get('to'),'2026-11-03');
+  for(const [label,kind,expected] of [
+    ['Appels manqués','missed','4 s'],['Appels perdus','lost','2 s'],['Dossiers traités','processed','Dossier de test']
+  ]) {
+    [...root.querySelectorAll('.pilotage-kpis button')].find(button=>button.textContent.startsWith(label)).click();
+    await tick();
+    const query=queries.at(-1);
+    assert.equal(query.get('detail'),kind);
+    assert.equal(query.get('period'),'custom');
+    assert.equal(query.get('team'),'e1');
+    assert.equal(query.get('agent'),'b');
+    assert.equal(query.get('from'),'2026-11-01');
+    assert.equal(query.get('to'),'2026-11-03');
+    const panel=root.querySelector('.crm-pilotage-details');
+    assert.equal(panel.hidden,false);
+    assert.equal(panel.querySelector('h3').textContent,label);
+    assert.ok(panel.querySelector('tbody').textContent.includes(expected));
+    if(kind==='missed')assert.match(panel.textContent,/Dossier à rappeler.*Brahim.*Rappel tenté/);
+    if(kind==='lost')assert.match(panel.textContent,/Sonnerie de moins de 4 s/);
+    panel.querySelector('button').click();
+    assert.equal(panel.hidden,true);
+  }
+  root.querySelector('.pilotage-bars button.missed').click();
+  await tick();
+  assert.equal(queries.at(-1).get('slot'),'1763899200');
+  assert.equal(queries.at(-1).get('detail'),'missed');
+  assert.match(root.querySelector('.crm-pilotage-details h3').textContent,/09 h – 10 h/);
+  [...root.querySelectorAll('.crm-pilotage-details button')].find(button=>button.textContent==='Dossier à rappeler').click();
+  vm.runInContext('pilotagePage()',ctx);
+  await tick();
+  assert.equal(queries.at(-1).get('slot'),'1763899200');
+  assert.equal(queries.at(-1).get('team'),'e1');
+  assert.equal(queries.at(-1).get('agent'),'b');
+  assert.equal(root.querySelector('[aria-label="Période"]').value,'custom');
+  assert.equal(root.querySelector('[aria-label="Équipe"]').value,'e1');
+  assert.equal(root.querySelector('[aria-label="Commercial"]').value,'b');
+  assert.equal(root.querySelector('.crm-pilotage-details').hidden,false);
+  dom.window.close();
+});

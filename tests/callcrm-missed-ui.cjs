@@ -6,7 +6,7 @@ const load=ed=>{const src=fs.readFileSync(ed+'/js/app.js','utf8');const part=(a,
 const source=fs.readFileSync('callcrm/js/app.js','utf8');
 const tick=()=>new Promise(r=>setTimeout(r,20));
 const now=Math.floor(Date.now()/1000);
-const rows=[{id:1,phone:'0770000001',count:3,first_at:now-7200,last_at:now-600,attempts:0,first_attempt_at:0,prospect_id:42,name:'<b>Benali</b>',assigned_to:'alice',assigned_name:'Alice'},
+const rows=[{id:1,phone:'0770000001',count:3,first_at:now-7200,last_at:now-600,last_duration:84,attempts:0,first_attempt_at:0,prospect_id:42,name:'<b>Benali</b>',assigned_to:'alice',assigned_name:'Alice'},
  {id:2,phone:'0770000002',count:1,first_at:now-300,last_at:now-300,attempts:1,first_attempt_at:now-100,prospect_id:null,name:'',assigned_to:null,assigned_name:''},
  {id:3,phone:'0770000003',count:1,first_at:now-900,last_at:now-900,attempts:0,first_attempt_at:0,prospect_id:7,name:'Autre',assigned_to:'bob',assigned_name:'Bob'}];
 const setup=(role,extra={},ed='callcrm')=>{
@@ -31,6 +31,10 @@ test(ed+': commercial sees own missed calls, can take the unassigned ones, call 
  assert.equal(card.querySelector('.crm-count').textContent,'1');
  assert.equal(t.root.querySelector('[data-k="journee"] .ovd').textContent,'1','sidebar badge');
  const pool=card.querySelector('.crm-missed-pool');assert.match(pool.querySelector('summary').textContent,/1 appel manqué à prendre/);
+ if(ed==='callcrm'){
+  assert.match(mine[0].textContent,/Durée du dernier appel : 1 min 24 s/);
+  assert.match(pool.textContent,/Durée du dernier appel : non renseignée/);
+ }
  assert.equal(pool.querySelector('.crm-btn'),null,'cannot call back before taking it');
  pool.querySelector('button').click();await tick();assert.ok(t.calls.some(([p])=>p==='/missed/2/take'));
  const link=mine[0].querySelector('a.crm-btn');assert.equal(link.getAttribute('href'),'tel:0770000001');

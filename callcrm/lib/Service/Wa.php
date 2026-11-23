@@ -7,8 +7,7 @@ use OCP\IDBConnection;
  * WhatsApp : conversations et messages.
  * Règle d'attribution : client connu (fiche avec commercial) → ce commercial ;
  * numéro inconnu ou fiche non assignée → file d'attente du superviseur.
- * Le propriétaire effectif d'une conversation rattachée à une fiche est toujours le commercial de la fiche
- * (un transfert de fiches emmène donc les conversations).
+ * Une orientation explicite par poste Yeastar prime sur l’affectation héritée de la fiche.
  */
 class Wa {
 	public const WINDOW = 86400; // fenêtre de réponse libre de Meta (24 h)
@@ -71,7 +70,7 @@ class Wa {
 	/** Propriétaire effectif + état de la fenêtre de 24 h */
 	private function decorate(array $r): array {
 		$linked = !empty($r['p_id']);
-		$r['owner'] = $linked ? ($r['p_assigned'] ?: null) : ($r['assigned_to'] ?: null);
+		$r['owner'] = $r['routed_to'] ?? ($linked ? ($r['p_assigned'] ?: null) : ($r['assigned_to'] ?: null));
 		$r['linked'] = $linked;
 		if (!$linked) { $r['prospect_id'] = null; }
 		$r['window_open'] = !empty($r['last_in_at']) && (int)$r['last_in_at'] > time() - self::WINDOW;
@@ -81,16 +80,21 @@ class Wa {
 	/** @param string $box mine|queue|all|open|resolved ; $uid = utilisateur restreint (commercial) ou null */
 	private function filter(IQueryBuilder $qb, ?string $uid, string $box, string $q, string $user): void {
 		$e = $qb->expr();
-		$owner = fn(string $u) => $e->orX($e->andX($e->isNotNull('p.id'), $e->eq('p.assigned_to', $qb->createNamedParameter($u))),
-			$e->andX($e->isNull('p.id'), $e->eq('c.assigned_to', $qb->createNamedParameter($u))));
+		$ownerCondition = fn(callable $match) => $e->orX(
+			$e->andX($e->isNotNull('c.routed_to'), $match('c.routed_to')),
+			$e->andX($e->isNull('c.routed_to'), $e->orX(
+				$e->andX($e->isNotNull('p.id'), $match('p.assigned_to')),
+				$e->andX($e->isNull('p.id'), $match('c.assigned_to'))))
+		);
+		$owner = fn(string $u) => $ownerCondition(fn($col)=>$e->eq($col,$qb->createNamedParameter($u)));
 		if ($uid !== null) { $qb->andWhere($owner($uid)); }
 		elseif (($scopeUsers = TeamScope::users()) !== null) {
-			// Superviseur limité à ses groupes : conversations de son périmètre ou sans propriétaire.
-			$in = fn($col) => $e->orX($e->in($col, $qb->createNamedParameter($scopeUsers ?: ['-'], IQueryBuilder::PARAM_STR_ARRAY)), $e->isNull($col));
-			$qb->andWhere($e->orX($e->andX($e->isNotNull('p.id'), $in('p.assigned_to')), $e->andX($e->isNull('p.id'), $in('c.assigned_to'))));
+			$qb->andWhere($ownerCondition(fn($col)=>$e->orX(
+				$e->in($col,$qb->createNamedParameter($scopeUsers ?: ['-'],IQueryBuilder::PARAM_STR_ARRAY)),
+				$e->isNull($col))));
 		}
 		if ($box === 'queue') {
-			$qb->andWhere($e->orX($e->andX($e->isNotNull('p.id'), $e->isNull('p.assigned_to')), $e->andX($e->isNull('p.id'), $e->isNull('c.assigned_to'))));
+			$qb->andWhere($ownerCondition(fn($col)=>$e->isNull($col)));
 		}
 		if ($box === 'open' || $box === 'mine' || $box === 'queue') { $qb->andWhere($e->eq('c.status', $qb->createNamedParameter('ouvert'))); }
 		if ($box === 'resolved') { $qb->andWhere($e->eq('c.status', $qb->createNamedParameter('resolu'))); }
@@ -193,7 +197,20 @@ class Wa {
 	 * Enregistre un message (entrant du service WhatsApp, ou sortant). Idempotent sur wamid.
 	 * @return array{conv:int,msg:?int,created:bool}
 	 */
-	public function record(array $ev): array {
+	public function record(array $ev, ?array $route = null): array {
+		if ($route === null) return $this->recordMessage($ev, null);
+		$this->db->beginTransaction();
+		try {
+			$result = $this->recordMessage($ev, $route);
+			$this->db->commit();
+			return $result;
+		} catch (\Throwable $error) {
+			$this->db->rollBack();
+			throw $error;
+		}
+	}
+
+	private function recordMessage(array $ev, ?array $route): array {
 		$waId = trim((string)($ev['wa_id'] ?? '')) !== '' ? self::waId((string)$ev['wa_id']) : '';
 		$bsuid = trim((string)($ev['user_id'] ?? ''));
 		if (!self::isBsuid($bsuid)) { $bsuid = ''; }
@@ -219,9 +236,28 @@ class Wa {
 			$upd['status'] = 'ouvert';
 			if ((int)($c['last_in_at'] ?? 0) < $ts) { $upd['last_in_at'] = $ts; }
 		} elseif ((int)($c['last_out_at'] ?? 0) < $ts) { $upd['last_out_at'] = $ts; }
+		if ($route && $dir==='in' && $type==='text' && trim($body)===$route['extension'] && (int)($c['last_in_at'] ?? 0)<=$ts) {
+			$this->routeConversation($cid,$route,$ts);
+		}
 		$this->updateConv($cid, $upd);
 		return ['conv' => $cid, 'msg' => $mid, 'created' => true];
 	}
+	private function routeConversation(int $id, array $route, int $at): void {
+		$current = $this->conv($id);
+		if (!$current || ($current['routed_to'] ?? null)===$route['uid']) return;
+		$q = $this->db->getQueryBuilder();
+		$q->update('callcrm_wa_conv')->set('routed_to',$q->createNamedParameter($route['uid']))
+			->where($q->expr()->eq('id',$q->createNamedParameter($id,IQueryBuilder::PARAM_INT)))
+			->andWhere($q->expr()->orX($q->expr()->isNull('last_in_at'),
+				$q->expr()->lte('last_in_at',$q->createNamedParameter($at,IQueryBuilder::PARAM_INT))));
+		$previous = $current['routed_to'] ?? null;
+		$q->andWhere($previous===null ? $q->expr()->isNull('routed_to') : $q->expr()->eq('routed_to',$q->createNamedParameter($previous)));
+		if (!$q->executeStatement()) return;
+		$this->insert('callcrm_audit', ['created_at'=>time(),'user_id'=>null,'action'=>'wa_route',
+			'prospect_id'=>$current['prospect_id'] ? (int)$current['prospect_id'] : null,
+			'detail'=>'Conversation #'.$id.' · Poste '.$route['extension'].' · '.($current['owner'] ?? '—').' → '.$route['uid']]);
+	}
+
 	/** Statut de livraison d'un message sortant (sent, delivered, read, failed) */
 	public function setStatus(string $wamid, string $status, string $error = ''): bool {
 		$rank = ['sent' => 1, 'delivered' => 2, 'read' => 3, 'failed' => 9];

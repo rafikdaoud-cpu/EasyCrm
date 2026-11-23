@@ -44,11 +44,14 @@ class WaController extends Controller {
 		$c = $this->wa->conv($id);
 		if (!$c) { return null; }
 		$sc = $this->scope();
-		return ($sc === null || $c['owner'] === $sc) ? $c : null;
+		return ($sc === null ? \OCA\CallCrm\Service\TeamScope::canSee($c['owner']) : $c['owner']===$sc) ? $c : null;
 	}
 	private function out(array $c): array {
-		return ['id' => (int)$c['id'], 'wa_id' => $c['wa_id'], 'bsuid' => $c['bsuid'] ?? null, 'username' => Wa::isBsuid((string)$c['wa_id']), 'phone' => $c['phone'], 'name' => $c['name'], 'prospect_id' => $c['prospect_id'] ? (int)$c['prospect_id'] : null,
-			'prospect_name' => $c['linked'] ? trim(($c['p_lastname'] ?? '') . ' ' . ($c['p_firstname'] ?? '')) : null, 'prospect_status' => $c['linked'] ? $c['p_status'] : null,
+		$linked = $c['linked'] && ($this->scope()===null
+			? \OCA\CallCrm\Service\TeamScope::canSee($c['p_assigned'] ?? null)
+			: ($c['p_assigned'] ?? null)===$this->a->uid());
+		return ['id' => (int)$c['id'], 'wa_id' => $c['wa_id'], 'bsuid' => $c['bsuid'] ?? null, 'username' => Wa::isBsuid((string)$c['wa_id']), 'phone' => $c['phone'], 'name' => $c['name'], 'prospect_id' => $linked ? (int)$c['prospect_id'] : null,
+			'prospect_name' => $linked ? trim(($c['p_lastname'] ?? '') . ' ' . ($c['p_firstname'] ?? '')) : null, 'prospect_status' => $linked ? $c['p_status'] : null,
 			'owner' => $c['owner'], 'owner_name' => $this->name($c['owner']), 'status' => $c['status'], 'unread' => (int)$c['unread'],
 			'last_msg_at' => (int)$c['last_msg_at'], 'last_in_at' => (int)$c['last_in_at'], 'preview' => $c['last_preview'],
 			'window_open' => $c['window_open'], 'window_ends' => $c['window_ends']];
@@ -59,13 +62,32 @@ class WaController extends Controller {
 		return strlen($want) >= 24 && $got !== '' && hash_equals($want, $got);
 	}
 
+	private function routeByExtension(array $event): ?array {
+		if (($event['direction'] ?? 'in') !== 'in' || ($event['type'] ?? 'text') !== 'text' || !is_string($event['text'] ?? null)) return null;
+		$extension = trim($event['text']);
+		if (!preg_match('/^\d{1,10}$/D',$extension)) return null;
+		$settings = \OCP\Server::get(\OCA\CallCrm\Service\YeastarSettings::class)->settings();
+		foreach ($settings['extensions'] as $mapping) {
+			if ($mapping['extension'] !== $extension) continue;
+			$uid = $mapping['uid'];
+			$groups = [Access::groups()['commercial']];
+			foreach (Access::customProfiles() as $profile) if ($profile['base']==='commercial') $groups[]=$profile['group'];
+			$user = $this->um->get($uid);
+			if (!$user || !$user->isEnabled()) return null;
+			foreach ($groups as $group) {
+				if ($this->gm->isInGroup($uid,$group)) return ['uid'=>$uid,'extension'=>$extension];
+			}
+		}
+		return null;
+	}
+
 	// ---------- appels du service WhatsApp ----------
 	#[PublicPage]
 	#[NoCSRFRequired]
 	public function inbound(): JSONResponse {
 		if (!$this->secretOk()) { return $this->deny(); }
 		$ev = $this->request->getParams();
-		try { $r = $this->wa->record($ev); } catch (\InvalidArgumentException $e) { return $this->err($e->getMessage()); }
+		try { $r = $this->wa->record($ev, $this->routeByExtension($ev)); } catch (\InvalidArgumentException $e) { return $this->err($e->getMessage()); }
 		if ($r['created'] && ($ev['direction'] ?? 'in') === 'in') {
 			$c = $this->wa->conv($r['conv']);
 			$this->s->audit(null, 'wa_in', $c && $c['linked'] ? (int)$c['prospect_id'] : null, ($c['wa_id'] ?? '') . ' → ' . ($c && $c['owner'] ? $c['owner'] : 'file d’attente'));
@@ -124,6 +146,7 @@ class WaController extends Controller {
 		if (!$p || ($this->scope() !== null && $p['assigned_to'] !== $this->a->uid()) || !\OCA\CallCrm\Service\TeamScope::canSee($p['assigned_to'])) { return $this->err('Introuvable', Http::STATUS_NOT_FOUND); }
 		$c = $this->wa->convForProspect($pid, $p['phone'] ?? null);
 		if ($c && !$c['linked'] && !empty($p['phone'])) { $this->wa->relinkPhone($p['phone'], $pid); $c = $this->wa->conv((int)$c['id']); }
+		if ($c) $c = $this->visible((int)$c['id']);
 		return new JSONResponse(['conv' => $c ? $this->out($c) : null]);
 	}
 	#[NoAdminRequired]
@@ -138,15 +161,18 @@ class WaController extends Controller {
 	#[NoAdminRequired]
 	public function assign(int $id): JSONResponse {
 		if (!$this->canAssign()) { return $this->deny(); }
-		$c = $this->wa->conv($id);
+		$c = $this->visible($id);
 		if (!$c) { return $this->err('Introuvable', Http::STATUS_NOT_FOUND); }
 		$uid = trim((string)$this->request->getParam('uid', ''));
 		if ($uid !== '' && !in_array($uid, $this->commerciaux(), true)) { return $this->err('Utilisateur non commercial'); }
+		if (!\OCA\CallCrm\Service\TeamScope::canTarget($uid) && $uid !== '') return $this->deny();
 		if ($c['linked']) {
+			if (!\OCA\CallCrm\Service\TeamScope::canSee($c['p_assigned'])) return $this->deny();
+			$this->wa->updateConv($id, ['routed_to'=>null]);
 			$this->s->update((int)$c['prospect_id'], ['assigned_to' => $uid === '' ? null : $uid]);
 			$this->s->audit($this->a->uid(), 'assign', (int)$c['prospect_id'], ($c['owner'] ?? '—') . ' → ' . ($uid === '' ? '—' : $uid) . ' (depuis WhatsApp)');
 		} else {
-			$this->wa->updateConv($id, ['assigned_to' => $uid === '' ? null : $uid]);
+			$this->wa->updateConv($id, ['assigned_to' => $uid === '' ? null : $uid, 'routed_to'=>null]);
 			$this->s->audit($this->a->uid(), 'wa_assign', null, $c['wa_id'] . ' : ' . ($c['owner'] ?? '—') . ' → ' . ($uid === '' ? '—' : $uid));
 		}
 		return new JSONResponse(['ok' => true]);
@@ -155,15 +181,17 @@ class WaController extends Controller {
 	#[NoAdminRequired]
 	public function createProspect(int $id): JSONResponse {
 		if (!$this->canAssign()) { return $this->deny(); }
-		$c = $this->wa->conv($id);
+		$c = $this->visible($id);
 		if (!$c) { return $this->err('Introuvable', Http::STATUS_NOT_FOUND); }
+		if ($c['linked'] && !\OCA\CallCrm\Service\TeamScope::canSee($c['p_assigned'])) return $this->deny();
 		if ($c['linked']) { return new JSONResponse(['ok' => true, 'id' => (int)$c['prospect_id'], 'existing' => true]); }
 		$phone = Wa::localPhone((string)$c['wa_id']);
 		if (!$phone) { return $this->err('Numéro non algérien : la fiche doit être créée à la main.'); }
 		$uid = trim((string)$this->request->getParam('uid', ''));
 		if ($uid !== '' && !in_array($uid, $this->commerciaux(), true)) { return $this->err('Utilisateur non commercial'); }
-		if ($uid === '' && $c['assigned_to']) { $uid = (string)$c['assigned_to']; }
+		if ($uid === '' && $c['owner']) { $uid = (string)$c['owner']; }
 		if ($ex = $this->s->prospectByPhone($phone)) {
+			if (!\OCA\CallCrm\Service\TeamScope::canSee($ex['assigned_to'])) return $this->deny();
 			$this->wa->updateConv($id, ['prospect_id' => (int)$ex['id']]);
 			return new JSONResponse(['ok' => true, 'id' => (int)$ex['id'], 'existing' => true]);
 		}
@@ -215,6 +243,7 @@ class WaController extends Controller {
 			$c = $this->wa->conv((int)$raw['id']);
 		} elseif (!$c['linked']) { $this->wa->relinkPhone($phone, $pid); $c = $this->wa->conv((int)$c['id']); }
 		if (!$c) { return $this->err('Conversation WhatsApp introuvable', Http::STATUS_INTERNAL_SERVER_ERROR); }
+		if (!$this->visible((int)$c['id'])) return $this->deny();
 		$r = $this->deliver($c);
 		if ($r->getStatus() < 300) { $d = $r->getData(); $d['conv'] = (int)$c['id']; $r->setData($d); }
 		return $r;

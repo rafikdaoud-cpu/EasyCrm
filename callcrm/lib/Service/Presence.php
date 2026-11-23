@@ -138,18 +138,25 @@ class Presence {
    foreach ($starts as $key=>$from) { $rows[$uid]['totals'][$key][$mode] += max(0,min($periods[$key]['to'],(int)$s['ended_at'])-max($from,(int)$s['started_at'])); }
   }
   foreach ($rows as &$r) { $r['processed'] = 0; $r['by_result'] = []; } unset($r);
+  $latest = $this->processedCases($uids,$range,$now);
+  foreach ($latest as $uid=>$results) {
+   $rows[$uid]['processed'] = count($results);
+   foreach ($results as $case) { $result = $case['result']; $rows[$uid]['by_result'][$result] = ($rows[$uid]['by_result'][$result] ?? 0) + 1; }
+  }
+  return ['rows'=>$rows,'periods'=>$periods,'timezone'=>$tz,'server_now'=>$now,'range'=>$range];
+ }
+
+ /** Dernier résultat par commercial et dossier, utilisé aussi par le détail de Pilotage. */
+ public function processedCases(array $uids, array $range, int $now): array {
+  if (!$uids) return [];
   $q = $this->db->getQueryBuilder();
-  $cases = $q->select('user_id','prospect_id','result')->from('callcrm_calls')
+  $cases = $q->select('id','user_id','prospect_id','result','created_at')->from('callcrm_calls')
    ->where($q->expr()->in('user_id',$q->createNamedParameter($uids,IQueryBuilder::PARAM_STR_ARRAY)))
    ->andWhere($q->expr()->gte('created_at',$q->createNamedParameter($range['start'])))
    ->andWhere($q->expr()->lt('created_at',$q->createNamedParameter(min($now+1,$range['end']))))
    ->orderBy('created_at','ASC')->addOrderBy('id','ASC')->executeQuery()->fetchAll();
   $latest = [];
-  foreach ($cases as $case) { $latest[$case['user_id']][(string)$case['prospect_id']] = $case['result']; }
-  foreach ($latest as $uid=>$results) {
-   $rows[$uid]['processed'] = count($results);
-   foreach ($results as $result) { $rows[$uid]['by_result'][$result] = ($rows[$uid]['by_result'][$result] ?? 0) + 1; }
-  }
-  return ['rows'=>$rows,'periods'=>$periods,'timezone'=>$tz,'server_now'=>$now,'range'=>$range];
+  foreach ($cases as $case) { $latest[$case['user_id']][(string)$case['prospect_id']] = $case; }
+  return $latest;
  }
 }

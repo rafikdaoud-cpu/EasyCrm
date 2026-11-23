@@ -68,7 +68,21 @@ class YeastarEvents {
    $log=json_decode($cfg->getAppValue('callcrm','yeastar_debug_log','[]'),true)?:[];$log[]=['at'=>time(),'type'=>$event['type']??null,'msg'=>is_string($event['msg']??null)?mb_substr($event['msg'],0,3000):$event['msg']??null];
    $cfg->setAppValue('callcrm','yeastar_debug_log',json_encode(array_slice($log,-20),JSON_UNESCAPED_UNICODE));}}catch(\Throwable $e){}
   if((int)($event['type']??0)===30012){$this->receiveCdr($event);return;}
-  foreach(self::parse($event) as $row){
+  $rows = self::parse($event);
+  // Keep the inbound trunk boundaries even when no commercial extension was offered the call.
+  if ((int)($event['type'] ?? 0) === 30011) {
+   $msg = $event['msg'];
+   if (is_string($msg)) $msg = json_decode($msg, true, 32, JSON_THROW_ON_ERROR);
+   foreach ($msg['members'] as $member) {
+    $inbound = $member['inbound'] ?? [];
+    $state = ['ALERT'=>'TRUNK_START','BYE'=>'TRUNK_END'][$inbound['member_status'] ?? ''] ?? null;
+    $phone = self::number((string)($inbound['from'] ?? ''));
+    if ($state && preg_match('/^\+?\d{3,20}$/D',$phone)) {
+     $this->record(hash('sha256',$raw.'|'.$state),(string)$msg['call_id'],'',$phone,'inbound',$state,null);
+    }
+   }
+  }
+  foreach($rows as $row){
    if($row['phone']===''){$known=$this->byCall($row['call_id']);if(!$known)continue;$row['phone']=$known['phone'];$row['direction']=$known['direction'];}
    foreach($s['extensions'] as $mapping)if($mapping['extension']===$row['extension']){
     $hash = hash('sha256', $raw . '|' . $mapping['uid']);

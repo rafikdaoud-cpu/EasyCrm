@@ -18,13 +18,14 @@ class CallDashboard {
             $key = self::key($r);
             if (!isset($calls[$key])) {
                 $calls[$key] = ['id'=>(int)$r['id'], 'key'=>$key, 'phone'=>$r['phone'], 'direction'=>$r['direction'],
-                    'received_at'=>(int)$r['created_at'], 'agents'=>[], 'extensions'=>[], 'prospects'=>[], 'answered'=>false, 'duration'=>0];
+                    'call_id'=>$r['call_id'], 'received_at'=>(int)$r['created_at'], 'agents'=>[], 'extensions'=>[], 'prospects'=>[], 'answered'=>false, 'duration'=>0, 'total_duration'=>null];
             }
             $c =& $calls[$key];
             $c['received_at'] = min($c['received_at'], (int)$r['created_at']);
             $c['extensions'][$r['extension']] = true;
             // Durée totale reçue du standard ; anciens détails sans cette donnée : temps passé dans le SVI / la file.
             $c['duration'] = max($c['duration'], (int)($r['call_duration'] ?? $r['talk_duration'] ?? 0));
+            if (isset($r['call_duration'])) $c['total_duration'] = max($c['total_duration'] ?? 0, (int)$r['call_duration']);
             $c['prospects'][(string)($r['prospect_id'] ?? '')] = true;
             // user_id is the extension association snapshotted when the CDR arrived.
             if ($r['user_id'] !== '') {
@@ -41,7 +42,7 @@ class CallDashboard {
         return array_values($calls);
     }
 
-    public function report(array $range, ?string $viewer, array $uids): array {
+    private function callsForRange(array $range): array {
         $q = $this->db->getQueryBuilder();
         $records = $q->select('id','pbx_url','call_id','phone','direction','created_at','extension','prospect_id','user_id','call_status','talk_duration','call_duration')
             ->from('callcrm_pbx_recordings')
@@ -49,7 +50,68 @@ class CallDashboard {
             ->andWhere($q->expr()->lt('created_at',$q->createNamedParameter($range['end'])))
             ->orderBy('id','ASC')->setMaxResults(10001)->executeQuery()->fetchAll();
         if (count($records)>10000) throw new \InvalidArgumentException('Plus de 10 000 détails téléphoniques : choisissez une période plus courte.');
-        $calls = self::aggregate($records);
+        return self::aggregate($records);
+    }
+
+    public function activity(array $range, array $uids, bool $includeUnassigned, \DateTimeZone $zone, string $detail = '', ?int $slot = null): array {
+        $agents = array_fill_keys($uids, ['incoming'=>0, 'outgoing'=>0]);
+        $start = (new \DateTimeImmutable('@'.$range['start']))->setTimezone($zone);
+        $end = (new \DateTimeImmutable('@'.$range['end']))->setTimezone($zone);
+        $days = (int)$start->diff($end)->days;
+        if ($days > 92) throw new \InvalidArgumentException('Choisissez une période de 92 jours maximum.');
+        $hourly = $days === 1;
+        $buckets = [];
+        for ($time=$start; $time<$end; $time=$hourly?$time->add(new \DateInterval('PT1H')):$time->modify('+1 day')) {
+            $key = $hourly ? $time->format('Y-m-d H P') : $time->format('Y-m-d');
+            $buckets[$key] = ['slot'=>$time->getTimestamp(), 'label'=>$time->format($hourly?'H':'d/m'), 'answered'=>0, 'missed'=>0, 'lost'=>0, 'unknown'=>0];
+        }
+        if ($slot !== null && !in_array($slot,array_column($buckets,'slot'),true)) {
+            throw new \InvalidArgumentException('Créneau hors période.');
+        }
+        $totals = ['answered'=>0,'missed'=>0,'lost'=>0,'unknown'=>0];
+        $matches = [];
+        $calls = ($uids || $includeUnassigned) ? $this->callsForRange($range) : [];
+        $evidence = (new InboundOutcome($this->db))->events(array_column($calls,'call_id'));
+        foreach ($calls as $call) {
+            $visible = array_intersect_key($call['agents'], $agents);
+            $pickedUp = false;
+            foreach ($visible as $uid=>$agent) {
+                if ($call['direction'] === 'outbound') $agents[$uid]['outgoing']++;
+                elseif ($agent['answered']) $agents[$uid]['incoming']++;
+                $pickedUp = $pickedUp || $agent['answered'];
+            }
+            if ($call['direction'] !== 'inbound') continue;
+            $events = $evidence[$call['call_id']] ?? [];
+            $result = InboundOutcome::classify($events,$call['phone'],$call['answered']);
+            $ringAgents = array_intersect($uids,$result['agents']);
+            if (!$visible && !$ringAgents && !$includeUnassigned) continue;
+            if ($result['kind'] === 'answered' && !$pickedUp && !$includeUnassigned) {
+                $pickedUp = (bool)array_filter($events, fn($event) => in_array($event['user_id'],$uids,true)
+                    && in_array($event['state'],['ANSWER','ANSWERED'],true)
+                    && MissedCalls::phone($event['phone']) === MissedCalls::phone($call['phone']));
+                if (!$pickedUp) continue;
+            }
+            $time = (new \DateTimeImmutable('@'.$call['received_at']))->setTimezone($zone);
+            $key = $hourly ? $time->format('Y-m-d H P') : $time->format('Y-m-d');
+            $totals[$result['kind']]++;
+            $buckets[$key][$result['kind']]++;
+            if ($detail === $result['kind'] && ($slot === null || $buckets[$key]['slot'] === $slot)) {
+                $prospects = array_keys($call['prospects']);
+                $matches[] = ['id'=>$call['id'],'phone'=>$call['phone'],'at'=>$call['received_at'],
+                    'ring_seconds'=>$result['seconds'],'total_seconds'=>$call['total_duration'],
+                    'prospect_id'=>count($prospects)===1 && $prospects[0]!=='' ? (int)$prospects[0] : null,
+                    'reason'=>$result['kind']==='lost' ? ($result['seconds']===null?'before_ring':'short_ring') : null];
+            }
+        }
+        if ($detail !== '') {
+            usort($matches,fn($a,$b)=>$b['at']<=>$a['at'] ?: $b['id']<=>$a['id']);
+            return $matches;
+        }
+        return $totals + ['series'=>array_values($buckets), 'agents'=>$agents, 'days'=>$days];
+    }
+
+    public function report(array $range, ?string $viewer, array $uids): array {
+        $calls = $this->callsForRange($range);
         $agents = [];
         foreach ($uids as $uid) $agents[$uid] = ['inbound'=>0,'outbound'=>0,'answered'=>0,'talk'=>0];
         $owned = [];

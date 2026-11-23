@@ -32,3 +32,21 @@ test('global simulator requires selecting a client and preserves inputs after fa
  const search=doc.querySelector('[type=search]');search.value='Client';search.dispatchEvent(new x.dom.window.Event('input'));await tick();const pick=doc.querySelector('select');pick.value='1';pick.dispatchEvent(new x.dom.window.Event('change'));assert.ok(!save.disabled,doc.body.innerHTML);
  x.fail();save.click();x.finish();await tick();assert.ok(!save.disabled);assert.ok(doc.querySelector('.sim-bg'));assert.match(doc.body.textContent,/Échec réseau/);assert.equal(doc.querySelector('.sim-form input').value,'4');
 });
+
+test('simulator can close with a visible discard confirmation when its inputs changed',async()=>{
+ const x=simulator();await vm.runInContext('openSim()',x.ctx);
+ const {document,Event,KeyboardEvent,getComputedStyle}=x.dom.window;
+ const root=document.querySelector('main');root.id='callcrm';
+ const style=document.createElement('style');style.textContent=fs.readFileSync('callcrm/css/style.css','utf8');document.head.append(style);
+ const overlay=root.querySelector('.sim-bg'),input=overlay.querySelector('input');
+ input.value='6';input.dispatchEvent(new Event('input'));
+ input.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
+ const warning=root.querySelector('.crm-leave-warning');assert.ok(warning);
+ assert.ok(Number(getComputedStyle(warning).zIndex)>Number(getComputedStyle(overlay).zIndex));
+ [...warning.querySelectorAll('button')].find(button=>button.textContent==='Rester sur la fiche').click();
+ assert.ok(overlay.isConnected);assert.equal(input.value,'6');
+ overlay.querySelector('[aria-label="Fermer"]').click();
+ [...root.querySelectorAll('.crm-leave-warning button')].find(button=>button.textContent==='Quitter sans enregistrer').click();
+ assert.ok(!overlay.isConnected);
+ x.dom.window.close();
+});

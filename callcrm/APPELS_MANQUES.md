@@ -51,3 +51,9 @@ données réelles du 17/11/2026.
   Décocher revient à la liste détaillée appel par appel.
 - Statistiques, « Appels entrants : suivi » : une ligne par numéro (nombre d'appels, dernier, liste
   dépliable) ; « Marquer traité » s'applique à tous les appels ouverts du numéro.
+
+## Call CRM 0.57.2 · Appels manqués et appels perdus
+
+Pour les nouveaux détails entrants, Call CRM rapproche les événements signés 30011 et le détail 30012 par identifiant d’appel et numéro. Un décroché au poste prime. Sans décroché, au moins **4 secondes** de sonnerie sur un même poste donnent un appel manqué à rappeler. Une fin d’appel dans le SVI, en file ou avant ce seuil donne un appel perdu si les événements permettent de le déterminer. Les sonneries simultanées ne s’additionnent pas. Les appels indéterminés sont signalés dans Pilotage et ne créent pas de nouveau rappel. Les anciens rappels restent dans leur état actuel.
+
+Le taux de réponse de Pilotage inclut les appels perdus dans son dénominateur et exclut les appels indéterminés. Le diagnostic repose sur les événements transmis par le P550. Les trunks entrants et les postes commerciaux doivent être surveillés. La migration 1024 ajoute un index pour le rapprochement des événements.

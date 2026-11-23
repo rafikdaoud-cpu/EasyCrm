@@ -67,3 +67,7 @@ commercial actuel, nettoyage, attributs de sécurité). Navigateur (séparé) :
 360 et 390 px, fausse caméra, scan guidé OpenCV, galerie, envoi final, API simulée.
 Non vérifié : instance Nextcloud réelle (écriture dans les Fichiers, en-têtes CSP),
 vrais téléphones Android/iPhone, interface CRM de la fiche dans un navigateur.
+
+### Liens envoyés par SMS (0.56.2)
+
+Le SMS reprend l’URL publique générée par Nextcloud. Les anciennes versions utilisaient un alias `/d/` qui exigeait une redirection personnalisée du serveur web. Pour une demande encore valide, le même jeton peut être utilisé avec l’URL Nextcloud complète. Un nouveau lien remplace la demande ouverte précédente.
