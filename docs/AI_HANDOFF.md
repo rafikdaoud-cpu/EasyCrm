@@ -472,3 +472,9 @@ Un message entrant d’un numéro algérien valide crée une fiche Nouveau de so
 ## Call CRM 0.57.28 · Fiches WhatsApp avec numéro international
 
 Un numéro WhatsApp international non algérien crée une fiche Nouveau de source WhatsApp avec le numéro au format international dans le champ personnalisé de type WhatsApp. Le téléphone principal peut rester vide lors des modifications de cette fiche, tant que le numéro WhatsApp international reste renseigné. Les correspondances utilisent le téléphone algérien et le champ WhatsApp, y compris pour réutiliser une fiche existante. Plusieurs correspondances laissent la conversation en attente. Le champ WhatsApp doit être configuré dans l’administration pour créer une fiche internationale. Aucun changement de schéma ou du service WhatsApp.
+
+## Call CRM 0.57.29 · Listing CSM des mensualités
+
+Administration → WhatsApp · Chatbot accepte le fichier Excel d’origine avec l’onglet « Listing Prix & Stock CSM » et ses dix colonnes. Le modèle téléchargeable reprend ce format pour les prochains imports. Importer le classeur, vérifier le nombre de lignes, puis publier. Le listing remplace le listing précédent et reste dans la configuration de l’instance. Le catalogue simple et la FAQ restent disponibles. Le classeur fourni contient 667 lignes, avec des mensualités indicatives sur 12, 24, 36, 48 et 60 mois.
+
+Sur une demande de prix avec une référence identifiable, le bot donne par défaut la mensualité indicative sur 60 mois. Il utilise la durée demandée quand elle figure dans le listing. Une mensualité absente reste indisponible. Les doublons au montant identique donnent une seule réponse. Les références ou montants contradictoires demandent une précision. Le bot ne calcule aucun prix comptant à partir des mensualités. Déployer les deux composants du même commit. Le classeur tarifaire est importé dans Call CRM et reste hors de GitHub.

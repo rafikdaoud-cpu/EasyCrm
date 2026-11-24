@@ -435,6 +435,42 @@ def bot_key(value):
     return " ".join(re.findall(r"[^\W_]+", "".join(c for c in folded if not unicodedata.combining(c))))
 
 
+PRICE_WORDS = {"prix", "tarif", "combien", "mensualite", "mensualites", "سعر", "السعر", "ثمن", "الثمن",
+               "بكم", "شحال", "القسط", "قسط", "الاقساط"}
+
+
+def bot_listing_answer(config, body, lang, expect_model=False):
+    question = bot_key(body)
+    duration = re.search(r"(?<!\d)(\d{1,3})\s*(?:mois|شهرا?|اشهر)(?!\w)", question)
+    if not (expect_model or set(question.split()) & PRICE_WORDS or duration):
+        return None
+    months = int(duration.group(1)) if duration else 60
+    if months not in (12, 24, 36, 48, 60):
+        return None
+
+    matches = []
+    for row in config.get("listing", []):
+        reference = bot_key(row["reference"])
+        designation = bot_key(row["designation"])
+        if any(key and f" {key} " in f" {question} " for key in (reference, designation)):
+            matches.append((reference, row["reference"], row.get("m" + str(months), "")))
+    if not matches:
+        return None
+    amounts = {(reference, amount) for reference, _, amount in matches}
+    if len(amounts) != 1:
+        text = ("هل يمكنكم تأكيد المرجع الدقيق للمنتج؟" if lang == "ar" else
+                "Peux-tu préciser la référence exacte du produit ?")
+        return text, False
+    _, reference, amount = matches[0]
+    if not amount:
+        text = (f"{reference} · لا تتوفر لدينا قيمة القسط على {months} شهرًا." if lang == "ar" else
+                f"{reference} · La mensualité sur {months} mois est indisponible.")
+        return text, False
+    if lang == "ar":
+        return f"{reference} · قسط شهري تقديري: {amount} دج على {months} شهرًا.", True
+    return f"{reference} · Mensualité indicative de {amount} DA sur {months} mois.", True
+
+
 def bot_answer(config, body, lang, expect_model=False):
     question = bot_key(body)
     if not question:
@@ -447,7 +483,7 @@ def bot_answer(config, body, lang, expect_model=False):
     if faq:
         return None
     words = set(question.split())
-    if not expect_model and not words.intersection({"prix", "tarif", "combien", "سعر", "السعر", "ثمن", "الثمن", "بكم", "شحال"}):
+    if not expect_model and not words.intersection(PRICE_WORDS):
         return None
     matches = []
     for row in config.get("catalog", []):
@@ -643,6 +679,9 @@ def bot_step(state, choice, body, config=None):
         lang = {"fr": "fr", "français": "fr", "ar": "ar", "العربية": "ar", "عربي": "ar"}.get(choice or body)
         if not lang:
             detected = "ar" if re.search(r"[\u0600-\u06ff]", body) else "fr"
+            quote = bot_listing_answer(config, body, detected)
+            if quote:
+                return "faq", detected, quote[0], []
             service_step, answer = bot_service_reply(body, detected, config)
             if service_step == "dossier":
                 return bot_dossier_step(detected, choice, body, answer, config)
@@ -674,6 +713,15 @@ def bot_step(state, choice, body, config=None):
                "Un commercial reprendra votre demande ici. Merci !"), [])
     if choice == "agent" or body in {"commercial", "مستشار"}:
         return None if step == "waiting_agent" else handoff
+    quote = bot_listing_answer(config, body, lang, expect_model=step in ("price", "model"))
+    if quote:
+        text, confirmed = quote
+        if not confirmed:
+            return step, lang, text, []
+        if step == "model":
+            wilaya = t.get("wilaya", "في أي ولاية تقيمون؟" if arabic else "Dans quelle wilaya êtes-vous ?")
+            return "wilaya", lang, text + "\n\n" + wilaya, []
+        return ("product" if step == "price" else step), lang, text, []
     service_step, answer = bot_service_reply(body, lang, config)
     if service_step == "dossier":
         return bot_dossier_step(lang, choice, body, answer, config)
@@ -686,9 +734,8 @@ def bot_step(state, choice, body, config=None):
     answer = bot_answer(config, body, lang, expect_model=step=="price")
     if answer:
         return ("product" if step == "price" else step, lang, answer, [])
-    price_words = {"prix", "tarif", "combien", "سعر", "السعر", "ثمن", "الثمن", "بكم", "شحال"}
     tokens = set(bot_key(body).split())
-    if config.get("catalog") and tokens & price_words:
+    if (config.get("catalog") or config.get("listing")) and tokens & PRICE_WORDS:
         return ("price", lang, t.get("model", "ما هو الموديل المطلوب؟" if arabic else "Quel modèle recherchez-vous ?"), [])
     if step == "waiting_agent":
         return None
@@ -700,7 +747,7 @@ def bot_step(state, choice, body, config=None):
         }:
             return ("model", lang, t.get("model", "ما هو الموديل المطلوب؟" if arabic else "Quel modèle recherchez-vous ?"), [])
         return handoff
-    if step == "model" and body and not (tokens & price_words or "?" in body or "؟" in body):
+    if step == "model" and body and not (tokens & PRICE_WORDS or "?" in body or "؟" in body):
         return ("wilaya", lang, t.get("wilaya", "في أي ولاية تقيمون؟" if arabic else "Dans quelle wilaya êtes-vous ?"), [])
     return handoff
 

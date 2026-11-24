@@ -2781,11 +2781,13 @@ function chatbotSettingsCard() {
   const box=h('details',{class:'card'},h('summary',{},'WhatsApp · Chatbot'));
   const form=h('div'), preview=h('div'), message=h('p',{role:'status',class:'muted'});
   const keys={
+    listing:['supplier','brand','family','reference','designation','m12','m24','m36','m48','m60'],
     catalog:['model','aliases','price','availability','updated'],
     faq:['question_fr','question_ar','answer_fr','answer_ar']
   };
-  const sheets={catalog:'Catalogue',faq:'FAQ'};
+  const sheets={listing:'Listing Prix & Stock CSM',catalog:'Catalogue',faq:'FAQ'};
   const titles={
+    listing:['Fournisseur','Marque','Famille de Produit','Référence Article','Désignation Article','12 Mois','24 Mois','36 Mois','48 Mois','60 Mois'],
     catalog:['Modèle','Autres noms (séparés par |)','Prix en DA','Disponibilité','Date de mise à jour'],
     faq:['Question en français','Question en arabe','Réponse en français','Réponse en arabe']
   };
@@ -2830,7 +2832,8 @@ function chatbotSettingsCard() {
         const sheet=book.Sheets[name];
         if(!sheet)continue;
         const rows=window.XLSX.utils.sheet_to_json(sheet,{header:1,raw:true,defval:'',blankrows:false});
-        if(rows.length>501)throw new Error(name+' · 500 lignes maximum.');
+        const max=key==='listing'?1500:500;
+        if(rows.length>max+1)throw new Error(name+' · '+max+' lignes maximum.');
         if(!rows.length || titles[key].some((label,i)=>String(rows[0][i]??'').trim()!==label)){
           throw new Error(name+' · utilise les en-têtes du modèle Excel.');
         }
@@ -2840,7 +2843,7 @@ function chatbotSettingsCard() {
           return [column,text];
         })));
       }
-      if(!Object.keys(imported).length)throw new Error('Le fichier doit contenir un onglet Catalogue ou FAQ.');
+      if(!Object.keys(imported).length)throw new Error('Le fichier doit contenir un onglet Listing Prix & Stock CSM, Catalogue ou FAQ.');
       Object.assign(config,imported);
       drawPreview();
       message.textContent='Import chargé. Vérifie l’aperçu, puis clique sur Publier.';

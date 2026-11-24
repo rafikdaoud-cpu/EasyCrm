@@ -14,6 +14,8 @@ class WaChatbot {
 			'handoff'=>'سيتابع أحد مستشارينا طلبكم هنا. شكراً لكم.'],
 	];
 	private const COLUMNS = [
+		'listing'=>['supplier'=>150,'brand'=>120,'family'=>120,'reference'=>120,'designation'=>500,
+			'm12'=>24,'m24'=>24,'m36'=>24,'m48'=>24,'m60'=>24],
 		'catalog'=>['model'=>120,'aliases'=>300,'price'=>24,'availability'=>100,'updated'=>10],
 		'faq'=>['question_fr'=>300,'question_ar'=>300,'answer_fr'=>1200,'answer_ar'=>1200],
 	];
@@ -27,7 +29,14 @@ class WaChatbot {
 	public function get(): array {
 		$raw = json_decode($this->config->getAppValue('callcrm','wa_chatbot',''),true);
 		if (($raw['texts']['fr']['agent'] ?? null)==='Un commercial') unset($raw['texts']['fr']['agent']);
-		return array_replace_recursive(['texts'=>self::TEXTS,'catalog'=>[],'faq'=>[],'replies'=>$this->defaultReplies()],is_array($raw) ? $raw : []);
+		if (!empty($raw['listing_zip'])) {
+			$bytes = base64_decode($raw['listing_zip'],true);
+			$decoded = $bytes===false ? false : gzdecode($bytes,2000000);
+			if ($decoded===false) throw new \RuntimeException('Listing Excel illisible.');
+			$raw['listing'] = json_decode($decoded,true,512,JSON_THROW_ON_ERROR);
+			unset($raw['listing_zip']);
+		}
+		return array_replace_recursive(['texts'=>self::TEXTS,'catalog'=>[],'listing'=>[],'faq'=>[],'replies'=>$this->defaultReplies()],is_array($raw) ? $raw : []);
 	}
 
 	public function save(array $draft): array {
@@ -40,17 +49,28 @@ class WaChatbot {
 			}
 		}
 		foreach (self::COLUMNS as $sheet=>$columns) {
-			$rows = $draft[$sheet] ?? null;
-			if (!is_array($rows) || !array_is_list($rows) || count($rows)>500) {
-				throw new \InvalidArgumentException('Maximum 500 lignes par onglet.');
+			$rows = $draft[$sheet] ?? ($sheet==='listing' ? $this->get()['listing'] : null);
+			$max = $sheet==='listing' ? 1500 : 500;
+			if (!is_array($rows) || !array_is_list($rows) || count($rows)>$max) {
+				throw new \InvalidArgumentException('Maximum '.$max.' lignes dans l’onglet '.$sheet.'.');
 			}
 			$clean[$sheet] = [];
 			foreach ($rows as $index=>$row) {
 				if (!is_array($row)) throw new \InvalidArgumentException('Ligne Excel invalide.');
 				$values = [];
 				foreach ($columns as $key=>$limit) {
-					$optional = in_array($key,['aliases','availability','price'],true);
+					$optional = $sheet==='listing' ? !in_array($key,['reference','designation'],true)
+						: in_array($key,['aliases','availability','price'],true);
 					$values[$key] = self::text($row[$key] ?? '',$limit,$sheet.' · ligne '.($index+2).' · '.$key,$optional);
+				}
+				if ($sheet==='listing') {
+					foreach (['m12','m24','m36','m48','m60'] as $month) {
+						$amount = str_replace(',','.',preg_replace('/\s+/u','',$values[$month]));
+						if ($amount!=='' && (!preg_match('/^\d{1,12}(?:\.\d{1,2})?$/D',$amount) || (float)$amount<=0)) {
+							throw new \InvalidArgumentException('Listing · ligne '.($index+2).' · mensualité invalide.');
+						}
+						$values[$month] = $amount;
+					}
 				}
 				if ($sheet==='catalog') {
 					$date = \DateTimeImmutable::createFromFormat('!Y-m-d',$values['updated']);
@@ -76,6 +96,10 @@ class WaChatbot {
 				if ($text !== $defaults[$lang]) $clean['replies'][$key][$lang] = $text;
 			}
 		}
+		$listing = gzencode(json_encode($clean['listing'],JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),6);
+		if ($listing===false) throw new \RuntimeException('Compression du listing impossible.');
+		$clean['listing_zip'] = base64_encode($listing);
+		unset($clean['listing']);
 		$json = json_encode($clean,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
 		if (strlen($json)>60000) throw new \InvalidArgumentException('Les réglages du chatbot dépassent 60 Ko de texte.');
 		$this->config->setAppValue('callcrm','wa_chatbot',$json);
