@@ -152,11 +152,41 @@ class Wa {
 		$qb->select('id')->from('callcrm_wa_msg')->where($qb->expr()->eq('wamid', $qb->createNamedParameter($wamid)))->setMaxResults(1);
 		return (bool)$qb->executeQuery()->fetch();
 	}
-	private function prospectByPhone(string $p): ?array {
-		$qb = $this->db->getQueryBuilder();
-		$qb->select('id', 'assigned_to')->from('callcrm_prospects')->where($qb->expr()->eq('phone', $qb->createNamedParameter($p)))->setMaxResults(1);
-		$r = $qb->executeQuery()->fetch();
-		return $r ?: null;
+	private function prospectsByPhone(string $phone): array {
+		$q = $this->db->getQueryBuilder();
+		$variants = $q->createNamedParameter(YeastarEvents::phoneVariants($phone),IQueryBuilder::PARAM_STR_ARRAY);
+		return $q->select('id')->from('callcrm_prospects')->where($q->expr()->in('phone',$variants))
+			->setMaxResults(2)->executeQuery()->fetchAll();
+	}
+	private function prospectByPhone(string $phone): ?array {
+		$matches = $this->prospectsByPhone($phone);
+		return count($matches)===1 ? $matches[0] : null;
+	}
+
+	private function linkInboundProspect(array $conversation): void {
+		$phone = (string)($conversation['phone'] ?? '');
+		if (!empty($conversation['prospect_id']) || $phone==='') return;
+		$matches = $this->prospectsByPhone($phone);
+		if (count($matches)>1) return;
+
+		$owner = $conversation['assigned_to'] ?: null;
+		$name = trim((string)$conversation['name']) ?: 'Client WhatsApp '.$phone;
+		$pid = $matches ? (int)$matches[0]['id'] : $this->insert('callcrm_prospects',[
+			'source'=>'whatsapp','lastname'=>$name,'firstname'=>'','email'=>'','phone'=>$phone,'c1'=>'','c2'=>'',
+			'status'=>'nouveau','created_at'=>time(),'assigned_to'=>$owner,'last_note'=>'Fiche créée depuis WhatsApp',
+		]);
+		$cid = (int)$conversation['id'];
+		$q = $this->db->getQueryBuilder();
+		$linked = $q->update('callcrm_wa_conv')->set('prospect_id',$q->createNamedParameter($pid,IQueryBuilder::PARAM_INT))
+			->where($q->expr()->eq('id',$q->createNamedParameter($cid,IQueryBuilder::PARAM_INT)))
+			->andWhere($q->expr()->isNull('prospect_id'))->executeStatement();
+		if ($linked !== 1) throw new \RuntimeException('La conversation a été rattachée pendant la réception du message.');
+		if (!$matches) {
+			$this->insert('callcrm_audit',[
+				'created_at'=>time(),'user_id'=>null,'action'=>'wa_prospect','prospect_id'=>$pid,
+				'detail'=>'Création automatique depuis la conversation WhatsApp #'.$cid,
+			]);
+		}
 	}
 
 	// ---------- écriture ----------
@@ -210,7 +240,7 @@ class Wa {
 	 * @return array{conv:int,msg:?int,created:bool}
 	 */
 	public function record(array $ev, ?array $route = null): array {
-		if ($route === null) return $this->recordMessage($ev, null);
+		if (($ev['direction'] ?? 'in') === 'out' && $route === null) return $this->recordMessage($ev, null);
 		$this->db->beginTransaction();
 		try {
 			$result = $this->recordMessage($ev, $route);
@@ -248,6 +278,7 @@ class Wa {
 			$upd['status'] = 'ouvert';
 			if ((int)($c['last_in_at'] ?? 0) < $ts) { $upd['last_in_at'] = $ts; }
 		} elseif ((int)($c['last_out_at'] ?? 0) < $ts) { $upd['last_out_at'] = $ts; }
+		if ($dir==='in') $this->linkInboundProspect($c);
 		if ($route && $dir==='in' && $type==='text' && trim($body)===$route['extension'] && (int)($c['last_in_at'] ?? 0)<=$ts) {
 			$this->routeConversation($cid,$route,$ts);
 		}

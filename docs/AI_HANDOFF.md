@@ -464,3 +464,7 @@ Lors d’un message entrant, le service vérifie aussi la présence d’une rép
 ## Call CRM 0.57.26 · Libellé français du choix conseiller
 
 La liste de produits WhatsApp et l’administration du chatbot affichent « Parler à un conseiller » comme libellé français par défaut. Le réglage précédemment enregistré avec « Un commercial » est actualisé. Les autres personnalisations et le libellé arabe sont conservés. Déployer Call CRM et wa-nextcloud pour synchroniser l’écran et le menu WhatsApp.
+
+## Call CRM 0.57.27 · Création automatique des fiches WhatsApp
+
+Un message entrant d’un numéro algérien valide crée une fiche Nouveau de source WhatsApp si aucune fiche ne porte ce numéro. La fiche est rattachée à la conversation et figure dans les dossiers non affectés. L’affectation manuelle d’une ancienne conversation est reprise sur la fiche nouvellement créée. Un numéro connu réutilise sa fiche et les numéros présents sur plusieurs fiches restent en file d’attente pour vérification. Une conversation sans numéro exploitable reste dans WhatsApp. La création et le rattachement accompagnent l’enregistrement du message dans une transaction. Le routage d’une conversation par poste reste disponible. Aucun changement de schéma ni de service WhatsApp.
