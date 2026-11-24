@@ -28,6 +28,7 @@ class Wa {
 	public static function waId(string $raw): string {
 		if (self::isBsuid($raw)) { return trim($raw); }
 		$d = preg_replace('/\D+/', '', $raw);
+		if (str_starts_with($d, '00')) return substr($d,2);
 		return str_starts_with($d, '0') ? '213' . substr($d, 1) : $d;
 	}
 
@@ -152,27 +153,46 @@ class Wa {
 		$qb->select('id')->from('callcrm_wa_msg')->where($qb->expr()->eq('wamid', $qb->createNamedParameter($wamid)))->setMaxResults(1);
 		return (bool)$qb->executeQuery()->fetch();
 	}
-	private function prospectsByPhone(string $phone): array {
+	private function prospectsByPhone(?string $phone, string $waNumber): array {
 		$q = $this->db->getQueryBuilder();
-		$variants = $q->createNamedParameter(YeastarEvents::phoneVariants($phone),IQueryBuilder::PARAM_STR_ARRAY);
-		return $q->select('id')->from('callcrm_prospects')->where($q->expr()->in('phone',$variants))
-			->setMaxResults(2)->executeQuery()->fetchAll();
-	}
-	private function prospectByPhone(string $phone): ?array {
-		$matches = $this->prospectsByPhone($phone);
-		return count($matches)===1 ? $matches[0] : null;
+		$byWhatsApp = $q->expr()->like('extra',$q->createNamedParameter('%'.$this->db->escapeLikeParameter($waNumber).'%'));
+		$filter = $byWhatsApp;
+		$phones = $phone===null ? [] : YeastarEvents::phoneVariants($phone);
+		if ($phones) {
+			$variants = $q->createNamedParameter($phones,IQueryBuilder::PARAM_STR_ARRAY);
+			$filter = $q->expr()->orX($q->expr()->in('phone',$variants),$byWhatsApp);
+		}
+		$result = $q->select('id','phone','extra')->from('callcrm_prospects')->where($filter)->executeQuery();
+		$matches = [];
+		try {
+			while ($row = $result->fetch()) {
+				if (in_array($row['phone'],$phones,true) || Fields::whatsappOf($row)===$waNumber) {
+					$matches[] = $row;
+					if (count($matches)===2) break;
+				}
+			}
+		} finally {
+			$result->closeCursor();
+		}
+		return $matches;
 	}
 
 	private function linkInboundProspect(array $conversation): void {
-		$phone = (string)($conversation['phone'] ?? '');
-		if (!empty($conversation['prospect_id']) || $phone==='') return;
-		$matches = $this->prospectsByPhone($phone);
+		$number = (string)$conversation['wa_id'];
+		if (!empty($conversation['prospect_id']) || !preg_match('/^[1-9]\d{7,14}$/D',$number)) return;
+		$phone = str_starts_with($number,'213') ? self::localPhone($number) : null;
+		// Un numéro portant l’indicatif algérien doit être valide avant de créer une fiche.
+		if ($phone===null && str_starts_with($number,'213')) return;
+		$matches = $this->prospectsByPhone($phone,$number);
 		if (count($matches)>1) return;
+		$key = $phone===null && !$matches ? Fields::whatsappKey() : null;
+		if ($phone===null && !$matches && $key===null) return;
 
 		$owner = $conversation['assigned_to'] ?: null;
-		$name = trim((string)$conversation['name']) ?: 'Client WhatsApp '.$phone;
+		$name = trim((string)$conversation['name']) ?: 'Client WhatsApp '.($phone ?? '+'.$number);
 		$pid = $matches ? (int)$matches[0]['id'] : $this->insert('callcrm_prospects',[
 			'source'=>'whatsapp','lastname'=>$name,'firstname'=>'','email'=>'','phone'=>$phone,'c1'=>'','c2'=>'',
+			'extra'=>$key===null ? null : json_encode([$key=>'+'.$number],JSON_THROW_ON_ERROR),
 			'status'=>'nouveau','created_at'=>time(),'assigned_to'=>$owner,'last_note'=>'Fiche créée depuis WhatsApp',
 		]);
 		$cid = (int)$conversation['id'];
@@ -209,12 +229,13 @@ class Wa {
 	 * Conversation du client, créée si besoin et rattachée à la fiche du même numéro.
 	 * $waId : numéro international (peut être vide si le client a un nom d'utilisateur) ; $bsuid : identifiant WhatsApp (BSUID).
 	 */
-	public function ensureConv(string $waId, string $name, string $bsuid = ''): array {
+	public function ensureConv(string $waId, string $name, string $bsuid = '', bool $linkExisting = true): array {
 		$c = $waId !== '' ? $this->convByWaId($waId) : null;
 		if (!$c && $bsuid !== '') { $c = $this->convByBsuid($bsuid) ?? $this->convByWaId($bsuid); }
-		$phone = $waId !== '' ? self::localPhone($waId) : null;
+		$phone = str_starts_with($waId,'213') ? self::localPhone($waId) : null;
 		if (!$c) {
-			$p = $waId !== '' ? ($phone ? $this->prospectByPhone($phone) : null) : null;
+			$matches = $linkExisting && preg_match('/^[1-9]\d{7,14}$/D',$waId) ? $this->prospectsByPhone($phone,$waId) : [];
+			$p = count($matches)===1 ? $matches[0] : null;
 			$key = $waId !== '' ? $waId : $bsuid;
 			$this->insert('callcrm_wa_conv', ['wa_id' => $key, 'phone' => $phone, 'name' => mb_substr($name, 0, 255) ?: null, 'bsuid' => $bsuid !== '' ? $bsuid : null,
 				'prospect_id' => $p ? (int)$p['id'] : null, 'assigned_to' => null, 'status' => 'ouvert', 'unread' => 0, 'created_at' => time()]);
@@ -225,8 +246,11 @@ class Wa {
 		if ($bsuid !== '' && empty($c['bsuid'])) { $upd['bsuid'] = $bsuid; }
 		// le numéro est apparu (client avec nom d'utilisateur qui nous a donné son numéro) : la conversation prend le numéro
 		if ($waId !== '' && self::isBsuid((string)$c['wa_id']) && !$this->convByWaId($waId)) { $upd['wa_id'] = $waId; $upd['phone'] = $phone; }
-		$ph = (string)($phone ?? $c['phone'] ?? '');
-		if (empty($c['prospect_id']) && $ph !== '' && ($p = $this->prospectByPhone($ph))) { $upd['prospect_id'] = (int)$p['id']; }
+		$number = $waId ?: (string)$c['wa_id'];
+		if ($linkExisting && empty($c['prospect_id']) && preg_match('/^[1-9]\d{7,14}$/D',$number)) {
+			$matches = $this->prospectsByPhone($phone,$number);
+			if (count($matches)===1) $upd['prospect_id'] = (int)$matches[0]['id'];
+		}
 		if ($upd) { $this->updateConv((int)$c['id'], $upd); $c = array_merge($c, $upd); }
 		return $c;
 	}
@@ -259,10 +283,10 @@ class Wa {
 		if (self::isBsuid($waId)) { $bsuid = $bsuid ?: $waId; $waId = ''; }
 		if ($waId === '' && $bsuid === '') { throw new \InvalidArgumentException('wa_id manquant'); }
 		$wamid = trim((string)($ev['wamid'] ?? ''));
-		$c = $this->ensureConv($waId, trim((string)($ev['name'] ?? '')), $bsuid);
+		$dir = ($ev['direction'] ?? 'in') === 'out' ? 'out' : 'in';
+		$c = $this->ensureConv($waId, trim((string)($ev['name'] ?? '')), $bsuid, $dir==='out');
 		$cid = (int)$c['id'];
 		if ($wamid !== '' && $this->msgExists($wamid)) { return ['conv' => $cid, 'msg' => null, 'created' => false]; }
-		$dir = ($ev['direction'] ?? 'in') === 'out' ? 'out' : 'in';
 		$type = preg_replace('/[^a-z_]/', '', (string)($ev['type'] ?? 'text')) ?: 'text';
 		$body = mb_substr((string)($ev['text'] ?? ''), 0, 8000);
 		$ts = (int)($ev['ts'] ?? 0); if ($ts <= 0 || $ts > time() + 300) { $ts = time(); }

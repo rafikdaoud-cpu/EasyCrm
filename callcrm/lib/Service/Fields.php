@@ -115,6 +115,12 @@ class Fields {
 		}
 		return preg_match('/^[1-9]\d{7,14}$/', $d) ? '+' . $d : null;
 	}
+	public static function whatsappKey(): ?string {
+		foreach (self::all() as $field) {
+			if ($field['type']==='whatsapp' && !$field['builtin'] && !$field['hidden']) return $field['key'];
+		}
+		return null;
+	}
 	/** Numéro WhatsApp renseigné sur la fiche (champ de type « whatsapp »), chiffres seuls (ex. 33612345678), sinon null. */
 	public static function whatsappOf(array $prospect): ?string {
 		$extra = is_array($prospect['extra'] ?? null) ? $prospect['extra'] : (json_decode((string)($prospect['extra'] ?? ''), true) ?: []);

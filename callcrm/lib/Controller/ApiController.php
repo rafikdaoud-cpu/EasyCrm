@@ -1050,6 +1050,7 @@ class ApiController extends Controller {
 	/** Construit colonnes + champs personnalisés depuis la requête, selon la configuration des champs. Renvoie [colonnes, extra, erreur]. */
 	private function buildFields(?array $old): array {
 		$v = []; $extra = [];
+		$requiredPhone = null;
 		if ($old && !empty($old['extra'])) { $e = json_decode((string)$old['extra'], true); if (is_array($e)) { $extra = $e; } }
 		$req = $this->request;
 		foreach (Fields::all() as $f) {
@@ -1066,8 +1067,15 @@ class ApiController extends Controller {
 				$n = Fields::norm($val, $f);
 				if ($val !== '' && $n === '') { if ($val !== $cur) { return [null, null, $f['label'] . ' : valeur invalide']; } } else { $val = $n; }
 			}
-			if ($f['required'] && $val === '') { return [null, null, $f['label'] . ' : champ obligatoire']; }
+			if ($f['required'] && $val === '') {
+				if ($k !== 'phone' || ($old['source'] ?? null) !== 'whatsapp') return [null, null, $f['label'] . ' : champ obligatoire'];
+				$requiredPhone = $f['label'];
+			}
 			if ($f['builtin']) { $v[$k] = ($k === 'phone' && $val === '') ? null : $val; } else { if ($val === '') { unset($extra[$k]); } else { $extra[$k] = $val; } }
+		}
+		if ($requiredPhone !== null) {
+			$whatsapp = Fields::whatsappOf(['extra'=>$extra]);
+			if ($whatsapp === null || str_starts_with($whatsapp,'213')) return [null,null,$requiredPhone.' : champ obligatoire'];
 		}
 		return [$v, $extra, null];
 	}

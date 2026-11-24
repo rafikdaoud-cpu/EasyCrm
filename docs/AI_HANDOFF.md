@@ -468,3 +468,7 @@ La liste de produits WhatsApp et l’administration du chatbot affichent « Parl
 ## Call CRM 0.57.27 · Création automatique des fiches WhatsApp
 
 Un message entrant d’un numéro algérien valide crée une fiche Nouveau de source WhatsApp si aucune fiche ne porte ce numéro. La fiche est rattachée à la conversation et figure dans les dossiers non affectés. L’affectation manuelle d’une ancienne conversation est reprise sur la fiche nouvellement créée. Un numéro connu réutilise sa fiche et les numéros présents sur plusieurs fiches restent en file d’attente pour vérification. Une conversation sans numéro exploitable reste dans WhatsApp. La création et le rattachement accompagnent l’enregistrement du message dans une transaction. Le routage d’une conversation par poste reste disponible. Aucun changement de schéma ni de service WhatsApp.
+
+## Call CRM 0.57.28 · Fiches WhatsApp avec numéro international
+
+Un numéro WhatsApp international non algérien crée une fiche Nouveau de source WhatsApp avec le numéro au format international dans le champ personnalisé de type WhatsApp. Le téléphone principal peut rester vide lors des modifications de cette fiche, tant que le numéro WhatsApp international reste renseigné. Les correspondances utilisent le téléphone algérien et le champ WhatsApp, y compris pour réutiliser une fiche existante. Plusieurs correspondances laissent la conversation en attente. Le champ WhatsApp doit être configuré dans l’administration pour créer une fiche internationale. Aucun changement de schéma ou du service WhatsApp.

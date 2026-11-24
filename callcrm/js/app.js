@@ -162,8 +162,10 @@ function fieldEl(f, val, disabled) {
 }
 function fieldsGrid(p, disabled) {
   const vis = (me.fields || []).filter(f => !f.hidden);
+  const foreignWhatsApp = p.source === 'whatsapp' && vis.some(f =>
+    f.type === 'whatsapp' && /^\+(?!213)[1-9]\d{7,14}$/.test(fval(p, f)));
   return h('div', {class:'g2'}, vis.map(f => h('label', {class: ['textarea', 'multiselect'].includes(f.type) || f.key === 'lastname' ? 'full' : '', style:'display:block;margin:5px 0'},
-    h('span', {class:'muted'}, f.label + (f.required ? ' *' : '')), fieldEl(f, fval(p, f), disabled))));
+    h('span', {class:'muted'}, f.label + (f.required && !(f.key==='phone' && foreignWhatsApp) ? ' *' : '')), fieldEl(f, fval(p, f), disabled))));
 }
 // Agenda, client chronicle and unsaved-change protection.
 const dirtyChecks = new Map();
