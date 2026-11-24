@@ -452,7 +452,7 @@ def bot_answer(config, body, lang, expect_model=False):
     matches = []
     for row in config.get("catalog", []):
         terms = [row["model"], *row["aliases"].split("|")]
-        keys = [key for term in terms if (key := bot_key(term))]
+        keys = filter(None, map(bot_key, terms))
         if any(key == question or f" {key} " in f" {question} " for key in keys):
             matches.append(row)
     if len(matches) != 1 or not matches[0]["price"]:
