@@ -440,3 +440,5 @@ Le bot répond aux formulations usuelles sur la durée du paiement en plusieurs 
 ## wa-nextcloud · Livraison, dossier et FAQ dans WhatsApp
 
 Le chatbot indique la livraison gratuite dans toutes les wilayas. Une demande de dossier déclenche une question bilingue sur la situation professionnelle, puis un relais au commercial. Une demande de FAQ déclenche une invitation à poser la question dans WhatsApp. Le bot utilise les réponses FAQ publiées dans Call CRM et transmet au commercial les questions sans réponse utilisable. Aucun lien vers l’e-shop n’est envoyé dans ces parcours. Seul le service WhatsApp doit être mis à jour pour les installations Call CRM 0.57.23.
+
+Le chatbot fournit aussi le lien vers `https://csmtaksit.dz` quand le client demande le site officiel, en français ou en arabe.

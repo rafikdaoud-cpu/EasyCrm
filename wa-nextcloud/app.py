@@ -483,6 +483,11 @@ def bot_service_reply(body, lang):
     words = set(question.split())
     arabic = lang == "ar"
     answers = []
+    website_terms = ("site web", "site officiel", "site internet", "votre site", "lien du site",
+                     "website", "موقعكم", "موقع الشركة", "الموقع الرسمي", "الموقع الالكتروني", "رابط الموقع")
+    if question == "site" or any(f" {bot_key(term)} " in f" {question} " for term in website_terms):
+        label = "يمكنكم زيارة موقعنا الرسمي" if arabic else "Vous pouvez visiter notre site officiel"
+        answers.append(f"{label} : https://csmtaksit.dz")
     if bot_duration_question(body):
         answers.append(bot_duration_reply(lang))
     if words & {"livraison", "livrez", "livrer", "توصيل", "التوصيل", "شحن", "الشحن"}:
