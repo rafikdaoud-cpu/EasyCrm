@@ -478,6 +478,83 @@ def bot_duration_reply(lang):
             else "La durée du paiement en plusieurs fois va de 12 à 60 mois.")
 
 
+DOSSIER_ROLES = {
+    "employee": ("Salarié", "أجير"),
+    "retired": ("Retraité", "متقاعد"),
+    "military": ("Militaire", "عسكري"),
+    "military_retired": ("Militaire retraité", "عسكري متقاعد"),
+}
+
+
+def bot_dossier_role(choice, body):
+    if choice in DOSSIER_ROLES:
+        return choice
+    words = set(bot_key(body).split())
+    retired = words & {"retraite", "retraites", "متقاعد", "متقاعدة", "التقاعد", "متقاعدون"}
+    military = words & {"militaire", "militaires", "عسكري", "عسكرية", "العسكري", "العسكريين"}
+    if retired:
+        return "military_retired" if military else "retired"
+    if military:
+        return "military"
+    if words & {"salarie", "salariee", "employe", "employee", "اجير", "اجيرة", "موظف", "موظفة"}:
+        return "employee"
+    return None
+
+
+def bot_dossier_documents(lang, role):
+    arabic = lang == "ar"
+    common = (
+        "الوثائق المطلوبة:\n"
+        "• نسختان من بطاقة التعريف الوطنية أو رخصة سياقة بيومترية سارية المفعول.\n"
+        "• نسختان من شهادة الميلاد.\n"
+        "• نسختان من شهادة إقامة سارية المفعول لا يتعدى تاريخها 3 أشهر.\n"
+        "• شهادة عائلية للمتزوجين.\n"
+        "• كشف حساب بريدي أو بنكي لآخر 3 أشهر.\n"
+        "• صك بريدي أو بنكي مشطوب.\n"
+        "• صورتان شمسيتان."
+    ) if arabic else (
+        "Pièces à fournir :\n"
+        "• Deux copies de la carte nationale d’identité ou du permis de conduire biométrique en cours de validité.\n"
+        "• Deux copies de l’acte de naissance.\n"
+        "• Deux copies du certificat de résidence valide, daté de 3 mois au plus.\n"
+        "• Une fiche familiale pour les personnes mariées.\n"
+        "• Un relevé de compte postal ou bancaire des 3 derniers mois.\n"
+        "• Un chèque postal ou bancaire barré.\n"
+        "• Deux photos d’identité."
+    )
+    extra = {
+        "employee": ("• Attestation de travail de moins d’un mois indiquant un contrat à durée indéterminée et la titularisation au poste.\n"
+                     "• Bulletins de salaire des 3 derniers mois.",
+                     "• شهادة عمل حديثة أقل من شهر توضح أن عقد العمل غير محدد المدة وأن العامل مرسم في منصبه.\n"
+                     "• كشوف الراتب لآخر 3 أشهر."),
+        "retired": ("• Attestation de revenus de la Caisse nationale des retraites (CNR).",
+                    "• شهادة الدخل من الصندوق الوطني للتقاعد (CNR)."),
+        "military": ("• Attestation de salaire.", "• شهادة كشف الراتب."),
+        "military_retired": ("• Avis de radiation.\n• Attestation de salaire.", "• إشعار بالشطب.\n• شهادة كشف الراتب."),
+    }
+    return common + ("\n\nإضافةً إلى ذلك:\n" if arabic else "\n\nEn plus :\n") + extra[role][int(arabic)]
+
+
+def bot_dossier_step(lang, choice, body, prompt):
+    role = bot_dossier_role(choice, body)
+    if role:
+        return "faq", lang, bot_dossier_documents(lang, role), []
+    labels = [(key, titles[int(lang == "ar")]) for key, titles in DOSSIER_ROLES.items()]
+    return "dossier", lang, prompt, labels
+
+
+def bot_eligibility_reply(lang):
+    if lang == "ar":
+        return ("شروط الأهلية:\n• السن من 19 إلى 75 سنة عند آخر قسط.\n"
+                "• إثبات دخل ثابت ومنتظم موطّن في حساب بريد الجزائر أو لدى بنك جزائري.\n"
+                "• راتب شهري لا يقل عن 25 000 دج.\n• مدة التمويل من 12 إلى 60 شهرًا.\n"
+                "• المستحقات الشهرية لا تتجاوز 30٪ من الراتب الشهري.")
+    return ("Conditions d’éligibilité :\n• De 19 à 75 ans, avec 75 ans au maximum à la dernière échéance.\n"
+            "• Justifier d’un revenu stable et régulier domicilié chez Algérie Poste ou dans une banque algérienne.\n"
+            "• Salaire mensuel d’au moins 25 000 DA.\n• Durée du financement de 12 à 60 mois.\n"
+            "• Les mensualités ne dépassent pas 30 % du salaire mensuel.")
+
+
 def bot_service_reply(body, lang):
     question = bot_key(body)
     words = set(question.split())
@@ -488,7 +565,9 @@ def bot_service_reply(body, lang):
     if question == "site" or any(f" {bot_key(term)} " in f" {question} " for term in website_terms):
         label = "يمكنكم زيارة موقعنا الرسمي" if arabic else "Vous pouvez visiter notre site officiel"
         answers.append(f"{label} : https://csmtaksit.dz")
-    if bot_duration_question(body):
+    if words & {"eligibilite", "eligible", "conditions", "اهلية", "الاهلية", "شروط", "الشروط"}:
+        answers.append(bot_eligibility_reply(lang))
+    elif bot_duration_question(body):
         answers.append(bot_duration_reply(lang))
     if words & {"livraison", "livrez", "livrer", "توصيل", "التوصيل", "شحن", "الشحن"}:
         answers.append("التوصيل مجاني إلى جميع ولايات الجزائر." if arabic else
@@ -496,8 +575,8 @@ def bot_service_reply(body, lang):
     next_step = None
     if words & {"dossier", "documents", "justificatifs", "pieces", "ملف", "الملف", "وثايق", "الوثايق", "الاوراق", "اوراق"}:
         next_step = "dossier"
-        answers.append("ما هي وضعيتكم المهنية؟ هل أنتم موظفون، متقاعدون أم تعملون لحسابكم الخاص؟" if arabic else
-                       "Quelle est votre situation professionnelle ? Êtes-vous salarié, retraité ou travailleur indépendant ?")
+        answers.append("ما هي وضعيتكم المهنية؟" if arabic else
+                       "Quelle est votre situation professionnelle ?")
     elif words & {"faq"} or any(bot_key(term) in question for term in ("questions fréquentes", "الأسئلة الشائعة", "أسئلة شائعة")):
         next_step = "faq"
         answers.append("ما هو سؤالك؟" if arabic else "Quelle est votre question ?")
@@ -512,6 +591,8 @@ def bot_step(state, choice, body, config=None):
         if not lang:
             detected = "ar" if re.search(r"[\u0600-\u06ff]", body) else "fr"
             service_step, answer = bot_service_reply(body, detected)
+            if service_step == "dossier":
+                return bot_dossier_step(detected, choice, body, answer)
             if service_step:
                 return service_step, detected, answer, []
             if answer:
@@ -536,10 +617,12 @@ def bot_step(state, choice, body, config=None):
     if choice == "agent" or body in {"commercial", "parler à un commercial", "مستشار", "التحدث إلى مستشار"}:
         return handoff
     service_step, answer = bot_service_reply(body, lang)
+    if service_step == "dossier":
+        return bot_dossier_step(lang, choice, body, answer)
     if answer:
         return service_step or step, lang, answer, []
     if step == "dossier":
-        return handoff
+        return bot_dossier_step(lang, choice, body, "") if bot_dossier_role(choice, body) else handoff
     answer = bot_answer(config, body, lang, expect_model=step=="price")
     if answer:
         return ("product" if step == "price" else step, lang, answer, [])
