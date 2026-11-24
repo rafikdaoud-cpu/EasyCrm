@@ -4,6 +4,8 @@ use OCA\CallCrm\AppInfo\Application;
 use OCA\CallCrm\Service\Access;
 use OCA\CallCrm\Service\Store;
 use OCA\CallCrm\Service\Wa;
+use OCA\CallCrm\Service\WaChatbot;
+use OCP\Server;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
@@ -94,8 +96,12 @@ class WaController extends Controller {
 			$c = $this->wa->conv($r['conv']);
 			$this->s->audit(null, 'wa_in', $c && $c['linked'] ? (int)$c['prospect_id'] : null, ($c['wa_id'] ?? '') . ' → ' . ($c && $c['owner'] ? $c['owner'] : 'file d’attente'));
 		}
-		return new JSONResponse(['ok'=>true, 'routed'=>$route !== null,
-			'recent_reply'=>!empty($c['last_out_at']) && (int)$c['last_out_at'] > time()-Wa::WINDOW] + $r);
+		$data = ['ok'=>true, 'routed'=>$route !== null,
+			'recent_reply'=>!empty($c['last_out_at']) && (int)$c['last_out_at'] > time()-Wa::WINDOW] + $r;
+		if ($c && !$route && ($ev['chatbot'] ?? false) === true) {
+			$data['chatbot'] = Server::get(WaChatbot::class)->get();
+		}
+		return new JSONResponse($data);
 	}
 	#[PublicPage]
 	#[NoCSRFRequired]
@@ -103,6 +109,24 @@ class WaController extends Controller {
 		if (!$this->secretOk()) { return $this->deny(); }
 		$ok = $this->wa->setStatus((string)$this->request->getParam('wamid', ''), (string)$this->request->getParam('status', ''), (string)$this->request->getParam('error', ''));
 		return new JSONResponse(['ok' => $ok]);
+	}
+
+	#[NoAdminRequired]
+	public function chatbot(): JSONResponse {
+		if ($this->a->role() !== 'admin') return $this->deny();
+		return new JSONResponse(Server::get(WaChatbot::class)->get());
+	}
+
+	#[NoAdminRequired]
+	public function saveChatbot(): JSONResponse {
+		if ($this->a->role() !== 'admin') return $this->deny();
+		try {
+			$config = Server::get(WaChatbot::class)->save($this->request->getParams());
+		} catch (\InvalidArgumentException $e) {
+			return $this->err($e->getMessage());
+		}
+		$this->s->audit($this->a->uid(),'wa_chatbot',null,count($config['catalog']).' modèles · '.count($config['faq']).' réponses FAQ');
+		return new JSONResponse($config);
 	}
 
 	// ---------- interface ----------

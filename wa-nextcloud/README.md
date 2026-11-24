@@ -164,3 +164,5 @@ Chaque photo reçue (`image`) est convertie en PDF A4 et rangée à côté de la
 ### Chatbot de qualification Call CRM
 
 Déployer le service et Call CRM 0.57.21 ensemble. Régler `CHATBOT_ENABLED=1` dans l’environnement du service, puis le redémarrer. Le bot démarre à la réception d’un message dans la fenêtre WhatsApp. Tester les boutons en français et en arabe, un poste connu et une réponse manuelle. `CHATBOT_ENABLED=0` désactive les réponses du bot. Les étapes restent dans `data/state.db`. Les demandes de prix passent au commercial jusqu’à l’ajout d’une source de prix.
+
+Depuis Call CRM 0.57.22, les textes, le catalogue et la FAQ se publient dans **Administration → WhatsApp · Chatbot**. L’écran fournit un modèle Excel et un aperçu avant publication. Les réglages sont lus à la réception des messages et s’appliquent sans redémarrage après le déploiement initial.

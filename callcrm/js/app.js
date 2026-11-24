@@ -2775,6 +2775,111 @@ function adminPanels() {
   }
 }
 
+function chatbotSettingsCard() {
+  const box=h('details',{class:'card'},h('summary',{},'WhatsApp · Chatbot'));
+  const form=h('div'), preview=h('div'), message=h('p',{role:'status',class:'muted'});
+  const keys={
+    catalog:['model','aliases','price','availability','updated'],
+    faq:['question_fr','question_ar','answer_fr','answer_ar']
+  };
+  const sheets={catalog:'Catalogue',faq:'FAQ'};
+  const titles={
+    catalog:['Modèle','Autres noms (séparés par |)','Prix en DA','Disponibilité','Date de mise à jour'],
+    faq:['Question en français','Question en arabe','Réponse en français','Réponse en arabe']
+  };
+  const labels={product:'Question sur le produit',moto:'Bouton Moto',appliance:'Bouton Électroménager',
+    agent:'Bouton Commercial',model:'Question sur le modèle',wilaya:'Question sur la wilaya',handoff:'Message de relais'};
+  const welcome=h('textarea',{rows:2,maxlength:900,dir:'auto'});
+  const fields={};
+  let config=null;
+  for(const lang of ['fr','ar']){
+    fields[lang]={};
+    for(const key of Object.keys(labels)){
+      const button=['moto','appliance','agent'].includes(key);
+      fields[lang][key]=button?h('input',{maxlength:20,dir:lang==='ar'?'rtl':'ltr'}):
+        h('textarea',{rows:2,maxlength:900,dir:lang==='ar'?'rtl':'ltr'});
+    }
+  }
+  const template=h('button',{type:'button',onclick:()=>{
+    if(!window.XLSX){message.textContent='Lecteur Excel indisponible.';return;}
+    const book=window.XLSX.utils.book_new();
+    for(const [key,name] of Object.entries(sheets)) {
+      window.XLSX.utils.book_append_sheet(book,window.XLSX.utils.aoa_to_sheet([titles[key]]),name);
+    }
+    window.XLSX.writeFile(book,'modele_chatbot_callcrm.xlsx');
+  }},'Télécharger le modèle Excel');
+  const file=h('input',{type:'file',accept:'.xlsx','aria-label':'Catalogue et FAQ Excel'});
+  function drawPreview(){
+    preview.replaceChildren(...Object.entries(sheets).map(([key,name])=>h('details', {},
+      h('summary',{},name+' · '+config[key].length+' ligne(s)'),
+      h('div',{class:'scroll'},h('table',{class:'t'},
+        h('thead',{},h('tr',{},titles[key].map(label=>h('th',{scope:'col'},label)))),
+        h('tbody',{},config[key].map(row=>h('tr',{},keys[key].map(column=>h('td',{dir:'auto'},row[column]))))))))));
+  }
+  file.addEventListener('change',async()=>{
+    const selected=file.files[0];
+    if(!selected || !config)return;
+    try{
+      if(!window.XLSX)throw new Error('Lecteur Excel indisponible.');
+      if(selected.size>1048576)throw new Error('Le fichier Excel doit faire 1 Mo maximum.');
+      const book=window.XLSX.read(await selected.arrayBuffer(),{type:'array',cellDates:true});
+      const imported={};
+      for(const [key,name] of Object.entries(sheets)){
+        const sheet=book.Sheets[name];
+        if(!sheet)continue;
+        const rows=window.XLSX.utils.sheet_to_json(sheet,{header:1,raw:true,defval:'',blankrows:false});
+        if(rows.length>501)throw new Error(name+' · 500 lignes maximum.');
+        if(!rows.length || titles[key].some((label,i)=>String(rows[0][i]??'').trim()!==label)){
+          throw new Error(name+' · utilise les en-têtes du modèle Excel.');
+        }
+        imported[key]=rows.slice(1).map(row=>Object.fromEntries(keys[key].map((column,i)=>{
+          const value=row[i];
+          const text=value instanceof Date?[value.getFullYear(),String(value.getMonth()+1).padStart(2,'0'),String(value.getDate()).padStart(2,'0')].join('-'):String(value??'').trim();
+          return [column,text];
+        })));
+      }
+      if(!Object.keys(imported).length)throw new Error('Le fichier doit contenir un onglet Catalogue ou FAQ.');
+      Object.assign(config,imported);
+      drawPreview();
+      message.textContent='Import chargé. Vérifie l’aperçu, puis clique sur Publier.';
+    }catch(error){message.textContent=error.message;}
+    finally{file.value='';}
+  });
+  const publish=h('button',{type:'button',class:'primary',onclick:async()=>{
+    publish.disabled=true;file.disabled=true;
+    try{
+      const texts={welcome:welcome.value};
+      for(const [lang,inputs] of Object.entries(fields)) texts[lang]=Object.fromEntries(Object.entries(inputs).map(([key,input])=>[key,input.value]));
+      config=await api('/wa/chatbot',{method:'POST',body:{...config,texts}});
+      drawPreview();
+      message.textContent='Réglages publiés. Le chatbot les utilisera au prochain message.';
+    }catch(error){message.textContent=error.message;}
+    finally{publish.disabled=false;file.disabled=false;}
+  }},'Publier');
+  box.append(form,message);
+  box.addEventListener('toggle',async()=>{
+    if(!box.open || config || form.dataset.loading)return;
+    form.dataset.loading='1';
+    message.textContent='Chargement…';
+    try{
+      config=await api('/wa/chatbot');
+      welcome.value=config.texts.welcome;
+      for(const [lang,inputs] of Object.entries(fields)){
+        for(const [key,input] of Object.entries(inputs)) input.value=config.texts[lang][key];
+      }
+      drawPreview();
+      form.replaceChildren(h('label',{},'Accueil bilingue',welcome),
+        h('div',{class:'g2'},Object.entries(fields).map(([lang,inputs])=>h('fieldset',{},
+          h('legend',{},lang==='fr'?'Français':'العربية'),
+          Object.entries(inputs).map(([key,input])=>h('label',{style:'display:block'},labels[key],input))))),
+        h('div',{class:'bar'},template,file),preview,publish);
+      message.textContent='';
+    }catch(error){message.textContent=error.message;}
+    finally{delete form.dataset.loading;}
+  });
+  return box;
+}
+
 function admin() {
   const m2 = h('div', {class:'muted'}), m3 = h('span', {class:'muted'});
   const file = h('input', {type:'file', accept:'.xlsx,.xls,.csv,.txt'});
@@ -2801,6 +2906,7 @@ function admin() {
     } catch (e) { invOut.textContent = e.message; }
   };
   show(h('h2', {}, 'Administration'),
+    me.role==='admin' ? chatbotSettingsCard() : '',
     h('div', {class:'card'}, h('h3', {}, 'Groupes de commerciaux'),
       h('p', {class:'muted'}, 'Les commerciaux sont les membres du groupe des commerciaux ; chaque commercial est placé dans le groupe de son équipe, ci-dessous.'),
       me.can.teams ? teamMoveForm() : '',

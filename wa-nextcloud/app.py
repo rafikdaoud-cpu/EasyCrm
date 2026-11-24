@@ -430,33 +430,75 @@ def set_bot_state(phone, step, language=""):
                     "SET step=excluded.step, language=excluded.language", (phone, step, language))
 
 
-def bot_step(state, choice, body):
-    if state is None:
-        return ("language", "", "Bonjour • مرحباً بكم في CSM Taksit. Choisissez votre langue / اختاروا اللغة.",
-                [("fr", "Français"), ("ar", "العربية")])
+def bot_key(value):
+    folded = unicodedata.normalize("NFKD", value.casefold())
+    return " ".join(re.findall(r"[^\W_]+", "".join(c for c in folded if not unicodedata.combining(c))))
+
+
+def bot_answer(config, body, lang, expect_model=False):
+    question = bot_key(body)
+    if not question:
+        return None
+    faq = [row for row in config.get("faq", [])
+           if question in (bot_key(row["question_fr"]), bot_key(row["question_ar"]))]
+    if len(faq) == 1:
+        return faq[0]["answer_" + lang]
+    if faq:
+        return None
+    words = set(question.split())
+    if not expect_model and not words.intersection({"prix", "tarif", "combien", "سعر", "السعر", "ثمن", "الثمن", "بكم", "شحال"}):
+        return None
+    matches = []
+    for row in config.get("catalog", []):
+        terms = [row["model"], *row["aliases"].split("|")]
+        keys = [key for term in terms if (key := bot_key(term))]
+        if any(key == question or f" {key} " in f" {question} " for key in keys):
+            matches.append(row)
+    if len(matches) != 1 or not matches[0]["price"]:
+        return None
+    row = matches[0]
+    availability = " · " + row["availability"] if row["availability"] else ""
+    if lang == "ar":
+        return f'{row["model"]} · السعر {row["price"]} دج · آخر تحديث {row["updated"]}{availability}'
+    return f'{row["model"]} · Prix {row["price"]} DA · Mis à jour le {row["updated"]}{availability}'
+
+
+def bot_step(state, choice, body, config=None):
+    config = config or {}
+    texts = config.get("texts", {})
+    if state is None or state[0] == "language":
+        lang = {"fr": "fr", "français": "fr", "ar": "ar", "العربية": "ar", "عربي": "ar"}.get(choice or body)
+        if not lang:
+            return ("language", "", texts.get("welcome", "Bonjour • مرحباً بكم في CSM Taksit. Choisissez votre langue / اختاروا اللغة."),
+                    [("fr", "Français"), ("ar", "العربية")])
+        t = texts.get(lang, {})
+        defaults = ("ما المنتج الذي تبحثون عنه؟", "دراجة نارية", "أجهزة منزلية", "التحدث إلى مستشار") if lang == "ar" else (
+            "Quel produit recherchez-vous ?", "Moto", "Électroménager", "Un commercial")
+        return ("product", lang, t.get("product", defaults[0]),
+                [(key, t.get(key, default)) for key, default in zip(("moto", "appliance", "agent"), defaults[1:])])
     step, lang = state
     if step == "done":
         return None
-    if step == "language":
-        lang = {"fr": "fr", "français": "fr", "ar": "ar", "العربية": "ar", "عربي": "ar"}.get(choice or body)
-        if not lang:
-            return bot_step(None, "", "")
-        if lang == "ar":
-            return ("product", lang, "ما المنتج الذي تبحثون عنه؟",
-                    [("moto", "دراجة نارية"), ("appliance", "أجهزة منزلية"), ("agent", "التحدث إلى مستشار")])
-        return ("product", lang, "Quel produit recherchez-vous ?",
-                [("moto", "Moto"), ("appliance", "Électroménager"), ("agent", "Un commercial")])
+    t = texts.get(lang, {})
     arabic = lang == "ar"
-    handoff = ("done", lang, "سيتابع أحد مستشارينا طلبكم هنا. شكراً لكم." if arabic else
-               "Un commercial reprendra votre demande ici. Merci !", [])
+    handoff = ("done", lang, t.get("handoff", "سيتابع أحد مستشارينا طلبكم هنا. شكراً لكم." if arabic else
+               "Un commercial reprendra votre demande ici. Merci !"), [])
     if choice == "agent" or body in {"commercial", "parler à un commercial", "مستشار", "التحدث إلى مستشار"}:
         return handoff
+    answer = bot_answer(config, body, lang, expect_model=step=="price")
+    if answer:
+        return ("product" if step == "price" else step, lang, answer, [])
+    price_words = {"prix", "tarif", "combien", "سعر", "السعر", "ثمن", "الثمن", "بكم", "شحال"}
+    tokens = set(bot_key(body).split())
+    if config.get("catalog") and tokens & price_words:
+        return ("price", lang, t.get("model", "ما هو الموديل المطلوب؟" if arabic else "Quel modèle recherchez-vous ?"), [])
     if step == "product":
-        if (choice or body) in {"moto", "appliance", "électroménager", "دراجة نارية", "أجهزة منزلية"}:
-            return ("model", lang, "ما هو الموديل المطلوب؟" if arabic else "Quel modèle recherchez-vous ?", [])
+        if (choice or body) in {"moto", "appliance", "électroménager", "دراجة نارية", "أجهزة منزلية",
+                                t.get("moto", "").casefold(), t.get("appliance", "").casefold()} - {""}:
+            return ("model", lang, t.get("model", "ما هو الموديل المطلوب؟" if arabic else "Quel modèle recherchez-vous ?"), [])
         return handoff
-    if step == "model" and body and not any(word in body for word in ("prix", "tarif", "combien", "سعر", "ثمن", "؟", "?")):
-        return ("wilaya", lang, "في أي ولاية تقيمون؟" if arabic else "Dans quelle wilaya êtes-vous ?", [])
+    if step == "model" and body and not (tokens & price_words or "?" in body or "؟" in body):
+        return ("wilaya", lang, t.get("wilaya", "في أي ولاية تقيمون؟" if arabic else "Dans quelle wilaya êtes-vous ?"), [])
     return handoff
 
 
@@ -471,7 +513,7 @@ def reply_with_bot(phone, num, uid, value, event, choice, crm):
         return
     if not 0 <= time.time() - event["ts"] < 86400:
         return
-    reply = bot_step(state, choice, event["text"].strip().casefold())
+    reply = bot_step(state, choice, event["text"].strip().casefold(), crm.get("chatbot"))
     if reply is None:
         return
     step, lang, text, buttons = reply
@@ -571,6 +613,8 @@ def handle_message(msg, value, direction="in"):
         line = f"[{stamp}] {who} | {mtype} | (type non archivé)"
 
     hist_append(f"{folder}/historique.txt", line)
+    if CHATBOT_ENABLED and direction == "in" and mtype in ("text", "interactive"):
+        event["chatbot"] = True
     crm = crm_post("/inbound", event, response=CHATBOT_ENABLED)
     mark_processed(msg_id)
     if CHATBOT_ENABLED and (num or uid):

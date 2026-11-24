@@ -120,6 +120,8 @@ return ['routes' => [
 	['name' => 'wa#sendProspect', 'url' => '/api/wa/prospect/{pid}/send', 'verb' => 'POST'],
 	['name' => 'wa#templates', 'url' => '/api/wa/templates', 'verb' => 'GET'],
 	['name' => 'wa#file', 'url' => '/api/wa/file/{mid}', 'verb' => 'GET'],
+	['name' => 'wa#chatbot', 'url' => '/api/wa/chatbot', 'verb' => 'GET'],
+	['name' => 'wa#saveChatbot', 'url' => '/api/wa/chatbot', 'verb' => 'POST'],
 	['name' => 'wa#show', 'url' => '/api/wa/{id}', 'verb' => 'GET'],
 	['name' => 'wa#send', 'url' => '/api/wa/{id}/send', 'verb' => 'POST'],
 	['name' => 'wa#assign', 'url' => '/api/wa/{id}/assign', 'verb' => 'POST'],
