@@ -2787,7 +2787,7 @@ function chatbotSettingsCard() {
     catalog:['Modèle','Autres noms (séparés par |)','Prix en DA','Disponibilité','Date de mise à jour'],
     faq:['Question en français','Question en arabe','Réponse en français','Réponse en arabe']
   };
-  const labels={product:'Question sur le produit',moto:'Bouton Moto',appliance:'Bouton Électroménager',
+  const labels={product:'Question sur le produit',moto:'Bouton Moto',appliance:'Bouton Électroménager',furniture:'Choix Meubles / Aménagement',
     agent:'Bouton Commercial',model:'Question sur le modèle',wilaya:'Question sur la wilaya',handoff:'Message de relais'};
   const welcome=h('textarea',{rows:2,maxlength:900,dir:'auto'});
   const fields={};
@@ -2795,8 +2795,8 @@ function chatbotSettingsCard() {
   for(const lang of ['fr','ar']){
     fields[lang]={};
     for(const key of Object.keys(labels)){
-      const button=['moto','appliance','agent'].includes(key);
-      fields[lang][key]=button?h('input',{maxlength:20,dir:lang==='ar'?'rtl':'ltr'}):
+      const button=['moto','appliance','furniture','agent'].includes(key);
+      fields[lang][key]=button?h('input',{maxlength:key==='furniture'?24:20,dir:lang==='ar'?'rtl':'ltr'}):
         h('textarea',{rows:2,maxlength:900,dir:lang==='ar'?'rtl':'ltr'});
     }
   }

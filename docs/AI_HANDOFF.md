@@ -430,3 +430,9 @@ Le service WhatsApp peut proposer Français ou العربية, puis Moto, Élect
 Dans Administration, ouvrir le bloc WhatsApp · Chatbot avec un compte admin. Modifier les textes français et arabes ou télécharger le modèle Excel. Remplir l’onglet Catalogue et/ou FAQ, sélectionner le fichier, vérifier l’aperçu et publier. Un onglet absent conserve la version publiée. Un onglet présent avec seulement ses en-têtes efface ses entrées. Les alias de produit sont séparés par `|`. La date suit le format AAAA-MM-JJ et le prix est en dinars algériens. Les textes de boutons acceptent 20 caractères maximum, le fichier 1 Mo et les données publiées 60 Ko.
 
 Après le choix de la langue, la FAQ répond à une question renseignée dans le fichier en ignorant la casse, la ponctuation et les accents. Le catalogue répond aux demandes de prix avec un modèle ou alias unique et un prix renseigné. Une question ambiguë ou sans prix suit le parcours de précision ou est transmise au commercial. Publier les modifications depuis Administration suffit ensuite. Déployer Call CRM et wa-nextcloud du même commit et conserver `CHATBOT_ENABLED=1` pour activer les réponses. Aucun changement de schéma Nextcloud.
+
+## Call CRM 0.57.23 · Meubles et durée du paiement
+
+Le menu WhatsApp de choix du produit est une liste en français ou en arabe avec Moto, Électroménager, Meubles / Aménagement et Un commercial. Les anciens réglages conservent leurs textes et reçoivent le libellé par défaut de la nouvelle catégorie. Le libellé est éditable dans Administration → WhatsApp · Chatbot.
+
+Le bot répond aux formulations usuelles sur la durée du paiement en plusieurs fois par « de 12 à 60 mois ». Si cette question ouvre la conversation, le bot répond dans la langue du message et propose le menu de produits. En cours de qualification, il conserve l’étape. Après relais, le commercial garde la main. Déployer Call CRM et wa-nextcloud ensemble. Aucun changement de schéma Nextcloud.

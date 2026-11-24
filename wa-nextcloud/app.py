@@ -463,19 +463,37 @@ def bot_answer(config, body, lang, expect_model=False):
     return f'{row["model"]} · Prix {row["price"]} DA · Mis à jour le {row["updated"]}{availability}'
 
 
+def bot_duration_question(body):
+    words = set(bot_key(body).split())
+    duration = {"duree", "durees", "مده", "مدة", "المدة", "المده"}
+    financing = {"pret", "prets", "credit", "financement", "taksit", "taqsit", "تقسيط", "التقسيط", "قرض", "القرض"}
+    query = {"combien", "كم", "شحال", "قداش"}
+    units = {"mois", "annees", "شهر", "اشهر", "شهور", "سنة", "سنوات"}
+    return bool((words & duration and words & financing) or (words & query and words & units))
+
+
+def bot_duration_reply(lang):
+    return ("مدة الدفع بالتقسيط تتراوح من 12 إلى 60 شهرًا." if lang == "ar"
+            else "La durée du paiement en plusieurs fois va de 12 à 60 mois.")
+
+
 def bot_step(state, choice, body, config=None):
     config = config or {}
     texts = config.get("texts", {})
     if state is None or state[0] == "language":
         lang = {"fr": "fr", "français": "fr", "ar": "ar", "العربية": "ar", "عربي": "ar"}.get(choice or body)
+        if not lang and bot_duration_question(body):
+            lang = "ar" if re.search(r"[\u0600-\u06ff]", body) else "fr"
+            step, lang, prompt, choices = bot_step(("language", ""), lang, "", config)
+            return step, lang, bot_duration_reply(lang) + "\n\n" + prompt, choices
         if not lang:
             return ("language", "", texts.get("welcome", "Bonjour • مرحباً بكم في CSM Taksit. Choisissez votre langue / اختاروا اللغة."),
                     [("fr", "Français"), ("ar", "العربية")])
         t = texts.get(lang, {})
-        defaults = ("ما المنتج الذي تبحثون عنه؟", "دراجة نارية", "أجهزة منزلية", "التحدث إلى مستشار") if lang == "ar" else (
-            "Quel produit recherchez-vous ?", "Moto", "Électroménager", "Un commercial")
+        defaults = ("ما المنتج الذي تبحثون عنه؟", "دراجة نارية", "أجهزة منزلية", "أثاث وتجهيز المنزل", "التحدث إلى مستشار") if lang == "ar" else (
+            "Quel produit recherchez-vous ?", "Moto", "Électroménager", "Meubles / Aménagement", "Un commercial")
         return ("product", lang, t.get("product", defaults[0]),
-                [(key, t.get(key, default)) for key, default in zip(("moto", "appliance", "agent"), defaults[1:])])
+                [(key, t.get(key, default)) for key, default in zip(("moto", "appliance", "furniture", "agent"), defaults[1:])])
     step, lang = state
     if step == "done":
         return None
@@ -485,6 +503,8 @@ def bot_step(state, choice, body, config=None):
                "Un commercial reprendra votre demande ici. Merci !"), [])
     if choice == "agent" or body in {"commercial", "parler à un commercial", "مستشار", "التحدث إلى مستشار"}:
         return handoff
+    if bot_duration_question(body):
+        return step, lang, bot_duration_reply(lang), []
     answer = bot_answer(config, body, lang, expect_model=step=="price")
     if answer:
         return ("product" if step == "price" else step, lang, answer, [])
@@ -493,8 +513,11 @@ def bot_step(state, choice, body, config=None):
     if config.get("catalog") and tokens & price_words:
         return ("price", lang, t.get("model", "ما هو الموديل المطلوب؟" if arabic else "Quel modèle recherchez-vous ?"), [])
     if step == "product":
-        if (choice or body) in {"moto", "appliance", "électroménager", "دراجة نارية", "أجهزة منزلية",
-                                t.get("moto", "").casefold(), t.get("appliance", "").casefold()} - {""}:
+        if bot_key(choice or body) in {"moto", "appliance", "electromenager", "furniture", "meuble", "meubles",
+                                      "amenagement", "meuble amenagement", "meubles amenagement", "دراجة نارية", "اجهزة منزلية", "اثاث",
+                                      "اثاث وتجهيز المنزل"} | {
+                bot_key(t[key]) for key in ("moto", "appliance", "furniture") if t.get(key)
+        }:
             return ("model", lang, t.get("model", "ما هو الموديل المطلوب؟" if arabic else "Quel modèle recherchez-vous ?"), [])
         return handoff
     if step == "model" and body and not (tokens & price_words or "?" in body or "؟" in body):
@@ -518,7 +541,12 @@ def reply_with_bot(phone, num, uid, value, event, choice, crm):
         return
     step, lang, text, buttons = reply
     payload = {"to": num or uid, "type": "text", "text": {"body": text}}
-    if buttons:
+    if len(buttons) > 3:
+        payload = {"to": num or uid, "type": "interactive", "interactive": {
+            "type": "list", "body": {"text": text}, "action": {
+                "button": "عرض الخيارات" if lang == "ar" else "Voir les choix",
+                "sections": [{"rows": [{"id": "crm_" + key, "title": title} for key, title in buttons]}]}}}
+    elif buttons:
         payload = {"to": num or uid, "type": "interactive", "interactive": {
             "type": "button", "body": {"text": text}, "action": {
                 "buttons": [{"type": "reply", "reply": {"id": "crm_" + key, "title": title}}
@@ -604,7 +632,8 @@ def handle_message(msg, value, direction="in"):
         line = f"[{stamp}] {who} | position | {txt}"
         event["text"] = f"https://maps.google.com/?q={loc.get('latitude')},{loc.get('longitude')} {loc.get('name', '')}".strip()
     elif mtype in ("button", "interactive"):
-        button = (msg.get("interactive") or {}).get("button_reply") or {}
+        interactive = msg.get("interactive") or {}
+        button = interactive.get("button_reply") or interactive.get("list_reply") or {}
         choice = str(button.get("id", ""))[4:] if str(button.get("id", "")).startswith("crm_") else ""
         body = button.get("title") or (msg.get("button") or {}).get("text") or json.dumps(msg.get("interactive", {}), ensure_ascii=False)[:500]
         line = f"[{stamp}] {who} | {mtype} | {body}"
