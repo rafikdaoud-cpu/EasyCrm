@@ -605,7 +605,7 @@ def bot_service_reply(body, lang, config):
         answers.append(reply("website", f"{label} : https://csmtaksit.dz"))
     if bot_matches_phrase(question, ("parler à un conseiller", "parler à un commercial", "joindre un conseiller",
                                      "الحديث مع مستشار", "التحدث إلى مستشار", "لم تجد جوابك")):
-        return "done", reply("consultant", "يمكنكم الاتصال بمركز الاتصال على 0553 553 553. الخدمة مجانية ودون التزام."
+        return "waiting_agent", reply("consultant", "يمكنكم الاتصال بمركز الاتصال على 0553 553 553. الخدمة مجانية ودون التزام."
                         if arabic else "Tu peux joindre un conseiller au 0553 553 553. Le service est gratuit et sans engagement.")
     send_docs = bot_matches_phrase(question, ("envoyer mes documents", "envoyer les documents", "envoyer mon dossier",
                                              "transmettre mon dossier", "ارسال وثائقي", "أرسل وثائقي",
@@ -662,13 +662,16 @@ def bot_step(state, choice, body, config=None):
                 [(key, t.get(key, default)) for key, default in zip(("moto", "appliance", "furniture", "agent"), defaults[1:])])
     step, lang = state
     if step == "done":
-        return None
+        if not lang:
+            return None
+        # Older automatic handoffs stored the language. Human takeover did not.
+        step = "waiting_agent"
     t = texts.get(lang, {})
     arabic = lang == "ar"
-    handoff = ("done", lang, t.get("handoff", "سيتابع أحد مستشارينا طلبكم هنا. شكراً لكم." if arabic else
+    handoff = ("waiting_agent", lang, t.get("handoff", "سيتابع أحد مستشارينا طلبكم هنا. شكراً لكم." if arabic else
                "Un commercial reprendra votre demande ici. Merci !"), [])
     if choice == "agent" or body in {"commercial", "مستشار"}:
-        return handoff
+        return None if step == "waiting_agent" else handoff
     service_step, answer = bot_service_reply(body, lang, config)
     if service_step == "dossier":
         return bot_dossier_step(lang, choice, body, answer, config)
@@ -685,6 +688,8 @@ def bot_step(state, choice, body, config=None):
     tokens = set(bot_key(body).split())
     if config.get("catalog") and tokens & price_words:
         return ("price", lang, t.get("model", "ما هو الموديل المطلوب؟" if arabic else "Quel modèle recherchez-vous ?"), [])
+    if step == "waiting_agent":
+        return None
     if step == "product":
         if bot_key(choice or body) in {"moto", "appliance", "electromenager", "furniture", "meuble", "meubles",
                                       "amenagement", "meuble amenagement", "meubles amenagement", "دراجة نارية", "اجهزة منزلية", "اثاث",

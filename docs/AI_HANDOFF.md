@@ -452,3 +452,7 @@ Le contrôle de déploiement sur cPanel utilise `python3`, qui peut être plus a
 ## Call CRM 0.57.24 · Modification des réponses intégrées
 
 Dans Administration → WhatsApp · Chatbot, ouvrir Réponses intégrées du chatbot, modifier les textes français et arabes puis Publier. La section contient la FAQ de financement, la livraison, les conditions d’éligibilité, les pièces pour les quatre profils et les messages de suivi. La FAQ Excel conserve ses entrées personnalisées. Les anciens réglages sont conservés et les réponses intégrées sont préremplies. Déployer Call CRM et wa-nextcloud ensemble pour appliquer les textes publiés au prochain message. Aucun changement de schéma.
+
+### wa-nextcloud · FAQ en attente d’un conseiller
+
+Une annonce de relais place la conversation en attente. Le chatbot continue de traiter les questions reconnues et ne répète pas le message de relais pour les autres. Une réponse humaine ou l’orientation par poste conserve la priorité et arrête le chatbot. Les annonces automatiques des anciennes versions se distinguent par la langue enregistrée et sont prises en charge sans réinitialiser les conversations.
