@@ -68,6 +68,7 @@ NC_ROOT = env("NC_ROOT", "WhatsApp").strip("/")
 CRM_URL = (env("CRM_URL", "") or "").rstrip("/")          # https://cloud.csmtaksit.dz/index.php/apps/callcrm/api/wa
 CRM_SECRET = env("CRM_SECRET", "")                        # secret partagé avec callcrm (occ … wa_secret)
 
+CHATBOT_ENABLED = env("CHATBOT_ENABLED", "0") == "1"
 AUTO_REPLY = env("AUTO_REPLY", "1") == "1"                # accusé de réception 1x/jour/client
 AUTO_REPLY_TEXT = env(
     "AUTO_REPLY_TEXT",
@@ -143,6 +144,7 @@ def db():
     con = sqlite3.connect(DB_PATH, timeout=30)
     con.execute("CREATE TABLE IF NOT EXISTS processed (msg_id TEXT PRIMARY KEY, ts INTEGER)")
     con.execute("CREATE TABLE IF NOT EXISTS replied (phone TEXT, day TEXT, PRIMARY KEY (phone, day))")
+    con.execute("CREATE TABLE IF NOT EXISTS chatbot (phone TEXT PRIMARY KEY, step TEXT, language TEXT)")
     return con
 
 
@@ -338,14 +340,14 @@ def send_text(phone_number_id, to, text):
 # --------------------------------------------------------------------------- #
 # Transfert vers le CRM (callcrm)
 # --------------------------------------------------------------------------- #
-def crm_post(path, data, queue_on_fail=True):
+def crm_post(path, data, queue_on_fail=True, response=False):
     if not CRM_URL or not CRM_SECRET:
-        return True
+        return None if response else True
     try:
         r = requests.post(CRM_URL + path, json=data, timeout=20,
                           headers={"X-CRM-Secret": CRM_SECRET, "OCS-APIRequest": "true", "User-Agent": "wa-nextcloud/1.1"})
         if r.status_code < 300:
-            return True
+            return r.json() if response else True
         log.warning("CRM %s -> HTTP %s %s", path, r.status_code, r.text[:200])
     except Exception as e:  # noqa: BLE001
         log.warning("CRM %s injoignable : %s", path, e)
@@ -417,6 +419,83 @@ def folder_key(num, uid):
     return num or re.sub(r"[^A-Za-z0-9.]", "", uid) or "inconnu"
 
 
+def bot_state(phone):
+    with _db_lock, db() as con:
+        return con.execute("SELECT step, language FROM chatbot WHERE phone=?", (phone,)).fetchone()
+
+
+def set_bot_state(phone, step, language=""):
+    with _db_lock, db() as con:
+        con.execute("INSERT INTO chatbot VALUES (?, ?, ?) ON CONFLICT(phone) DO UPDATE "
+                    "SET step=excluded.step, language=excluded.language", (phone, step, language))
+
+
+def bot_step(state, choice, body):
+    if state is None:
+        return ("language", "", "Bonjour • مرحباً بكم في CSM Taksit. Choisissez votre langue / اختاروا اللغة.",
+                [("fr", "Français"), ("ar", "العربية")])
+    step, lang = state
+    if step == "done":
+        return None
+    if step == "language":
+        lang = {"fr": "fr", "français": "fr", "ar": "ar", "العربية": "ar", "عربي": "ar"}.get(choice or body)
+        if not lang:
+            return bot_step(None, "", "")
+        if lang == "ar":
+            return ("product", lang, "ما المنتج الذي تبحثون عنه؟",
+                    [("moto", "دراجة نارية"), ("appliance", "أجهزة منزلية"), ("agent", "التحدث إلى مستشار")])
+        return ("product", lang, "Quel produit recherchez-vous ?",
+                [("moto", "Moto"), ("appliance", "Électroménager"), ("agent", "Un commercial")])
+    arabic = lang == "ar"
+    handoff = ("done", lang, "سيتابع أحد مستشارينا طلبكم هنا. شكراً لكم." if arabic else
+               "Un commercial reprendra votre demande ici. Merci !", [])
+    if choice == "agent" or body in {"commercial", "parler à un commercial", "مستشار", "التحدث إلى مستشار"}:
+        return handoff
+    if step == "product":
+        if (choice or body) in {"moto", "appliance", "électroménager", "دراجة نارية", "أجهزة منزلية"}:
+            return ("model", lang, "ما هو الموديل المطلوب؟" if arabic else "Quel modèle recherchez-vous ?", [])
+        return handoff
+    if step == "model" and body and not any(word in body for word in ("prix", "tarif", "combien", "سعر", "ثمن", "؟", "?")):
+        return ("wilaya", lang, "في أي ولاية تقيمون؟" if arabic else "Dans quelle wilaya êtes-vous ?", [])
+    return handoff
+
+
+def reply_with_bot(phone, num, uid, value, event, choice, crm):
+    if not isinstance(crm, dict) or not crm.get("created"):
+        return
+    state = bot_state(phone)
+    if crm.get("routed") or (state is None and crm.get("recent_reply")):
+        set_bot_state(phone, "done")
+        return
+    if event["type"] not in ("text", "interactive") or not (num or uid):
+        return
+    if not 0 <= time.time() - event["ts"] < 86400:
+        return
+    reply = bot_step(state, choice, event["text"].strip().casefold())
+    if reply is None:
+        return
+    step, lang, text, buttons = reply
+    payload = {"to": num or uid, "type": "text", "text": {"body": text}}
+    if buttons:
+        payload = {"to": num or uid, "type": "interactive", "interactive": {
+            "type": "button", "body": {"text": text}, "action": {
+                "buttons": [{"type": "reply", "reply": {"id": "crm_" + key, "title": title}}
+                            for key, title in buttons]}}}
+    try:
+        pnid = value.get("metadata", {}).get("phone_number_id") or WA_PHONE_NUMBER_ID
+        wamid = wa_send(pnid, payload)
+    except Exception:  # noqa: BLE001
+        log.warning("Réponse chatbot non envoyée")
+        return
+    if not wamid:
+        return
+    set_bot_state(phone, step, lang)
+    readable = text + (" · " + " / ".join(title for _, title in buttons) if buttons else "")
+    crm_post("/inbound", {"wamid": wamid, "wa_id": num, "user_id": uid, "type": "text", "text": readable,
+                          "direction": "out", "user": "auto", "ts": int(time.time())})
+    hist_append(f"{NC_ROOT}/{phone}/historique.txt", f"[{datetime.now(TZ):%Y-%m-%d %H:%M:%S}] chatbot | {readable}")
+
+
 def handle_message(msg, value, direction="in"):
     """direction 'in' : message client ; 'out' : écho d'un message envoyé depuis l'appli WhatsApp Business."""
     msg_id = msg["id"]
@@ -443,6 +522,7 @@ def handle_message(msg, value, direction="in"):
     event = {"wamid": msg_id, "wa_id": num, "user_id": uid, "name": contact, "type": mtype, "ts": int(ts.timestamp()),
              "direction": direction, "user": "app" if direction == "out" else "", "text": ""}
 
+    choice = ""
     if mtype in MEDIA_TYPES:
         media = msg[mtype]
         original = media.get("filename")
@@ -482,15 +562,22 @@ def handle_message(msg, value, direction="in"):
         line = f"[{stamp}] {who} | position | {txt}"
         event["text"] = f"https://maps.google.com/?q={loc.get('latitude')},{loc.get('longitude')} {loc.get('name', '')}".strip()
     elif mtype in ("button", "interactive"):
-        body = (msg.get("button") or {}).get("text") or json.dumps(msg.get("interactive", {}), ensure_ascii=False)[:500]
+        button = (msg.get("interactive") or {}).get("button_reply") or {}
+        choice = str(button.get("id", ""))[4:] if str(button.get("id", "")).startswith("crm_") else ""
+        body = button.get("title") or (msg.get("button") or {}).get("text") or json.dumps(msg.get("interactive", {}), ensure_ascii=False)[:500]
         line = f"[{stamp}] {who} | {mtype} | {body}"
         event["text"] = body
     else:
         line = f"[{stamp}] {who} | {mtype} | (type non archivé)"
 
     hist_append(f"{folder}/historique.txt", line)
-    crm_post("/inbound", event)
+    crm = crm_post("/inbound", event, response=CHATBOT_ENABLED)
     mark_processed(msg_id)
+    if CHATBOT_ENABLED and (num or uid):
+        if direction == "in":
+            reply_with_bot(phone, num, uid, value, event, choice, crm)
+        else:
+            set_bot_state(phone, "done")
 
     if direction == "in" and mtype in MEDIA_TYPES and AUTO_REPLY and should_reply_today(phone):
         pnid = value.get("metadata", {}).get("phone_number_id") or WA_PHONE_NUMBER_ID
@@ -814,6 +901,9 @@ def send():
             return jsonify(error=str(e)), 400
         except Exception as e:  # noqa: BLE001
             return jsonify(error=str(e)), 502
+        if CHATBOT_ENABLED:
+            with phone_lock(fkey):
+                set_bot_state(fkey, "done")
         try:
             wamid = wa_send(WA_PHONE_NUMBER_ID, payload)
         except Exception as e:  # noqa: BLE001
@@ -831,6 +921,9 @@ def send():
         return jsonify(wamid=wamid, text=readable)
     if not to or (not text and not f):
         return jsonify(error="Destinataire ou contenu manquant"), 400
+    if CHATBOT_ENABLED:
+        with phone_lock(fkey):
+            set_bot_state(fkey, "done")
     saved = ""
     try:
         if f:

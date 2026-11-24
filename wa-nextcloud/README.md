@@ -160,3 +160,7 @@ Chaque photo reçue (`image`) est convertie en PDF A4 et rangée à côté de la
 - `KEEP_IMAGE=0` : seul le PDF est gardé ; le CRM affiche alors le PDF à la place de la photo.
 - Les documents déjà en PDF, les vocaux, vidéos et autocollants ne sont pas convertis.
 - Réglages dans `.env` : `IMAGE_TO_PDF`, `KEEP_IMAGE`, `STIRLING_URL`, `STIRLING_USER` / `STIRLING_PASSWORD` (Nginx + AD), `STIRLING_API_KEY`, `STIRLING_FIT`, `STIRLING_COLOR`.
+
+### Chatbot de qualification Call CRM
+
+Déployer le service et Call CRM 0.57.21 ensemble. Régler `CHATBOT_ENABLED=1` dans l’environnement du service, puis le redémarrer. Le bot démarre à la réception d’un message dans la fenêtre WhatsApp. Tester les boutons en français et en arabe, un poste connu et une réponse manuelle. `CHATBOT_ENABLED=0` désactive les réponses du bot. Les étapes restent dans `data/state.db`. Les demandes de prix passent au commercial jusqu’à l’ajout d’une source de prix.

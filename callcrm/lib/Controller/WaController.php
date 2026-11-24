@@ -87,12 +87,15 @@ class WaController extends Controller {
 	public function inbound(): JSONResponse {
 		if (!$this->secretOk()) { return $this->deny(); }
 		$ev = $this->request->getParams();
-		try { $r = $this->wa->record($ev, $this->routeByExtension($ev)); } catch (\InvalidArgumentException $e) { return $this->err($e->getMessage()); }
+		$route = $this->routeByExtension($ev);
+		try { $r = $this->wa->record($ev, $route); } catch (\InvalidArgumentException $e) { return $this->err($e->getMessage()); }
+		$c = null;
 		if ($r['created'] && ($ev['direction'] ?? 'in') === 'in') {
 			$c = $this->wa->conv($r['conv']);
 			$this->s->audit(null, 'wa_in', $c && $c['linked'] ? (int)$c['prospect_id'] : null, ($c['wa_id'] ?? '') . ' → ' . ($c && $c['owner'] ? $c['owner'] : 'file d’attente'));
 		}
-		return new JSONResponse(['ok' => true] + $r);
+		return new JSONResponse(['ok'=>true, 'routed'=>$route !== null,
+			'recent_reply'=>!empty($c['last_out_at']) && (int)$c['last_out_at'] > time()-Wa::WINDOW] + $r);
 	}
 	#[PublicPage]
 	#[NoCSRFRequired]
