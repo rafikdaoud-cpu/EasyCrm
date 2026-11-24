@@ -99,7 +99,8 @@ class WaController extends Controller {
 		$data = ['ok'=>true, 'routed'=>$route !== null,
 			'recent_reply'=>!empty($c['last_out_at']) && (int)$c['last_out_at'] > time()-Wa::WINDOW] + $r;
 		if ($c && !$route && ($ev['chatbot'] ?? false) === true) {
-			$data['chatbot'] = Server::get(WaChatbot::class)->get();
+			$data['human_reply'] = $this->wa->hasRecentHumanReply((int)$c['id']);
+			if (!$data['human_reply']) $data['chatbot'] = Server::get(WaChatbot::class)->get();
 		}
 		return new JSONResponse($data);
 	}

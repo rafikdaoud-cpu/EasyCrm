@@ -707,7 +707,8 @@ def reply_with_bot(phone, num, uid, value, event, choice, crm):
     if not isinstance(crm, dict) or not crm.get("created"):
         return
     state = bot_state(phone)
-    if crm.get("routed") or (state is None and crm.get("recent_reply")):
+    recent_human = crm.get("human_reply", state is None and crm.get("recent_reply"))
+    if crm.get("routed") or recent_human:
         set_bot_state(phone, "done")
         return
     if event["type"] not in ("text", "interactive") or not (num or uid):
@@ -820,7 +821,7 @@ def handle_message(msg, value, direction="in"):
         line = f"[{stamp}] {who} | {mtype} | (type non archivé)"
 
     hist_append(f"{folder}/historique.txt", line)
-    if CHATBOT_ENABLED and direction == "in" and mtype in ("text", "interactive"):
+    if CHATBOT_ENABLED and direction == "in":
         event["chatbot"] = True
     crm = crm_post("/inbound", event, response=CHATBOT_ENABLED)
     mark_processed(msg_id)
@@ -830,7 +831,9 @@ def handle_message(msg, value, direction="in"):
         else:
             set_bot_state(phone, "done")
 
-    if direction == "in" and mtype in MEDIA_TYPES and AUTO_REPLY and should_reply_today(phone):
+    if (direction == "in" and mtype in MEDIA_TYPES and AUTO_REPLY
+            and not (CHATBOT_ENABLED and bot_state(phone) == ("done", ""))
+            and should_reply_today(phone)):
         pnid = value.get("metadata", {}).get("phone_number_id") or WA_PHONE_NUMBER_ID
         wamid = send_text(pnid, num or uid, AUTO_REPLY_TEXT)
         if wamid:

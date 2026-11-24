@@ -456,3 +456,7 @@ Dans Administration → WhatsApp · Chatbot, ouvrir Réponses intégrées du cha
 ### wa-nextcloud · FAQ en attente d’un conseiller
 
 Une annonce de relais place la conversation en attente. Le chatbot continue de traiter les questions reconnues et ne répète pas le message de relais pour les autres. Une réponse humaine ou l’orientation par poste conserve la priorité et arrête le chatbot. Les annonces automatiques des anciennes versions se distinguent par la langue enregistrée et sont prises en charge sans réinitialiser les conversations.
+
+## Call CRM 0.57.25 · Arrêt du chatbot à la reprise humaine
+
+Lors d’un message entrant, le service vérifie aussi la présence d’une réponse humaine récente dans l’historique de la conversation CRM. Ceci couvre une reprise déjà enregistrée même si l’état local du bot n’a pas été arrêté pour le même identifiant. Les messages du bot et les accusés automatiques ne comptent pas comme des réponses humaines. Après la reprise, l’accusé automatique de réception des pièces est également suspendu pour cette conversation lorsque le chatbot est activé. Déployer Call CRM et le service WhatsApp ensemble. Aucun changement de schéma.

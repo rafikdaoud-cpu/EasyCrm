@@ -129,6 +129,18 @@ class Wa {
 			->orderBy('created_at', 'DESC')->addOrderBy('id', 'DESC')->setMaxResults($limit);
 		return array_reverse($qb->executeQuery()->fetchAll());
 	}
+	/** Les accusés de réception automatiques ne constituent pas une prise en charge. */
+	public function hasRecentHumanReply(int $convId): bool {
+		$q = $this->db->getQueryBuilder();
+		return (bool)$q->select('id')->from('callcrm_wa_msg')
+			->where($q->expr()->eq('conv_id',$q->createNamedParameter($convId,IQueryBuilder::PARAM_INT)))
+			->andWhere($q->expr()->eq('direction',$q->createNamedParameter('out')))
+			->andWhere($q->expr()->isNotNull('user_id'))
+			->andWhere($q->expr()->neq('user_id',$q->createNamedParameter('auto')))
+			->andWhere($q->expr()->gte('created_at',$q->createNamedParameter(time()-self::WINDOW,IQueryBuilder::PARAM_INT)))
+			->setMaxResults(1)->executeQuery()->fetchOne();
+	}
+
 	public function message(int $id): ?array {
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('*')->from('callcrm_wa_msg')->where($qb->expr()->eq('id', $qb->createNamedParameter($id, IQueryBuilder::PARAM_INT)));
