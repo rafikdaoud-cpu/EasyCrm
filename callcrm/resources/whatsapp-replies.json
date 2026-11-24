@@ -1,0 +1,97 @@
+{
+  "down_payment": {
+    "label": "Apport initial",
+    "fr": "L’achat à tempérament avec CSM Taksit se fait sans apport initial. Le montant total est financé et remboursé en mensualités.",
+    "ar": "الشراء بالتقسيط مع CSM Taksit بدون دفعة أولى. يُموَّل المبلغ كاملاً ويُسدَّد بأقساط شهرية."
+  },
+  "amount": {
+    "label": "Montant finançable",
+    "fr": "Le total de tes achats doit être compris entre 50 000 et 4 000 000 DA. Tu peux regrouper plusieurs produits.",
+    "ar": "يجب أن يتراوح مجموع مشترياتك بين 50 000 دج و4 000 000 دج. يمكنك جمع عدة منتجات."
+  },
+  "fees": {
+    "label": "Frais",
+    "fr": "CSM Taksit ne facture aucun frais supplémentaire de dossier, de retrait ni de livraison.",
+    "ar": "لا تفرض CSM Taksit أي رسوم إضافية للملف أو الاستلام أو التوصيل."
+  },
+  "islamic": {
+    "label": "Finance islamique",
+    "fr": "Oui. Notre banque partenaire de référence, Al Baraka Bank Algérie, propose un financement conforme aux principes de la finance islamique.",
+    "ar": "نعم. يقدم شريكنا المرجعي، بنك البركة الجزائر، تمويلاً متوافقًا مع أحكام الشريعة الإسلامية."
+  },
+  "simulation": {
+    "label": "Simulation",
+    "fr": "La simulation est indicative. Le financement reste soumis à l’étude de ton dossier et à l’accord de la banque.",
+    "ar": "المحاكاة إرشادية. يبقى التمويل خاضعًا لدراسة ملفك وموافقة البنك."
+  },
+  "cash": {
+    "label": "Paiement comptant",
+    "fr": "Le paiement comptant est possible dans nos showrooms. Le site est réservé à l’achat à tempérament.",
+    "ar": "الدفع نقدًا متاح في صالات العرض فقط. الموقع مخصص للشراء بالتقسيط."
+  },
+  "tracking": {
+    "label": "Suivi de commande",
+    "fr": "Dans ton espace client, tu peux consulter la référence et les étapes de traitement de ta commande, les pièces manquantes ou à remplacer et les messages de ton conseiller.",
+    "ar": "يمكنك متابعة طلبك في فضاء العميل: مرجع الطلب، مراحل المعالجة، الوثائق الناقصة أو المطلوب استبدالها، ورسائل مستشارك."
+  },
+  "eligibility": {
+    "label": "Conditions d’éligibilité",
+    "fr": "Conditions d’éligibilité :\n• De 19 à 75 ans, avec 75 ans au maximum à la dernière échéance.\n• Justifier d’un revenu stable et régulier domicilié chez Algérie Poste ou dans une banque algérienne.\n• Salaire mensuel d’au moins 20 000 DA.\n• Durée du financement de 12 à 60 mois.\n• Les mensualités ne dépassent pas 30 % du salaire mensuel.",
+    "ar": "شروط الأهلية:\n• السن من 19 إلى 75 سنة عند آخر قسط.\n• إثبات دخل ثابت ومنتظم موطّن في حساب بريد الجزائر أو لدى بنك جزائري.\n• راتب شهري لا يقل عن 20 000 دج.\n• مدة التمويل من 12 إلى 60 شهرًا.\n• المستحقات الشهرية لا تتجاوز 30٪ من الراتب الشهري."
+  },
+  "duration": {
+    "label": "Durée du financement",
+    "fr": "La durée du paiement en plusieurs fois va de 12 à 60 mois. La fiche de chaque produit affiche la mensualité pour chaque durée proposée.",
+    "ar": "مدة الدفع بالتقسيط تتراوح من 12 إلى 60 شهرًا. يُعرض قسط كل منتج في بطاقته لكل مدة مقترحة."
+  },
+  "delivery": {
+    "label": "Livraison",
+    "fr": "La livraison est gratuite dans toutes les wilayas d’Algérie.",
+    "ar": "التوصيل مجاني إلى جميع ولايات الجزائر."
+  },
+  "consultant": {
+    "label": "Contacter un conseiller",
+    "fr": "Tu peux joindre un conseiller au 0553 553 553. Le service est gratuit et sans engagement.",
+    "ar": "يمكنكم الاتصال بمركز الاتصال على 0553 553 553. الخدمة مجانية ودون التزام."
+  },
+  "send_docs": {
+    "label": "Question sur l’envoi de pièces",
+    "fr": "Quel document souhaites-tu transmettre ?",
+    "ar": "ما الوثيقة التي ترغب في إرسالها؟"
+  },
+  "dossier_prompt": {
+    "label": "Question sur le statut professionnel",
+    "fr": "Quelle est votre situation professionnelle ?",
+    "ar": "ما هي وضعيتكم المهنية؟"
+  },
+  "faq_prompt": {
+    "label": "Invitation à poser une question",
+    "fr": "Quelle est votre question ?",
+    "ar": "ما هو سؤالك؟"
+  },
+  "website": {
+    "label": "Site officiel",
+    "fr": "Vous pouvez visiter notre site officiel : https://csmtaksit.dz",
+    "ar": "يمكنكم زيارة موقعنا الرسمي : https://csmtaksit.dz"
+  },
+  "dossier_employee": {
+    "label": "Pièces · salarié",
+    "fr": "Pièces à fournir :\n• Deux copies de la carte nationale d’identité ou du permis de conduire biométrique en cours de validité.\n• Deux copies de l’acte de naissance.\n• Deux copies du certificat de résidence valide, daté de 3 mois au plus.\n• Une fiche familiale pour les personnes mariées.\n• Un relevé de compte postal ou bancaire des 3 derniers mois.\n• Un chèque postal ou bancaire barré.\n• Deux photos d’identité.\n\nEn plus :\n• Attestation de travail de moins d’un mois indiquant un contrat à durée indéterminée et la titularisation au poste.\n• Bulletins de salaire des 3 derniers mois.",
+    "ar": "الوثائق المطلوبة:\n• نسختان من بطاقة التعريف الوطنية أو رخصة سياقة بيومترية سارية المفعول.\n• نسختان من شهادة الميلاد.\n• نسختان من شهادة إقامة سارية المفعول لا يتعدى تاريخها 3 أشهر.\n• شهادة عائلية للمتزوجين.\n• كشف حساب بريدي أو بنكي لآخر 3 أشهر.\n• صك بريدي أو بنكي مشطوب.\n• صورتان شمسيتان.\n\nإضافةً إلى ذلك:\n• شهادة عمل حديثة أقل من شهر توضح أن عقد العمل غير محدد المدة وأن العامل مرسم في منصبه.\n• كشوف الراتب لآخر 3 أشهر."
+  },
+  "dossier_retired": {
+    "label": "Pièces · retraité",
+    "fr": "Pièces à fournir :\n• Deux copies de la carte nationale d’identité ou du permis de conduire biométrique en cours de validité.\n• Deux copies de l’acte de naissance.\n• Deux copies du certificat de résidence valide, daté de 3 mois au plus.\n• Une fiche familiale pour les personnes mariées.\n• Un relevé de compte postal ou bancaire des 3 derniers mois.\n• Un chèque postal ou bancaire barré.\n• Deux photos d’identité.\n\nEn plus :\n• Attestation de revenus de la Caisse nationale des retraites (CNR).",
+    "ar": "الوثائق المطلوبة:\n• نسختان من بطاقة التعريف الوطنية أو رخصة سياقة بيومترية سارية المفعول.\n• نسختان من شهادة الميلاد.\n• نسختان من شهادة إقامة سارية المفعول لا يتعدى تاريخها 3 أشهر.\n• شهادة عائلية للمتزوجين.\n• كشف حساب بريدي أو بنكي لآخر 3 أشهر.\n• صك بريدي أو بنكي مشطوب.\n• صورتان شمسيتان.\n\nإضافةً إلى ذلك:\n• شهادة الدخل من الصندوق الوطني للتقاعد (CNR)."
+  },
+  "dossier_military": {
+    "label": "Pièces · militaire",
+    "fr": "Pièces à fournir :\n• Deux copies de la carte nationale d’identité ou du permis de conduire biométrique en cours de validité.\n• Deux copies de l’acte de naissance.\n• Deux copies du certificat de résidence valide, daté de 3 mois au plus.\n• Une fiche familiale pour les personnes mariées.\n• Un relevé de compte postal ou bancaire des 3 derniers mois.\n• Un chèque postal ou bancaire barré.\n• Deux photos d’identité.\n\nEn plus :\n• Attestation de salaire.",
+    "ar": "الوثائق المطلوبة:\n• نسختان من بطاقة التعريف الوطنية أو رخصة سياقة بيومترية سارية المفعول.\n• نسختان من شهادة الميلاد.\n• نسختان من شهادة إقامة سارية المفعول لا يتعدى تاريخها 3 أشهر.\n• شهادة عائلية للمتزوجين.\n• كشف حساب بريدي أو بنكي لآخر 3 أشهر.\n• صك بريدي أو بنكي مشطوب.\n• صورتان شمسيتان.\n\nإضافةً إلى ذلك:\n• شهادة كشف الراتب."
+  },
+  "dossier_military_retired": {
+    "label": "Pièces · militaire retraité",
+    "fr": "Pièces à fournir :\n• Deux copies de la carte nationale d’identité ou du permis de conduire biométrique en cours de validité.\n• Deux copies de l’acte de naissance.\n• Deux copies du certificat de résidence valide, daté de 3 mois au plus.\n• Une fiche familiale pour les personnes mariées.\n• Un relevé de compte postal ou bancaire des 3 derniers mois.\n• Un chèque postal ou bancaire barré.\n• Deux photos d’identité.\n\nEn plus :\n• Avis de radiation.\n• Attestation de salaire.",
+    "ar": "الوثائق المطلوبة:\n• نسختان من بطاقة التعريف الوطنية أو رخصة سياقة بيومترية سارية المفعول.\n• نسختان من شهادة الميلاد.\n• نسختان من شهادة إقامة سارية المفعول لا يتعدى تاريخها 3 أشهر.\n• شهادة عائلية للمتزوجين.\n• كشف حساب بريدي أو بنكي لآخر 3 أشهر.\n• صك بريدي أو بنكي مشطوب.\n• صورتان شمسيتان.\n\nإضافةً إلى ذلك:\n• إشعار بالشطب.\n• شهادة كشف الراتب."
+  }
+}

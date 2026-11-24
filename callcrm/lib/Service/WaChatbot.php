@@ -20,9 +20,13 @@ class WaChatbot {
 
 	public function __construct(private IConfig $config) {}
 
+	private function defaultReplies(): array {
+		return json_decode(file_get_contents(__DIR__.'/../../resources/whatsapp-replies.json'),true,512,JSON_THROW_ON_ERROR);
+	}
+
 	public function get(): array {
 		$raw = json_decode($this->config->getAppValue('callcrm','wa_chatbot',''),true);
-		return array_replace_recursive(['texts'=>self::TEXTS,'catalog'=>[],'faq'=>[]],is_array($raw) ? $raw : []);
+		return array_replace_recursive(['texts'=>self::TEXTS,'catalog'=>[],'faq'=>[],'replies'=>$this->defaultReplies()],is_array($raw) ? $raw : []);
 	}
 
 	public function save(array $draft): array {
@@ -61,10 +65,20 @@ class WaChatbot {
 				$clean[$sheet][] = $values;
 			}
 		}
+		$replies = $draft['replies'] ?? $this->get()['replies'];
+		foreach ($this->defaultReplies() as $key=>$defaults) {
+			foreach (['fr','ar'] as $lang) {
+				$text = self::text($replies[$key][$lang] ?? $defaults[$lang],900,$defaults['label'].' · '.$lang);
+				if ($key !== 'website' && preg_match('~https?://|www\.|eshop\.csmtaksit\.dz~i',$text)) {
+					throw new \InvalidArgumentException($defaults['label'].' · les réponses doivent rester dans WhatsApp.');
+				}
+				if ($text !== $defaults[$lang]) $clean['replies'][$key][$lang] = $text;
+			}
+		}
 		$json = json_encode($clean,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
-		if (strlen($json)>60000) throw new \InvalidArgumentException('Le catalogue et la FAQ dépassent 60 Ko de texte.');
+		if (strlen($json)>60000) throw new \InvalidArgumentException('Les réglages du chatbot dépassent 60 Ko de texte.');
 		$this->config->setAppValue('callcrm','wa_chatbot',$json);
-		return $clean;
+		return $this->get();
 	}
 
 	private static function text(mixed $value, int $limit, string $field, bool $optional=false): string {

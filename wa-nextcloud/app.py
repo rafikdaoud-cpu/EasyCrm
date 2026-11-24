@@ -535,10 +535,10 @@ def bot_dossier_documents(lang, role):
     return common + ("\n\nإضافةً إلى ذلك:\n" if arabic else "\n\nEn plus :\n") + extra[role][int(arabic)]
 
 
-def bot_dossier_step(lang, choice, body, prompt):
+def bot_dossier_step(lang, choice, body, prompt, config):
     role = bot_dossier_role(choice, body)
     if role:
-        return "faq", lang, bot_dossier_documents(lang, role), []
+        return "faq", lang, bot_configured_reply(config, "dossier_" + role, lang, bot_dossier_documents(lang, role)), []
     labels = [(key, titles[int(lang == "ar")]) for key, titles in DOSSIER_ROLES.items()]
     return "dossier", lang, prompt, labels
 
@@ -556,26 +556,26 @@ def bot_eligibility_reply(lang):
 
 
 FINANCING_FAQ = (
-    (("acompte", "apport initial", "premier versement", "avance initiale", "دفعة أولى", "تسبيق", "دفعة مسبقة"),
+    ("down_payment", ("acompte", "apport initial", "premier versement", "avance initiale", "دفعة أولى", "تسبيق", "دفعة مسبقة"),
      "L’achat à tempérament avec CSM Taksit se fait sans apport initial. Le montant total est financé et remboursé en mensualités.",
      "الشراء بالتقسيط مع CSM Taksit بدون دفعة أولى. يُموَّل المبلغ كاملاً ويُسدَّد بأقساط شهرية."),
-    (("montant du financement", "montant peut etre finance", "montant que je peux financer", "plafond de financement", "montant minimum", "montant maximum",
+    ("amount", ("montant du financement", "montant peut etre finance", "montant que je peux financer", "plafond de financement", "montant minimum", "montant maximum",
       "المبلغ الذي يمكن تمويله", "مبلغ التمويل", "الحد الأقصى للتمويل", "الحد الأدنى للتمويل"),
      "Le total de tes achats doit être compris entre 50 000 et 4 000 000 DA. Tu peux regrouper plusieurs produits.",
      "يجب أن يتراوح مجموع مشترياتك بين 50 000 دج و4 000 000 دج. يمكنك جمع عدة منتجات."),
-    (("frais", "رسوم", "رسوم إضافية", "رسوم الملف", "مصاريف"),
+    ("fees", ("frais", "رسوم", "رسوم إضافية", "رسوم الملف", "مصاريف"),
      "CSM Taksit ne facture aucun frais supplémentaire de dossier, de retrait ni de livraison.",
      "لا تفرض CSM Taksit أي رسوم إضافية للملف أو الاستلام أو التوصيل."),
-    (("charia", "halal", "islamique", "banka al baraka", "banque al baraka", "الشريعة", "حلال", "بنك البركة"),
+    ("islamic", ("charia", "halal", "islamique", "banka al baraka", "banque al baraka", "الشريعة", "حلال", "بنك البركة"),
      "Oui. Notre banque partenaire de référence, Al Baraka Bank Algérie, propose un financement conforme aux principes de la finance islamique.",
      "نعم. يقدم شريكنا المرجعي، بنك البركة الجزائر، تمويلاً متوافقًا مع أحكام الشريعة الإسلامية."),
-    (("simulation", "المحاكاة", "محاكاة"),
+    ("simulation", ("simulation", "المحاكاة", "محاكاة"),
      "La simulation est indicative. Le financement reste soumis à l’étude de ton dossier et à l’accord de la banque.",
      "المحاكاة إرشادية. يبقى التمويل خاضعًا لدراسة ملفك وموافقة البنك."),
-    (("comptant", "en especes", "نقدا", "نقدًا", "كاش"),
+    ("cash", ("comptant", "en especes", "نقدا", "نقدًا", "كاش"),
      "Le paiement comptant est possible dans nos showrooms. Le site est réservé à l’achat à tempérament.",
      "الدفع نقدًا متاح في صالات العرض فقط. الموقع مخصص للشراء بالتقسيط."),
-    (("suivre ma commande", "suivre mon dossier", "suivi de commande", "suivi de dossier", "ou en est ma commande",
+    ("tracking", ("suivre ma commande", "suivre mon dossier", "suivi de commande", "suivi de dossier", "ou en est ma commande",
       "اتابع طلبي", "متابعة الطلب", "متابعة طلبي", "حالة طلبي", "تتبع طلبي"),
      "Dans ton espace client, tu peux consulter la référence et les étapes de traitement de ta commande, les pièces manquantes ou à remplacer et les messages de ton conseiller.",
      "يمكنك متابعة طلبك في فضاء العميل: مرجع الطلب، مراحل المعالجة، الوثائق الناقصة أو المطلوب استبدالها، ورسائل مستشارك."),
@@ -586,47 +586,54 @@ def bot_matches_phrase(question, terms):
     return any(f" {bot_key(term)} " in f" {question} " for term in terms)
 
 
-def bot_service_reply(body, lang):
+def bot_configured_reply(config, key, lang, default):
+    return config.get("replies", {}).get(key, {}).get(lang, default)
+
+
+def bot_service_reply(body, lang, config):
     question = bot_key(body)
     words = set(question.split())
     arabic = lang == "ar"
     answers = []
+    def reply(key, default):
+        return bot_configured_reply(config, key, lang, default)
+
     website_terms = ("site web", "site officiel", "site internet", "votre site", "lien du site",
                      "website", "موقعكم", "موقع الشركة", "الموقع الرسمي", "الموقع الالكتروني", "رابط الموقع")
     if question == "site" or any(f" {bot_key(term)} " in f" {question} " for term in website_terms):
         label = "يمكنكم زيارة موقعنا الرسمي" if arabic else "Vous pouvez visiter notre site officiel"
-        answers.append(f"{label} : https://csmtaksit.dz")
+        answers.append(reply("website", f"{label} : https://csmtaksit.dz"))
     if bot_matches_phrase(question, ("parler à un conseiller", "parler à un commercial", "joindre un conseiller",
                                      "الحديث مع مستشار", "التحدث إلى مستشار", "لم تجد جوابك")):
-        return "done", ("يمكنكم الاتصال بمركز الاتصال على 0553 553 553. الخدمة مجانية ودون التزام."
+        return "done", reply("consultant", "يمكنكم الاتصال بمركز الاتصال على 0553 553 553. الخدمة مجانية ودون التزام."
                         if arabic else "Tu peux joindre un conseiller au 0553 553 553. Le service est gratuit et sans engagement.")
     send_docs = bot_matches_phrase(question, ("envoyer mes documents", "envoyer les documents", "envoyer mon dossier",
                                              "transmettre mon dossier", "ارسال وثائقي", "أرسل وثائقي",
                                              "ارسال الوثائق", "ارسال الملف", "أرسل الملف"))
     if send_docs:
-        return "send_docs", ("ما الوثيقة التي ترغب في إرسالها؟" if arabic else "Quel document souhaites-tu transmettre ?")
-    for terms, fr, ar in FINANCING_FAQ:
+        return "send_docs", reply("send_docs", "ما الوثيقة التي ترغب في إرسالها؟" if arabic else "Quel document souhaites-tu transmettre ?")
+    for key, terms, fr, ar in FINANCING_FAQ:
         if bot_matches_phrase(question, terms):
-            answers.append(ar if arabic else fr)
+            answers.append(reply(key, ar if arabic else fr))
     if words & {"eligibilite", "eligible", "conditions", "اهلية", "الاهلية", "شروط", "الشروط"} or bot_matches_phrase(
             question, ("qui peut en beneficier", "qui peut acheter a temperament", "من يمكنه الاستفادة", "شكون يقدر يستفاد")):
-        answers.append(bot_eligibility_reply(lang))
+        answers.append(reply("eligibility", bot_eligibility_reply(lang)))
     elif bot_duration_question(body) or bot_matches_phrase(question, ("duree de remboursement", "duree de paiement", "مدة التسديد", "مدة السداد")):
         note = (" يُعرض قسط كل منتج في بطاقته لكل مدة مقترحة." if arabic else
                 " La fiche de chaque produit affiche la mensualité pour chaque durée proposée.")
-        answers.append(bot_duration_reply(lang) + note)
+        answers.append(reply("duration", bot_duration_reply(lang) + note))
     if words & {"livraison", "livrez", "livrer", "توصيل", "التوصيل", "شحن", "الشحن"}:
-        answers.append("التوصيل مجاني إلى جميع ولايات الجزائر." if arabic else
-                       "La livraison est gratuite dans toutes les wilayas d’Algérie.")
+        answers.append(reply("delivery", "التوصيل مجاني إلى جميع ولايات الجزائر." if arabic else
+                       "La livraison est gratuite dans toutes les wilayas d’Algérie."))
     next_step = None
     if not answers and words & {"dossier", "documents", "justificatifs", "pieces", "ملف", "الملف", "وثايق", "الوثايق", "الاوراق", "اوراق"}:
         next_step = "dossier"
-        answers.append("ما هي وضعيتكم المهنية؟" if arabic else
-                       "Quelle est votre situation professionnelle ?")
+        answers.append(reply("dossier_prompt", "ما هي وضعيتكم المهنية؟" if arabic else
+                       "Quelle est votre situation professionnelle ?"))
     elif words & {"faq"} or any(bot_key(term) in question for term in ("questions fréquentes", "الأسئلة الشائعة", "أسئلة شائعة")):
         next_step = "faq"
-        answers.append("ما هو سؤالك؟" if arabic else "Quelle est votre question ?")
-    return next_step, "\n\n".join(answers)
+        answers.append(reply("faq_prompt", "ما هو سؤالك؟" if arabic else "Quelle est votre question ?"))
+    return next_step, "\n\n".join(answers)[:4096]
 
 
 def bot_step(state, choice, body, config=None):
@@ -636,15 +643,15 @@ def bot_step(state, choice, body, config=None):
         lang = {"fr": "fr", "français": "fr", "ar": "ar", "العربية": "ar", "عربي": "ar"}.get(choice or body)
         if not lang:
             detected = "ar" if re.search(r"[\u0600-\u06ff]", body) else "fr"
-            service_step, answer = bot_service_reply(body, detected)
+            service_step, answer = bot_service_reply(body, detected, config)
             if service_step == "dossier":
-                return bot_dossier_step(detected, choice, body, answer)
+                return bot_dossier_step(detected, choice, body, answer, config)
             if service_step:
                 return service_step, detected, answer, []
             if answer:
                 step, lang, prompt, choices = bot_step(("language", ""), detected, "", config)
                 text = answer + "\n\n" + prompt
-                return step, lang, text if len(text) <= 1024 else answer, choices
+                return (step, lang, text, choices) if len(text) <= 1024 else (step, lang, answer, [])
         if not lang:
             return ("language", "", texts.get("welcome", "Bonjour • مرحباً بكم في CSM Taksit. Choisissez votre langue / اختاروا اللغة."),
                     [("fr", "Français"), ("ar", "العربية")])
@@ -662,13 +669,13 @@ def bot_step(state, choice, body, config=None):
                "Un commercial reprendra votre demande ici. Merci !"), [])
     if choice == "agent" or body in {"commercial", "مستشار"}:
         return handoff
-    service_step, answer = bot_service_reply(body, lang)
+    service_step, answer = bot_service_reply(body, lang, config)
     if service_step == "dossier":
-        return bot_dossier_step(lang, choice, body, answer)
+        return bot_dossier_step(lang, choice, body, answer, config)
     if answer:
         return service_step or step, lang, answer, []
     if step == "dossier":
-        return bot_dossier_step(lang, choice, body, "") if bot_dossier_role(choice, body) else handoff
+        return bot_dossier_step(lang, choice, body, "", config) if bot_dossier_role(choice, body) else handoff
     if step == "send_docs":
         return handoff
     answer = bot_answer(config, body, lang, expect_model=step=="price")

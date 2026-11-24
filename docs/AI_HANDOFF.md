@@ -448,3 +448,7 @@ Le dossier est détaillé dans WhatsApp en français et en arabe. Le bot fournit
 La FAQ intégrée répond en français et en arabe sur l’absence d’apport et de frais, les montants finançables (50 000 à 4 000 000 DA), les mensualités, Al Baraka Bank Algérie, la simulation, le paiement comptant en showroom, le suivi depuis l’espace client et le centre d’appel. Le salaire minimum reste de 20 000 DA. En cas de question sur l’envoi de pièces, le bot précise le document concerné puis passe la main au commercial. Aucun lien vers le site n’est ajouté à ces réponses.
 
 Le contrôle de déploiement sur cPanel utilise `python3`, qui peut être plus ancien que le Python du service WhatsApp. Le calcul des alias du catalogue utilise une syntaxe comprise par Python 3.6 pour que ce contrôle réussisse. Le service continue d’utiliser son environnement virtuel. Le diagnostic compare la syntaxe des commits 98d1827, 8a617bf et 010c1fa et valide le fichier complet corrigé.
+
+## Call CRM 0.57.24 · Modification des réponses intégrées
+
+Dans Administration → WhatsApp · Chatbot, ouvrir Réponses intégrées du chatbot, modifier les textes français et arabes puis Publier. La section contient la FAQ de financement, la livraison, les conditions d’éligibilité, les pièces pour les quatre profils et les messages de suivi. La FAQ Excel conserve ses entrées personnalisées. Les anciens réglages sont conservés et les réponses intégrées sont préremplies. Déployer Call CRM et wa-nextcloud ensemble pour appliquer les textes publiés au prochain message. Aucun changement de schéma.

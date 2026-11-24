@@ -2790,7 +2790,7 @@ function chatbotSettingsCard() {
   const labels={product:'Question sur le produit',moto:'Bouton Moto',appliance:'Bouton Électroménager',furniture:'Choix Meubles / Aménagement',
     agent:'Bouton Commercial',model:'Question sur le modèle',wilaya:'Question sur la wilaya',handoff:'Message de relais'};
   const welcome=h('textarea',{rows:2,maxlength:900,dir:'auto'});
-  const fields={};
+  const fields={}, replies={};
   let config=null;
   for(const lang of ['fr','ar']){
     fields[lang]={};
@@ -2850,7 +2850,13 @@ function chatbotSettingsCard() {
     try{
       const texts={welcome:welcome.value};
       for(const [lang,inputs] of Object.entries(fields)) texts[lang]=Object.fromEntries(Object.entries(inputs).map(([key,input])=>[key,input.value]));
-      config=await api('/wa/chatbot',{method:'POST',body:{...config,texts}});
+      const answers=Object.fromEntries(Object.entries(replies).map(([key,inputs])=>[key,{
+        fr:inputs.fr.value,ar:inputs.ar.value
+      }]));
+      config=await api('/wa/chatbot',{method:'POST',body:{...config,texts,replies:answers}});
+      for(const [key,inputs] of Object.entries(replies)){
+        for(const lang of ['fr','ar'])inputs[lang].value=config.replies[key][lang];
+      }
       drawPreview();
       message.textContent='Réglages publiés. Le chatbot les utilisera au prochain message.';
     }catch(error){message.textContent=error.message;}
@@ -2867,12 +2873,23 @@ function chatbotSettingsCard() {
       for(const [lang,inputs] of Object.entries(fields)){
         for(const [key,input] of Object.entries(inputs)) input.value=config.texts[lang][key];
       }
+      const standardFaq=h('details',{},h('summary',{},'Réponses intégrées du chatbot'));
+      for(const [key,row] of Object.entries(config.replies||{})){
+        replies[key]={};
+        const fields=['fr','ar'].map(lang=>{
+          const input=h('textarea',{rows:row[lang].includes('\n')?7:3,maxlength:900,dir:lang==='ar'?'rtl':'ltr'});
+          input.value=row[lang];
+          replies[key][lang]=input;
+          return h('label',{},lang==='fr'?'Français':'العربية',input);
+        });
+        standardFaq.append(h('fieldset',{},h('legend',{},row.label),h('div',{class:'g2'},fields)));
+      }
       drawPreview();
       form.replaceChildren(h('label',{},'Accueil bilingue',welcome),
         h('div',{class:'g2'},Object.entries(fields).map(([lang,inputs])=>h('fieldset',{},
           h('legend',{},lang==='fr'?'Français':'العربية'),
           Object.entries(inputs).map(([key,input])=>h('label',{style:'display:block'},labels[key],input))))),
-        h('div',{class:'bar'},template,file),preview,publish);
+        standardFaq,h('div',{class:'bar'},template,file),preview,publish);
       message.textContent='';
     }catch(error){message.textContent=error.message;}
     finally{delete form.dataset.loading;}
