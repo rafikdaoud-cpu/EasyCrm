@@ -439,6 +439,14 @@ PRICE_WORDS = {"prix", "tarif", "combien", "mensualite", "mensualites", "سعر"
                "بكم", "شحال", "القسط", "قسط", "الاقساط"}
 
 
+def bot_quote_footer(lang):
+    if lang == "ar":
+        return ("قد يختلف المبلغ قليلاً حسب عدة عوامل. سيتواصل معكم فريقنا لمعرفة المزيد من التفاصيل. "
+                "يمكنكم أيضًا الاتصال بنا على 0553 553 553 من الأحد إلى الخميس، من 08:30 إلى 16:30.")
+    return ("Le montant peut varier légèrement selon plusieurs paramètres. Notre équipe te recontactera pour préciser ta demande. "
+            "Tu peux aussi nous appeler au 0553 553 553 du dimanche au jeudi, de 8 h 30 à 16 h 30.")
+
+
 def bot_listing_answer(config, body, lang, expect_model=False):
     question = bot_key(body)
     duration = re.search(r"(?<!\d)(\d{1,3})\s*(?:mois|شهرا?|اشهر)(?!\w)", question)
@@ -467,8 +475,10 @@ def bot_listing_answer(config, body, lang, expect_model=False):
                 f"{reference} · La mensualité sur {months} mois est indisponible.")
         return text, False
     if lang == "ar":
-        return f"{reference} · قسط شهري تقديري: {amount} دج على {months} شهرًا.", True
-    return f"{reference} · Mensualité indicative de {amount} DA sur {months} mois.", True
+        quote = f"{reference} · قسط شهري تقديري: {amount} دج على {months} شهرًا."
+    else:
+        quote = f"{reference} · Mensualité indicative de {amount} DA sur {months} mois."
+    return quote + "\n\n" + bot_quote_footer(lang), True
 
 
 def bot_answer(config, body, lang, expect_model=False):
