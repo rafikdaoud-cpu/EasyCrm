@@ -477,15 +477,37 @@ def bot_duration_reply(lang):
             else "La durée du paiement en plusieurs fois va de 12 à 60 mois.")
 
 
+def bot_service_reply(body, lang):
+    question = bot_key(body)
+    words = set(question.split())
+    arabic = lang == "ar"
+    answers = []
+    if bot_duration_question(body):
+        answers.append(bot_duration_reply(lang))
+    if words & {"livraison", "livrez", "livrer", "توصيل", "التوصيل", "شحن", "الشحن"}:
+        answers.append("التوصيل مجاني إلى جميع ولايات الجزائر." if arabic else
+                       "La livraison est gratuite dans toutes les wilayas d’Algérie.")
+    if words & {"dossier", "documents", "justificatifs", "pieces", "ملف", "الملف", "وثائق", "الوثائق", "الاوراق", "اوراق"}:
+        label = "الوثائق المطلوبة لتكوين الملف" if arabic else "Liste des pièces à fournir"
+        answers.append(f"{label} : https://eshop.csmtaksit.dz/dossier-a-fournir/")
+    if words & {"faq"} or any(term in question for term in ("questions frequentes", "الاسئلة الشائعة", "اسئلة شائعة")):
+        label = "الأسئلة الشائعة" if arabic else "Questions fréquentes"
+        answers.append(f"{label} : https://eshop.csmtaksit.dz/faq/")
+    return "\n\n".join(answers)
+
+
 def bot_step(state, choice, body, config=None):
     config = config or {}
     texts = config.get("texts", {})
     if state is None or state[0] == "language":
         lang = {"fr": "fr", "français": "fr", "ar": "ar", "العربية": "ar", "عربي": "ar"}.get(choice or body)
-        if not lang and bot_duration_question(body):
-            lang = "ar" if re.search(r"[\u0600-\u06ff]", body) else "fr"
-            step, lang, prompt, choices = bot_step(("language", ""), lang, "", config)
-            return step, lang, bot_duration_reply(lang) + "\n\n" + prompt, choices
+        if not lang:
+            detected = "ar" if re.search(r"[\u0600-\u06ff]", body) else "fr"
+            answer = bot_service_reply(body, detected)
+            if answer:
+                step, lang, prompt, choices = bot_step(("language", ""), detected, "", config)
+                text = answer + "\n\n" + prompt
+                return step, lang, text if len(text) <= 1024 else answer, choices
         if not lang:
             return ("language", "", texts.get("welcome", "Bonjour • مرحباً بكم في CSM Taksit. Choisissez votre langue / اختاروا اللغة."),
                     [("fr", "Français"), ("ar", "العربية")])
@@ -503,8 +525,9 @@ def bot_step(state, choice, body, config=None):
                "Un commercial reprendra votre demande ici. Merci !"), [])
     if choice == "agent" or body in {"commercial", "parler à un commercial", "مستشار", "التحدث إلى مستشار"}:
         return handoff
-    if bot_duration_question(body):
-        return step, lang, bot_duration_reply(lang), []
+    answer = bot_service_reply(body, lang)
+    if answer:
+        return step, lang, answer, []
     answer = bot_answer(config, body, lang, expect_model=step=="price")
     if answer:
         return ("product" if step == "price" else step, lang, answer, [])

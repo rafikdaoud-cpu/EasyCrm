@@ -436,3 +436,7 @@ Après le choix de la langue, la FAQ répond à une question renseignée dans le
 Le menu WhatsApp de choix du produit est une liste en français ou en arabe avec Moto, Électroménager, Meubles / Aménagement et Un commercial. Les anciens réglages conservent leurs textes et reçoivent le libellé par défaut de la nouvelle catégorie. Le libellé est éditable dans Administration → WhatsApp · Chatbot.
 
 Le bot répond aux formulations usuelles sur la durée du paiement en plusieurs fois par « de 12 à 60 mois ». Si cette question ouvre la conversation, le bot répond dans la langue du message et propose le menu de produits. En cours de qualification, il conserve l’étape. Après relais, le commercial garde la main. Déployer Call CRM et wa-nextcloud ensemble. Aucun changement de schéma Nextcloud.
+
+## wa-nextcloud · Livraison, dossier et FAQ de l’e-shop
+
+Le chatbot indique la livraison gratuite dans toutes les wilayas et envoie les liens officiels `/dossier-a-fournir/` et `/faq/` de l’e-shop, selon la demande. Les réponses sont bilingues et compatibles avec Call CRM 0.57.23. Les pièces du dossier restent décrites sur la page officielle. Mettre à jour le service WhatsApp depuis le commit correspondant, sans nouvelle version de l’application Nextcloud.
