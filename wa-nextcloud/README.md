@@ -167,4 +167,4 @@ Déployer le service et Call CRM 0.57.21 ensemble. Régler `CHATBOT_ENABLED=1` d
 
 Depuis Call CRM 0.57.22, les textes, le catalogue et la FAQ se publient dans **Administration → WhatsApp · Chatbot**. L’écran fournit un modèle Excel et un aperçu avant publication. Les réglages sont lus à la réception des messages et s’appliquent sans redémarrage après le déploiement initial.
 
-Le chatbot répond aussi aux questions sur la livraison, gratuite dans toutes les wilayas d’Algérie. Pour les documents à fournir et la FAQ générale, il envoie les liens officiels de l’e-shop. Il conserve l’étape de qualification en cours. Ces réponses sont disponibles en français et en arabe.
+Le chatbot répond aussi aux questions sur la livraison, gratuite dans toutes les wilayas d’Algérie. Pour le dossier, il demande la situation professionnelle avant le relais. Pour la FAQ, il demande au client de préciser sa question dans WhatsApp. Ces réponses sont disponibles en français et en arabe.

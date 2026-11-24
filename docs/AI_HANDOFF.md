@@ -437,6 +437,6 @@ Le menu WhatsApp de choix du produit est une liste en français ou en arabe avec
 
 Le bot répond aux formulations usuelles sur la durée du paiement en plusieurs fois par « de 12 à 60 mois ». Si cette question ouvre la conversation, le bot répond dans la langue du message et propose le menu de produits. En cours de qualification, il conserve l’étape. Après relais, le commercial garde la main. Déployer Call CRM et wa-nextcloud ensemble. Aucun changement de schéma Nextcloud.
 
-## wa-nextcloud · Livraison, dossier et FAQ de l’e-shop
+## wa-nextcloud · Livraison, dossier et FAQ dans WhatsApp
 
-Le chatbot indique la livraison gratuite dans toutes les wilayas et envoie les liens officiels `/dossier-a-fournir/` et `/faq/` de l’e-shop, selon la demande. Les réponses sont bilingues et compatibles avec Call CRM 0.57.23. Les pièces du dossier restent décrites sur la page officielle. Mettre à jour le service WhatsApp depuis le commit correspondant, sans nouvelle version de l’application Nextcloud.
+Le chatbot indique la livraison gratuite dans toutes les wilayas. Une demande de dossier déclenche une question bilingue sur la situation professionnelle, puis un relais au commercial. Une demande de FAQ déclenche une invitation à poser la question dans WhatsApp. Le bot utilise les réponses FAQ publiées dans Call CRM et transmet au commercial les questions sans réponse utilisable. Aucun lien vers l’e-shop n’est envoyé dans ces parcours. Seul le service WhatsApp doit être mis à jour pour les installations Call CRM 0.57.23.

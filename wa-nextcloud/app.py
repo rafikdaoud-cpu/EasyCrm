@@ -442,7 +442,8 @@ def bot_answer(config, body, lang, expect_model=False):
     faq = [row for row in config.get("faq", [])
            if question in (bot_key(row["question_fr"]), bot_key(row["question_ar"]))]
     if len(faq) == 1:
-        return faq[0]["answer_" + lang]
+        answer = faq[0]["answer_" + lang]
+        return None if re.search(r"https?://|www\.|eshop\.csmtaksit\.dz", answer, re.I) else answer
     if faq:
         return None
     words = set(question.split())
@@ -487,13 +488,15 @@ def bot_service_reply(body, lang):
     if words & {"livraison", "livrez", "livrer", "توصيل", "التوصيل", "شحن", "الشحن"}:
         answers.append("التوصيل مجاني إلى جميع ولايات الجزائر." if arabic else
                        "La livraison est gratuite dans toutes les wilayas d’Algérie.")
+    next_step = None
     if words & {"dossier", "documents", "justificatifs", "pieces", "ملف", "الملف", "وثايق", "الوثايق", "الاوراق", "اوراق"}:
-        label = "الوثائق المطلوبة لتكوين الملف" if arabic else "Liste des pièces à fournir"
-        answers.append(f"{label} : https://eshop.csmtaksit.dz/dossier-a-fournir/")
-    if words & {"faq"} or any(bot_key(term) in question for term in ("questions fréquentes", "الأسئلة الشائعة", "أسئلة شائعة")):
-        label = "الأسئلة الشائعة" if arabic else "Questions fréquentes"
-        answers.append(f"{label} : https://eshop.csmtaksit.dz/faq/")
-    return "\n\n".join(answers)
+        next_step = "dossier"
+        answers.append("ما هي وضعيتكم المهنية؟ هل أنتم موظفون، متقاعدون أم تعملون لحسابكم الخاص؟" if arabic else
+                       "Quelle est votre situation professionnelle ? Êtes-vous salarié, retraité ou travailleur indépendant ?")
+    elif words & {"faq"} or any(bot_key(term) in question for term in ("questions fréquentes", "الأسئلة الشائعة", "أسئلة شائعة")):
+        next_step = "faq"
+        answers.append("ما هو سؤالك؟" if arabic else "Quelle est votre question ?")
+    return next_step, "\n\n".join(answers)
 
 
 def bot_step(state, choice, body, config=None):
@@ -503,7 +506,9 @@ def bot_step(state, choice, body, config=None):
         lang = {"fr": "fr", "français": "fr", "ar": "ar", "العربية": "ar", "عربي": "ar"}.get(choice or body)
         if not lang:
             detected = "ar" if re.search(r"[\u0600-\u06ff]", body) else "fr"
-            answer = bot_service_reply(body, detected)
+            service_step, answer = bot_service_reply(body, detected)
+            if service_step:
+                return service_step, detected, answer, []
             if answer:
                 step, lang, prompt, choices = bot_step(("language", ""), detected, "", config)
                 text = answer + "\n\n" + prompt
@@ -525,9 +530,11 @@ def bot_step(state, choice, body, config=None):
                "Un commercial reprendra votre demande ici. Merci !"), [])
     if choice == "agent" or body in {"commercial", "parler à un commercial", "مستشار", "التحدث إلى مستشار"}:
         return handoff
-    answer = bot_service_reply(body, lang)
+    service_step, answer = bot_service_reply(body, lang)
     if answer:
-        return step, lang, answer, []
+        return service_step or step, lang, answer, []
+    if step == "dossier":
+        return handoff
     answer = bot_answer(config, body, lang, expect_model=step=="price")
     if answer:
         return ("product" if step == "price" else step, lang, answer, [])
