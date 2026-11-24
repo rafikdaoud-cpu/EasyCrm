@@ -78,21 +78,29 @@ test('call history sends filters and sorts, and only managers get the commercial
     const dom = new JSDOM('<main></main>', {url:'https://cloud.example.test'});
     const document = dom.window.document;
     const main = document.querySelector('main');
-    const requests = [];
+    const requests = [], downloads = [];
+    const xlsx = require('../callcrm/js/xlsx.js');
+    const manager = role==='superviseur';
     const ctx = vm.createContext({
       document, Node:dom.window.Node, URLSearchParams,
-      me:{role, commerciaux:[{uid:'a', name:'Jeanne'}]}, detail:()=>{},
+      window:{XLSX:{...xlsx,writeFile:(book,name)=>downloads.push([book,name])}},
+      me:{role,can:{export:true}, commerciaux:[{uid:'a', name:'Jeanne'}]}, detail:()=>{},
       show:box=>main.replaceChildren(box),
       api:async path=>{
-        requests.push(new URLSearchParams(path.split('?')[1]));
+        const query=new URLSearchParams(path.split('?')[1]);requests.push(query);
+        if(query.get('export')==='1')return {export_phone:manager,rows:Array.from({length:55},()=>({
+          started_at:'2026-11-23 14:00:00',user_id:'a',lastname:'Client',phone:'0550123456',
+          direction:'inbound',history_status:'ANSWERED',talk_duration:32
+        }))};
         return {rows:[{started_at:'2026-11-23 14:00:00',user_id:'a',lastname:'Client',
-          prospect_id:12,phone:'0550123456',direction:'inbound',call_status:'ANSWERED',talk_duration:32}],has_more:true};
+          prospect_id:12,phone:'0550123456',direction:'inbound',call_status:'ANSWERED',talk_duration:32},
+          {started_at:'2026-11-23 14:05:00',user_id:'',phone:'0550000010',direction:'inbound',
+            call_status:'ANSWERED',history_status:'SYSTEM_ANSWER',talk_duration:3}],has_more:true};
       }
     });
     vm.runInContext(part('const h =','async function api(')+part('function callHistoryPage()','function recordingsPage()'),ctx);
     vm.runInContext('callHistoryPage()',ctx);
     await tick();
-    const manager = role==='superviseur';
     assert.equal(!!document.querySelector('[aria-label=Commercial]'),manager);
     assert.equal([...document.querySelectorAll('th')].some(th=>th.textContent.includes('Commercial')),manager);
     document.querySelector('[aria-label=Client]').value='Client Exemple';
@@ -108,6 +116,21 @@ test('call history sends filters and sorts, and only managers get the commercial
     assert.equal(requests.at(-1).get('sort'),'duration');
     assert.equal(requests.at(-1).get('dir'),'asc');
     assert.match(main.textContent,/Répondu/);
+    const standard=[...main.querySelectorAll('tbody tr')].find(row=>row.textContent.includes('0550000010'));
+    assert.match(standard.textContent,/Standard \/ décroché commercial non confirmé/);
+    assert.doesNotMatch(standard.textContent,/Répondu/);
+    [...main.querySelectorAll('button')].find(button=>button.textContent==='Exporter Excel').click();
+    await tick();
+    assert.equal(requests.at(-1).get('export'),'1');
+    assert.equal(requests.at(-1).get('client'),'Client Exemple');
+    assert.equal(requests.at(-1).get('sort'),'duration');
+    const [[file,name]]=downloads;
+    assert.match(name,/\.xlsx$/);
+    const sheet=file.Sheets['Historique des appels'];
+    const records=xlsx.utils.sheet_to_json(sheet,{header:1});
+    assert.equal(records.length,56);
+    assert.equal(records[0].includes('Téléphone'),manager);
+    if(manager)assert.equal(records[1][records[0].indexOf('Téléphone')],'0550123456');
     dom.window.close();
   }
 });
@@ -202,10 +225,16 @@ test('pilotage renders calls, progress and a sortable workload with team and per
       if(query.has('detail')) {
         const rows=query.get('detail')==='processed' ? [{at:200,client:'Dossier de test',agent:'Brahim',result:'interesse',prospect_id:7}]
           : [{at:100,phone:'0550000000',ring_seconds:query.get('detail')==='missed'?4:2,total_seconds:12,
-            callback_state:'attempted',agent:'Brahim',client:'Dossier à rappeler',prospect_id:12,reason:'short_ring'}];
-        return {rows,total:1,range:{from:'2026-11-01',to:'2026-11-03'}};
+            callback_state:'attempted',agent:'Brahim',client:'Dossier à rappeler',prospect_id:12,caller:'Appelant de test',reason:'short_ring',
+            answered_by:query.get('detail')==='inbound'?'Brahim':'',
+            outcome:{inbound:'answered',outbound:'outgoing_other',outgoing_answered:'outgoing_answered',
+              outgoing_no_answer:'outgoing_no_answer'}[query.get('detail')]}];
+        const range=query.get('detail')==='closure_window' ? {label:'19/11/2026 16:30 → 22/11/2026 08:30'}
+          : {from:'2026-11-01',to:'2026-11-03'};
+        return {rows,total:1,range};
       }
-      return {answered:7,missed:3,series:[{slot:1763899200,label:'09',answered:7,missed:3,lost:1}],timezone:'Africa/Algiers',
+      return {answered:7,missed:3,inbound:11,outbound:8,outgoing_answered:4,outgoing_no_answer:2,series:[{slot:1763899200,label:'09',answered:7,missed:3,lost:1}],timezone:'Africa/Algiers',
+        closure_window:{count:1,range:{label:'19/11/2026 16:30 → 22/11/2026 08:30'}},
         objective:{current:12,target:20,previous:9},range:{from:'2026-11-23',to:'2026-11-23'},
         teams:[{id:'e1',label:'Équipe 1'}],agents:rows,rows};
     }
@@ -214,7 +243,12 @@ test('pilotage renders calls, progress and a sortable workload with team and per
   vm.runInContext('pilotagePage()',ctx);
   await tick();
   assert.match(root.textContent,/70 %/);
+  assert.match(root.querySelector('.pilotage-kpis').textContent,/Sortants aboutis4.*Sortants sans réponse2/);
   assert.match(root.textContent,/12 \/ 20 appels consignés/);
+  [...root.querySelectorAll('.pilotage-kpis button')].find(button=>button.textContent.startsWith('Hors horaires')).click();
+  await tick();
+  assert.equal(queries.at(-1).get('detail'),'closure_window');
+  assert.match(root.querySelector('.crm-pilotage-details').textContent,/19\/11\/2026 16:30 → 22\/11\/2026 08:30/);
   const sort=[...root.querySelectorAll('thead button')].find(button=>button.textContent==='Rappels en retard');
   sort.click();
   assert.equal(root.querySelector('tbody th').textContent,'Brahim');
@@ -235,7 +269,9 @@ test('pilotage renders calls, progress and a sortable workload with team and per
   assert.equal(queries.at(-1).get('from'),'2026-11-01');
   assert.equal(queries.at(-1).get('to'),'2026-11-03');
   for(const [label,kind,expected] of [
-    ['Appels manqués','missed','4 s'],['Appels perdus','lost','2 s'],['Dossiers traités','processed','Dossier de test']
+    ['Appels manqués','missed','4 s'],['Appels perdus','lost','2 s'],['Dossiers traités','processed','Dossier de test'],
+    ['Appels entrants','inbound','Décroché'],['Appels sortants','outbound','Autre résultat'],
+    ['Sortants aboutis','outgoing_answered','Abouti'],['Sortants sans réponse','outgoing_no_answer','Sans réponse']
   ]) {
     [...root.querySelectorAll('.pilotage-kpis button')].find(button=>button.textContent.startsWith(label)).click();
     await tick();
@@ -252,6 +288,18 @@ test('pilotage renders calls, progress and a sortable workload with team and per
     assert.ok(panel.querySelector('tbody').textContent.includes(expected));
     if(kind==='missed')assert.match(panel.textContent,/Dossier à rappeler.*Brahim.*Rappel tenté/);
     if(kind==='lost')assert.match(panel.textContent,/Sonnerie de moins de 4 s/);
+    if(['inbound','outbound'].includes(kind)){
+      assert.match(panel.querySelector('thead').textContent,/DossierAppelant/);
+      assert.match(panel.querySelector('tbody').textContent,/Appelant de test/);
+      assert.ok([...panel.querySelectorAll('tbody button')].some(button=>button.textContent==='0550000000'));
+    }
+    if(kind==='inbound'){
+      const responder=[...panel.querySelectorAll('thead button')].find(button=>button.textContent==='Répondu par');
+      assert.match(panel.querySelector('tbody').textContent,/Brahim/);
+      responder.click();
+      await tick();
+      assert.equal(queries.at(-1).get('sort'),'answered_by');
+    }
     panel.querySelector('button').click();
     assert.equal(panel.hidden,true);
   }
@@ -260,15 +308,87 @@ test('pilotage renders calls, progress and a sortable workload with team and per
   assert.equal(queries.at(-1).get('slot'),'1763899200');
   assert.equal(queries.at(-1).get('detail'),'missed');
   assert.match(root.querySelector('.crm-pilotage-details h3').textContent,/09 h – 10 h/);
+  [...root.querySelectorAll('.crm-pilotage-details thead button')].find(button=>button.textContent==='Durée totale').click();
+  await tick();
+  assert.equal(queries.at(-1).get('sort'),'total_seconds');
+  assert.equal(queries.at(-1).get('dir'),'asc');
+  assert.equal(queries.at(-1).get('slot'),'1763899200');
+  assert.equal(queries.at(-1).get('offset'),'0');
+  root.querySelector('.crm-pilotage-details th[aria-sort="ascending"] button').click();
+  await tick();
+  assert.equal(queries.at(-1).get('dir'),'desc');
+  const beforeRefresh=queries.length;
+  dates[0].value='';
+  [...root.querySelectorAll('button')].find(button=>button.textContent==='Actualiser').click();
+  await tick();
+  assert.equal(queries.length,beforeRefresh+2);
+  assert.equal(queries[beforeRefresh].get('from'),'2026-11-01');
+  assert.equal(queries[beforeRefresh].get('team'),'e1');
+  assert.equal(queries[beforeRefresh].get('agent'),'b');
+  assert.equal(queries.at(-1).get('slot'),'1763899200');
+  assert.equal(queries.at(-1).get('sort'),'total_seconds');
+  assert.equal(root.querySelector('.crm-pilotage-details').hidden,false);
   [...root.querySelectorAll('.crm-pilotage-details button')].find(button=>button.textContent==='Dossier à rappeler').click();
   vm.runInContext('pilotagePage()',ctx);
   await tick();
   assert.equal(queries.at(-1).get('slot'),'1763899200');
+  assert.equal(queries.at(-1).get('sort'),'total_seconds');
+  assert.equal(queries.at(-1).get('dir'),'desc');
   assert.equal(queries.at(-1).get('team'),'e1');
   assert.equal(queries.at(-1).get('agent'),'b');
   assert.equal(root.querySelector('[aria-label="Période"]').value,'custom');
   assert.equal(root.querySelector('[aria-label="Équipe"]').value,'e1');
   assert.equal(root.querySelector('[aria-label="Commercial"]').value,'b');
   assert.equal(root.querySelector('.crm-pilotage-details').hidden,false);
+  dom.window.close();
+});
+
+test('server-paged journal keeps one column toolbar across repeated sorts', async () => {
+  const dom=new JSDOM('<main><div style="overflow-x:auto"><div id="journal"></div></div></main>');
+  const {document,Node,MutationObserver}=dom.window,root=document.querySelector('main');
+  const ctx=vm.createContext({document,Node,MutationObserver,root,
+    tblStore:{get:(_key,defaults)=>defaults,set:()=>{}}});
+  vm.runInContext(part('const h =','async function api(')+source.slice(source.indexOf('const tableCleanup ='),source.lastIndexOf('})();')),ctx);
+  vm.runInContext(`
+    const journal=document.querySelector('#journal');
+    let desc=false;
+    function render() {
+      journal.replaceChildren(h('table',{'data-server-paged':'1'},
+        h('thead',{},h('tr',{},h('th',{onclick:()=>{desc=!desc;render();}},'Date '+(desc?'▼':'▲')),h('th',{},'Client'))),
+        h('tbody',{},h('tr',{},h('td',{},desc?'20':'10'),h('td',{},'Test')))));
+    }
+    render();
+  `,ctx);
+  await tick();
+  for(let i=0;i<4;i++){
+    root.querySelector('th').click();
+    await tick();
+    assert.equal(root.querySelectorAll('.crm-tbl-tools').length,1);
+    assert.equal(root.querySelectorAll('.crm-tbl-pager').length,1);
+    assert.equal(root.querySelector('tbody td').textContent,i%2===0?'20':'10');
+  }
+  root.querySelector('#journal').replaceChildren(document.createElement('p'));
+  await tick();
+  assert.equal(root.querySelectorAll('.crm-tbl-tools,.crm-tbl-pager').length,0);
+  dom.window.close();
+});
+
+test('journal displays verified call direction and opens the client once', async () => {
+  const dom=new JSDOM('<main></main>',{url:'https://cloud.example.test'});
+  const {document,Node,localStorage}=dom.window;
+  const box=document.querySelector('main'), opened=[];
+  const ctx=vm.createContext({document,Node,localStorage,URLSearchParams,box,fmt:String,nm:r=>r.lastname,
+    td:(...children)=>{const cell=document.createElement('td');cell.append(...children);return cell;},
+    badge:String,detail:id=>opened.push(id),api:async()=>({total:3,rows:[
+      {prospect_id:1,lastname:'Client entrant',call_direction:'inbound',created_at:1},
+      {prospect_id:2,lastname:'Client sortant',call_direction:'outbound',created_at:2},
+      {prospect_id:3,lastname:'Client ancien',call_direction:null,created_at:3}
+    ].map(r=>({...r,user_name:'Agent',phone:'0550123456',result:'interesse'}))})});
+  vm.runInContext(part('const h =','async function api(')+part('  let jp = null','  let jt;'),ctx);
+  await vm.runInContext('jp=new URLSearchParams();jload()',ctx);
+  assert.ok([...box.querySelectorAll('th')].some(th=>th.textContent.startsWith('Sens')));
+  assert.deepEqual([...box.querySelectorAll('tbody tr')].map(r=>r.cells[1].textContent),['Entrant','Sortant','Indéterminé']);
+  [...box.querySelectorAll('tbody button')].find(button=>button.textContent==='Client entrant').click();
+  assert.deepEqual(opened,[1]);
   dom.window.close();
 });

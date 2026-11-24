@@ -42,7 +42,8 @@ $short=[$start,$ev(22,'RING','a'),$ev(22,'RING','b'),$end,$ev(26,'BYE','a'),$ev(
 ok($classify($short)['kind']==='lost'&&$classify($short)['seconds']===3,'concurrent offers are not summed and caller hangup stops ringing');
 $threshold=[$start,$ev(21,'RING','a'),$ev(21,'RING','b'),$end];
 ok($classify($threshold)['kind']==='missed'&&$classify($threshold)['seconds']===4,'four seconds is missed');
-ok($classify([$start,$ev(21,'RING','a'),$ev(22,'ANSWER','b'),$end])['kind']==='answered','any commercial answer overrides ringing');
+ok($classify([$start,$ev(21,'RING','a'),$ev(22,'ANSWER','b'),$end])['responders']===['b'],'only the commercial who answered is a responder');
+ok($classify($threshold)['responders']===[],'ringing alone does not identify a responder');
 ok($classify([])['kind']==='unknown','a CDR alone without a mapped answer is indeterminate');
 echo $fail?"$fail/$n short-call checks FAILED\n":"callcrm: $n short-call checks passed\n";exit($fail?1:0);
 }

@@ -2,7 +2,7 @@
 namespace OCA\CallCrm\Controller;
 
 use OCA\CallCrm\AppInfo\Application;
-use OCA\CallCrm\Service\{Access, Presence, CallDashboard, MissedCalls, Prefs, TeamScope};
+use OCA\CallCrm\Service\{Access, Presence, CallDashboard, MissedCalls, Prefs, TeamScope, YeastarEvents};
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\JSONResponse;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
@@ -18,12 +18,22 @@ class DashboardController extends Controller {
     public function report(): JSONResponse {
         if (!$this->manager() && $this->access->role()!=='commercial') return new JSONResponse(['error'=>'Accès refusé'],403);
         $users=[];
-        if ($this->manager()) foreach ($this->gm->get(Access::groups()['commercial'])?->getUsers()??[] as $u) if (\OCA\CallCrm\Service\TeamScope::canTarget($u->getUID())) $users[$u->getUID()]=$u->getDisplayName();
-        else $users[$this->access->uid()]='Moi';
+        if ($this->manager()) {
+            $groups = [Access::groups()['commercial']];
+            $allowed = $this->access->role()==='admin' || isset(TeamScope::config()[$this->access->uid()]);
+            foreach (Access::customProfiles() as $profile) if ($profile['base']==='commercial') $groups[]=$profile['group'];
+            foreach ($allowed ? $groups : [] as $group) {
+                foreach ($this->gm->get($group)?->getUsers() ?? [] as $user) {
+                    if (TeamScope::canTarget($user->getUID())) $users[$user->getUID()] = $user->getDisplayName();
+                }
+            }
+        } else {
+            $users[$this->access->uid()] = 'Moi';
+        }
         try {
             $filter=['period'=>$this->request->getParam('period','day'),'from'=>$this->request->getParam('from'),'to'=>$this->request->getParam('to')];
             $p=$this->presence->report(array_keys($users),null,$filter);
-            $r=$this->dashboard->report($p['range'],$this->manager()?null:$this->access->uid(),array_keys($users));
+            $r=$this->dashboard->report($p['range'],$this->manager()?null:$this->access->uid(),array_keys($users),$this->access->role()==='admin');
             $rows=[];
             foreach ($users as $uid=>$name) $rows[]=['uid'=>$uid,'name'=>$name,'telephony'=>$r['agents'][$uid]]+$p['rows'][$uid];
             return new JSONResponse(['rows'=>$rows,'totals'=>$r['totals'],'incoming'=>$r['incoming'],
@@ -40,7 +50,7 @@ class DashboardController extends Controller {
         $detail = $this->request->getParam('detail', '');
         $rawSlot = $this->request->getParam('slot');
         $slot = $rawSlot === null ? null : filter_var($rawSlot,FILTER_VALIDATE_INT);
-        if (!is_string($team) || !is_string($agent) || !in_array($detail,['','answered','missed','lost','processed'],true)
+        if (!is_string($team) || !is_string($agent) || !in_array($detail,['','answered','missed','lost','closed','closure_window','processed','inbound','outbound','outgoing_answered','outgoing_no_answer'],true)
             || $slot === false || ($slot !== null && !in_array($detail,['answered','missed','lost'],true))) return new JSONResponse(['error'=>'Filtre invalide'],400);
         $scope = \OCA\CallCrm\Service\TeamScope::users();
         $users = [];
@@ -73,21 +83,43 @@ class DashboardController extends Controller {
         $now = time();
         $zone = new \DateTimeZone(Prefs::all()['tz']);
         $filter = ['period'=>$this->request->getParam('period','day'),'from'=>$this->request->getParam('from'),'to'=>$this->request->getParam('to')];
+        $closureRange = CallDashboard::closureRange($now,$zone);
         try {
             $range = \OCA\CallCrm\Service\PresenceRange::resolve($filter,$zone,$now);
             $days = (new \DateTimeImmutable($range['from'],$zone))->diff(new \DateTimeImmutable($range['to'],$zone))->days + 1;
             if ($days > 92) throw new \InvalidArgumentException('Choisissez une période de 92 jours maximum.');
             $global = $allowedTeams===null && $team==='' && $agent==='';
+            if ($detail === 'closure_window') {
+                $range = $closureRange;
+                $detail = 'inbound';
+            }
             if ($detail !== '') {
                 $items = $detail==='processed' ? $this->processedRows($uids,$range,$now) : $this->dashboard->activity($range,$uids,$global,$zone,$detail,$slot);
                 $offset = max(0,(int)$this->request->getParam('offset',0));
+                $sort = $this->request->getParam('sort','at');
+                $direction = $this->request->getParam('dir','desc');
+                $labelFields = ['client','caller','agent','callback_state','answered_by'];
+                $fields = array_merge(['at','phone','ring_seconds','total_seconds','outcome','result','reason'],$labelFields);
+                if (!in_array($sort,$fields,true) || !in_array($direction,['asc','desc'],true)) {
+                    throw new \InvalidArgumentException('Tri invalide.');
+                }
+                $names = $detail==='processed' ? $selected : $users;
+                $byLabel = in_array($sort,$labelFields,true);
+                if ($byLabel) {
+                    $labeled = [];
+                    foreach (array_chunk($items,100) as $chunk) {
+                        array_push($labeled,...$this->pilotageLabels($chunk,$names,$detail));
+                    }
+                    $items = $labeled;
+                }
+                $key = $sort==='at' && $detail==='processed' ? 'created_at' : $sort;
+                $this->sortPilotage($items,$key,$direction);
                 $page = array_slice($items,$offset,50);
-                if ($detail==='processed') $page = $this->processedLabels($page,$selected);
-                elseif ($detail==='missed') $page = $this->callbackLabels($page,$users);
-                else foreach ($page as &$item) unset($item['prospect_id']);
+                if (!$byLabel) $page = $this->pilotageLabels($page,$names,$detail);
                 return new JSONResponse(['rows'=>$page,'total'=>count($items),'range'=>$range]);
             }
             $activity = $this->dashboard->activity($range,$uids,$global,$zone);
+            $closure = count($this->dashboard->activity($closureRange,$uids,$global,$zone,'inbound'));
         } catch (\InvalidArgumentException $e) {
             return new JSONResponse(['error'=>$e->getMessage()],400);
         }
@@ -110,7 +142,34 @@ class DashboardController extends Controller {
         foreach ($available as $uid=>$name) $agents[] = ['uid'=>(string)$uid,'name'=>$name];
         unset($activity['agents'], $activity['days']);
         return new JSONResponse($activity + ['teams'=>$teams,'agents'=>$agents,'rows'=>$rows,'range'=>$range,'timezone'=>$zone->getName(),
+            'closure_window'=>['count'=>$closure,'range'=>$closureRange],
             'objective'=>['current'=>$current,'target'=>$goal,'previous'=>$previous]]);
+    }
+
+    private function pilotageLabels(array $rows, array $users, string $detail): array {
+        if ($detail==='processed') return $this->processedLabels($rows,$users);
+        if ($detail==='missed') $rows = $this->callbackLabels($rows,$users);
+        return $this->callLabels($rows,$users);
+    }
+
+    private function sortPilotage(array &$rows, string $key, string $direction): void {
+        $numeric = in_array($key,['at','created_at','ring_seconds','total_seconds'],true);
+        $labels = match ($key) {
+            'outcome' => ['answered'=>'Décroché','missed'=>'Manqué','lost'=>'Perdu','unknown'=>'Indéterminé','closed'=>'Hors horaires',
+                'outgoing_answered'=>'Abouti','outgoing_no_answer'=>'Sans réponse','outgoing_other'=>'Autre résultat'],
+            'callback_state' => ['open'=>'À rappeler','attempted'=>'Rappel tenté','done'=>'Traité'],
+            'reason' => ['before_ring'=>'Raccroché avant la sonnerie','short_ring'=>'Sonnerie de moins de 4 s'],
+            'result' => array_column(\OCA\CallCrm\Service\Statuses::all(),'label','key'),
+            default => [],
+        };
+        $factor = $direction==='asc' ? 1 : -1;
+        usort($rows,static function ($a,$b) use ($key,$numeric,$labels,$factor): int {
+            $left = $a[$key] ?? '';
+            $right = $b[$key] ?? '';
+            if ($left==='' || $right==='') return ($left==='') <=> ($right==='');
+            return $factor * ($numeric ? ((int)$left <=> (int)$right)
+                : strnatcasecmp($labels[$left] ?? (string)$left,$labels[$right] ?? (string)$right));
+        });
     }
 
     private function processedRows(array $uids, array $range, int $now): array {
@@ -157,7 +216,6 @@ class DashboardController extends Controller {
         TeamScope::prospects($q);
         $episodes = [];
         foreach ($q->executeQuery()->fetchAll() as $episode) $episodes[$episode['phone']][] = $episode;
-        $clientIds = [];
         foreach ($rows as &$row) {
             $matches = array_values(array_filter($episodes[MissedCalls::phone($row['phone'])] ?? [],
                 fn($episode)=>$row['at'] >= $episode['first_at'] && $row['at'] <= $episode['last_at']));
@@ -166,14 +224,43 @@ class DashboardController extends Controller {
             $row['callback_state'] = !$episode ? null : ($episode['state']==='done' ? 'done'
                 : ((int)$episode['first_attempt_at']>0 ? 'attempted' : 'open'));
             $row['prospect_id'] ??= $episode['prospect_id'] ?? null;
-            $clientIds[] = $row['prospect_id'];
         }
         unset($row);
-        $clients = $this->clients($clientIds);
+        return $rows;
+    }
+
+    private function callLabels(array $rows, array $users): array {
+        $clients = $this->clients(array_column($rows,'prospect_id'));
+        $variants = $numbers = [];
+        foreach ($rows as $row) {
+            if (!empty($row['prospect_id']) || empty($row['phone'])) continue;
+            $numbers[$row['phone']] = YeastarEvents::phoneVariants($row['phone']);
+            foreach ($numbers[$row['phone']] as $variant) $variants[$variant] = $variant;
+        }
+        $matches = [];
+        if ($variants) {
+            $q = $this->db->getQueryBuilder();
+            $records = $q->select('id','phone','firstname','lastname','assigned_to')->from('callcrm_prospects')
+                ->where($q->expr()->in('phone',$q->createNamedParameter(array_values($variants),
+                    \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_STR_ARRAY)))->executeQuery()->fetchAll();
+            foreach ($records as $record) $matches[$record['phone']][] = $record;
+        }
         foreach ($rows as &$row) {
-            $client = $clients[$row['prospect_id']] ?? null;
+            $client = $clients[$row['prospect_id'] ?? 0] ?? null;
+            if (!$client && empty($row['prospect_id'])) {
+                $found = [];
+                foreach ($numbers[$row['phone']] ?? [] as $variant) {
+                    foreach ($matches[$variant] ?? [] as $record) $found[$record['id']] = $record;
+                }
+                if (count($found)===1 && TeamScope::canSee(reset($found)['assigned_to'])) $client = reset($found);
+            }
             $row['prospect_id'] = $client ? (int)$client['id'] : null;
-            $row['client'] = $client ? trim($client['firstname'].' '.$client['lastname']) : '';
+            $row['client'] = $client ? trim(($client['firstname'] ?? '').' '.($client['lastname'] ?? '')) : '';
+            $row['caller'] = isset($row['caller_agents'])
+                ? implode(', ',array_intersect_key($users,array_fill_keys($row['caller_agents'],true)))
+                : ($row['client'] ?: $row['phone']);
+            $row['answered_by'] = implode(', ',array_intersect_key($users,array_fill_keys($row['responders'] ?? [],true)));
+            unset($row['caller_agents'], $row['responders']);
         }
         unset($row);
         return $rows;

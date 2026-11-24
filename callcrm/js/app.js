@@ -493,7 +493,9 @@ root.addEventListener('click',async e=>{
   if(!config.enabled){window.location.href=a.href;return;}
   if(!config.extension)throw new Error('Aucune extension Yeastar associée à votre compte.');
   if(a.dataset.dialing)return;a.dataset.dialing='1';
-  const r=await api('/yeastar/dial',{method:'POST',body:{phone:decodeURIComponent(a.getAttribute('href').slice(4))}});const notice=h('div',{class:'crm-yeastar-toast',role:'status'},r.message||'Appel demandé. Répondez dans Linkus Web.');document.querySelector('.crm-yeastar-toast')?.remove();document.body.append(notice);setTimeout(()=>notice.remove(),4500);
+  const r=await api('/yeastar/dial',{method:'POST',body:{phone:decodeURIComponent(a.getAttribute('href').slice(4))}});
+  if(r.call_id&&r.prospect_id)callBusy={pid:String(r.prospect_id),callId:r.call_id,until:Date.now()+20*60000};
+  const notice=h('div',{class:'crm-yeastar-toast',role:'status'},r.message||'Appel demandé. Répondez dans Linkus Web.');document.querySelector('.crm-yeastar-toast')?.remove();document.body.append(notice);setTimeout(()=>notice.remove(),4500);
  }catch(error){alert(error.message);}finally{delete a.dataset.dialing;}
 });
 async function pollYeastar(){
@@ -519,8 +521,8 @@ async function pollYeastar(){
 function answeredInbound(row){
  // Ne jamais faire perdre une saisie en cours : la notification garde alors son bouton « Ouvrir la fiche ».
  if([...dirtyChecks.values()].some(v=>v.check())||root.querySelector('.crm-new-client'))return;
- if(row.prospect_id){callBusy={pid:String(row.prospect_id),until:Date.now()+20*60000};detail(row.prospect_id);}
- else if(!row.known&&me.can.create&&/^\+?\d{6,20}$/.test(row.phone||''))addForm({phone:row.phone},'Appel entrant d’un numéro inconnu : complétez la fiche puis enregistrez.','appel');
+ if(row.prospect_id){callBusy={pid:String(row.prospect_id),callId:row.call_id,until:Date.now()+20*60000};detail(row.prospect_id);}
+ else if(!row.known&&me.can.create&&/^\+?\d{6,20}$/.test(row.phone||''))addForm({phone:row.phone},'Appel entrant d’un numéro inconnu : complétez la fiche puis enregistrez.','appel',row.call_id);
 }
 function yeastarHistory(pid){
  const box=h('details',{class:'card'}),body=h('div');box.append(h('summary',{},'Journal technique Yeastar'),body);
@@ -537,10 +539,11 @@ function yeastarRecordingsCard(pid=null){
   if(loading)return;loading=true;
   refresh.disabled=true;message.textContent='Chargement…';
   try{
+   if(pid!==null && offset===0)await api('/prospects/'+pid+'/yeastar-recordings/reconcile',{method:'POST'});
    const result=await api((pid===null?'/yeastar/recordings':'/prospects/'+pid+'/yeastar-recordings')+'?offset='+offset);
    const nodes=result.rows.map(r=>{
-    const row=h('div',{class:'card'}),status={ready:'Audio enregistré dans Nextcloud',skipped_short:'Appel de moins de 30 s sans commercial : audio non récupéré',queued:'Récupération automatique en attente',processing:'Récupération en cours',failed:'Récupération en échec',no_recording:'Aucun audio signalé par Yeastar'};
-    row.append(h('p',{},(r.started_at||fmt(Number(r.created_at)))+' · '+(r.direction==='inbound'?'Entrant':'Sortant')+' · '+r.phone),h('p',{},'Poste '+r.extension+(r.user_id?' · '+r.user_id:'')+' · Conversation : '+r.talk_duration+' s · '+r.call_status),h('p',{},status[r.state]||r.state));
+    const row=h('div',{class:'card'}),status={ready:'Audio enregistré dans le CRM',skipped_short:'Appel de moins de 30 s sans commercial : audio non récupéré',queued:'Récupération automatique en attente',processing:'Récupération en cours',failed:'Récupération en échec',no_recording:'Aucun audio signalé par Yeastar'};
+    row.append(h('p',{},(r.started_at||fmt(Number(r.created_at)))+' · '+(r.direction==='inbound'?'Entrant':'Sortant')+' · '+r.phone),h('p',{},'Poste '+r.extension+(r.user_name?' · '+r.user_name:'')+' · Conversation : '+r.talk_duration+' s · '+r.call_status),h('p',{},status[r.state]||r.state));
     if(r.error && r.state!=='ready')row.append(h('p',{class:'muted'},r.error));
     if(r.state==='ready'){
      const url=API+'/yeastar/recordings/'+r.id+'/audio';
@@ -577,11 +580,13 @@ function callHistoryPage() {
     options.map(([value,text])=>h('option',{value},text)));
   const user = select('Commercial',[['','Tous les commerciaux'],...(me.commerciaux||[]).map(u=>[u.uid,u.name])]);
   const direction = select('Sens',[['','Tous les sens'],['inbound','Entrant'],['outbound','Sortant']]);
-  const statuses = {ANSWERED:'Répondu', 'NO ANSWER':'Sans réponse', BUSY:'Occupé', FAILED:'Échec', CANCEL:'Annulé'};
+  const statuses = {ANSWERED:'Répondu', CLOSED_IVR:'Hors horaires', SYSTEM_ANSWER:'Standard / décroché commercial non confirmé', 'NO ANSWER':'Sans réponse', BUSY:'Occupé', FAILED:'Échec', CANCEL:'Annulé'};
   const status = select('Statut',[['','Tous les statuts'],...Object.entries(statuses)]);
+  const exportStatus = h('span',{role:'status'});
+  const excelButton = me.can?.export ? h('button',{type:'button',onclick:exportExcel},'Exporter Excel') : '';
   const filters = h('form',{class:'bar'},
     h('label',{},'Du ',from),h('label',{},'Au ',to),manager?user:'',client,number,direction,status,
-    h('button',{type:'submit',class:'primary'},'Filtrer'));
+    h('button',{type:'submit',class:'primary'},'Filtrer'),excelButton,exportStatus);
   const columns = [['date','Date'],...(manager?[['agent','Commercial']]:[]),['client','Client'],
     ['phone','Téléphone'],['direction','Sens'],['status','Statut'],['duration','Durée parlée']];
   const feedback = h('p',{role:'status'}), table = h('div',{class:'scroll'});
@@ -597,6 +602,39 @@ function callHistoryPage() {
       direction:direction.value,status:status.value,user:manager?user.value:''};
     load(0);
   };
+  function statusLabel(row) {
+    const value = row.history_status || row.call_status;
+    return statuses[value] || value || '';
+  }
+  async function exportExcel() {
+    const workbookApi = window.XLSX;
+    if (!workbookApi) { exportStatus.textContent='Excel indisponible. Rechargez la page.'; return; }
+    excelButton.disabled=true;
+    exportStatus.textContent='Préparation de l’export…';
+    try {
+      const data = await api('/yeastar/call-history?'+new URLSearchParams({...applied,sort,dir,export:'1'}));
+      const visibleColumns=columns.filter(([key])=>key!=='phone'||data.export_phone);
+      const values=row=>({
+        date:row.started_at||'',agent:row.user_name||names.get(row.user_id)||row.user_id||'',
+        client:[row.lastname,row.firstname].filter(Boolean).join(' '),phone:String(row.phone??''),
+        direction:row.direction==='inbound'?'Entrant':'Sortant',status:statusLabel(row),
+        duration:row.talk_duration==null?'':Number(row.talk_duration)
+      });
+      const sheet=workbookApi.utils.aoa_to_sheet([
+        visibleColumns.map(([key,label])=>key==='duration'?label+' (s)':label),
+        ...data.rows.map(row=>{const fields=values(row);return visibleColumns.map(([key])=>fields[key]);})
+      ]);
+      const book=workbookApi.utils.book_new();
+      workbookApi.utils.book_append_sheet(book,sheet,'Historique des appels');
+      const filename='callcrm_historique_appels.xlsx';
+      if (window.CRMApp?.saveFile) {
+        window.CRMApp.saveFile('data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,'+
+          workbookApi.write(book,{bookType:'xlsx',type:'base64'}),filename);
+      } else workbookApi.writeFile(book,filename);
+      exportStatus.textContent=data.rows.length+' appel(s) exporté(s).';
+    } catch(error){exportStatus.textContent=error.message;}
+    finally{excelButton.disabled=false;}
+  }
   async function load(page) {
     const sequence=++request;
     previous.disabled=next.disabled=true;
@@ -621,9 +659,9 @@ function callHistoryPage() {
           manager?h('td',{},r.user_name||names.get(r.user_id)||r.user_id||'—'):'',
           h('td',{},r.prospect_id?h('button',{onclick:()=>detail(r.prospect_id)},name||'Ouvrir la fiche'):'—'),
           h('td',{},r.phone),h('td',{},r.direction==='inbound'?'Entrant':'Sortant'),
-          h('td',{},statuses[r.call_status]||r.call_status||'—'),h('td',{},r.talk_duration+' s'));
+          h('td',{},statusLabel(r)||'—'),h('td',{},r.talk_duration+' s'));
       });
-      if(rows.length)table.append(h('table',{},h('thead',{},h('tr',{},header)),h('tbody',{},rows)));
+      if(rows.length)table.append(h('table',{'data-server-paged':'1'},h('thead',{},h('tr',{},header)),h('tbody',{},rows)));
       feedback.textContent=rows.length?'Appels '+(page+1)+' à '+(page+rows.length)+'.':'Aucun appel sur cette page.';
       previous.disabled=page===0;next.disabled=!data.has_more;
     }catch(error){
@@ -981,7 +1019,7 @@ function listGridColumns(card) {
   return h('div', {class:'crm-tbl-tools'}, h('details', {class:'crm-tbl-cols'}, h('summary', {}, 'Colonnes'), menu),
     h('button', {type:'button', onclick: () => { st.widths = {}; save(); apply(); }}, 'Largeurs par défaut'));
 }
-async function addForm(preset = {}, note = '', origin = '') {
+async function addForm(preset = {}, note = '', origin = '', callId = '') {
   const msg = h('div', {class:'err'});
   const asg = me.can.assign ? h('label', {style:'display:block;margin:5px 0'}, h('span', {class:'muted'}, 'Assigner à'),
     h('select', {'data-k':'assigned_to', style:'width:100%;box-sizing:border-box'}, h('option', {value:''}, 'Non assigné'), me.commerciaux.map(u => h('option', {value:u.uid}, u.name)))) : '';
@@ -990,7 +1028,11 @@ async function addForm(preset = {}, note = '', origin = '') {
     fieldsGrid(preset, false), asg,
     h('button', {class:'primary', style:'margin-top:8px', onclick: async e => {
       msg.textContent = ''; e.target.disabled = true;
-      try { const r = await api('/prospects', {method:'POST', body: origin ? {...collect(box), origin} : collect(box)}); detail(r.id); }
+      try {
+        const r = await api('/prospects', {method:'POST', body: origin ? {...collect(box), origin} : collect(box)});
+        if(callId)callBusy={pid:String(r.id),callId,until:Date.now()+20*60000};
+        detail(r.id);
+      }
       catch (x) { msg.textContent = x.message; e.target.disabled = false; }
     }}, 'Enregistrer'), msg);
   const phIn = box.querySelector('[data-k="phone"]');
@@ -1125,6 +1167,7 @@ async function detail(id) {
       if (needCb) { const e1 = checkCb(); if (e1) { msg.textContent = e1; return; } }
       if (STD[sel] && STD[sel].reason && !reason.value) { msg.textContent = 'Un motif est obligatoire pour « ' + ST[sel] + ' ».'; return; }
       const body = {result:sel, note:note.value, reason: reason.value, at: Math.floor(Date.now() / 1000), callback_at: needCb && cb.value ? Math.floor(new Date(cb.value).getTime() / 1000) : null};
+      if(callBusy.pid===String(id)&&callBusy.callId&&Date.now()<callBusy.until)body.yeastar_call_id=callBusy.callId;
       try { const r = await api('/prospects/' + id + '/call', {method:'POST', body}); if (r && r.auto_closed) alert('Limite de ' + r.max + ' tentative(s) atteinte : ce prospect est passé automatiquement en « ' + (ST.faux_numero || 'Injoignable / faux numéro') + ' ».'); }
       catch (e) {
         if (!e.offline) throw e;
@@ -1567,21 +1610,26 @@ function pilotagePage() {
   const team = choose('Équipe',[['','Toutes les équipes']]);
   const agent = choose('Commercial',[['','Tous les commerciaux']]);
   const from = h('input',{type:'date',required:true}), to = h('input',{type:'date',required:true});
-  const dateFields = h('form',{class:'bar',hidden:true},h('label',{},'Du ',from),h('label',{},'Au ',to),
+  const dateFields = h('form',{class:'bar pilotage-date-fields',hidden:true},h('label',{},'Du ',from),h('label',{},'Au ',to),
     h('button',{type:'submit'},'Appliquer'));
   const message = h('p',{role:'status'}), content = h('div',{class:'crm-pilotage-content'});
-  const page = h('section',{class:'crm-pilotage'},h('h2',{},'Pilotage commercial'),
+  const refreshButton = h('button',{type:'button',onclick:()=>load(true)},'Actualiser');
+  const page = h('section',{class:'crm-pilotage'},
+    h('div',{class:'crm-card-head'},h('h2',{},'Pilotage commercial'),refreshButton),
     h('div',{class:'crm-pilotage-filters'},period,team,agent),dateFields,message,content);
   let generation=0, sort='name', direction=1;
   const statuses={online:'Connecté au CRM',pause:'En pause',absent:'Absent'};
   let report, appliedQuery, selection=0, detailOpen=false, trigger;
   const details = h('section',{class:'card crm-pilotage-details',hidden:true});
-  const names={answered:'Appels décrochés',missed:'Appels manqués',lost:'Appels perdus',processed:'Dossiers traités'};
+  const names={answered:'Appels décrochés',missed:'Appels manqués',lost:'Appels perdus',closed:'Appels hors horaires',closure_window:'Appels entrants hors horaires',processed:'Dossiers traités',
+    inbound:'Appels entrants',outbound:'Appels sortants',outgoing_answered:'Sortants aboutis',outgoing_no_answer:'Sortants sans réponse'};
 
-  async function openDetails(kind, offset=0, button=null, slot=null, label='') {
+  async function openDetails(kind, offset=0, button=null, slot=null, label='', sort='at', dir='desc') {
     if(button)trigger=button;
     const request=++selection, processed=kind==='processed';
-    saved.list={kind,offset,slot,label};
+    const showResponder=['inbound','answered','closure_window'].includes(kind);
+    const outgoing=['outbound','outgoing_answered','outgoing_no_answer'].includes(kind);
+    saved.list={kind,offset,slot,label,sort,dir};
     detailOpen=true;
     details.hidden=false;
     const title=h('h3',{tabindex:'-1'},names[kind]+(label?' · '+label:''));
@@ -1592,34 +1640,58 @@ function pilotagePage() {
     details.replaceChildren(h('div',{class:'crm-card-head'},title,close),status);
     if(button)title.focus();
     try {
-      const query={...appliedQuery,detail:kind,offset};
+      const query={...appliedQuery,detail:kind,offset,sort,dir};
       if(slot!==null)query.slot=slot;
       const data=await api('/pilotage?'+new URLSearchParams(query));
       if(request!==selection || !page.isConnected)return;
-      status.textContent=data.total? (offset+1)+' à '+(offset+data.rows.length)+' sur '+data.total+' · '+data.range.from+' au '+data.range.to:'Aucun résultat pour ces filtres.';
+      if(offset && offset>=data.total) {
+        openDetails(kind,Math.max(0,Math.floor((data.total-1)/50)*50),null,slot,label,sort,dir);
+        return;
+      }
+      const periodText=data.range.label || data.range.from+' au '+data.range.to;
+      status.textContent=(data.total ? (offset+1)+' à '+(offset+data.rows.length)+' sur '+data.total : 'Aucun résultat')+' · '+periodText;
       if(!data.rows.length)return;
       const seconds=n=>n==null?'—':n+' s';
-      const headings=processed?['Date','Dossier','Commercial','Dernier résultat']:['Date','Numéro','Sonnerie au poste','Durée totale'];
-      if(kind==='missed')headings.push('Dossier','Responsable du rappel','Suivi du rappel');
-      if(kind==='lost')headings.push('Motif');
+      const headings=[['at','Date']];
+      if(processed)headings.push(['client','Dossier'],['agent','Commercial'],['result','Dernier résultat']);
+      else {
+        headings.push(['phone','Numéro']);
+        if(!outgoing)headings.push(['ring_seconds','Sonnerie au poste']);
+        headings.push(['total_seconds','Durée totale']);
+        if(outgoing||['inbound','closed','closure_window'].includes(kind))headings.push(['outcome','Résultat']);
+        if(showResponder)headings.push(['answered_by','Répondu par']);
+        headings.push(['client','Dossier'],['caller','Appelant']);
+        if(kind==='missed')headings.push(['agent','Responsable du rappel'],['callback_state','Suivi du rappel']);
+        if(kind==='lost')headings.push(['reason','Motif']);
+      }
+      const outcomes={answered:'Décroché',missed:'Manqué',lost:'Perdu',unknown:'Indéterminé',closed:'Hors horaires',
+        outgoing_answered:'Abouti',outgoing_no_answer:'Sans réponse',outgoing_other:'Autre résultat'};
       const callbackStatus={open:'À rappeler',attempted:'Rappel tenté',done:'Traité'};
       const reason={before_ring:'Raccroché avant la sonnerie',short_ring:'Sonnerie de moins de 4 s'};
       const client=row=>row.prospect_id?h('button',{type:'button',onclick:()=>detail(row.prospect_id)},row.client||'Ouvrir la fiche'):row.client||'—';
       const body=data.rows.map(row=>{
         const cells=processed?[h('td',{},client(row)),h('td',{},row.agent),h('td',{},ST[row.result]||row.result)]
-          :[h('td',{},row.phone),h('td',{},seconds(row.ring_seconds)),h('td',{},seconds(row.total_seconds))];
-        if(kind==='missed')cells.push(h('td',{},client(row)),h('td',{},row.agent||(row.callback_state?'Non attribué':'—')),
+          :[h('td',{},row.prospect_id?h('button',{type:'button',onclick:()=>detail(row.prospect_id)},row.phone):row.phone),
+            ...(outgoing?[]:[h('td',{},seconds(row.ring_seconds))]),h('td',{},seconds(row.total_seconds))];
+        if(outgoing||['inbound','closed','closure_window'].includes(kind))cells.push(h('td',{},outcomes[row.outcome]||'—'));
+        if(showResponder)cells.push(h('td',{},row.answered_by||'—'));
+        if(!processed)cells.push(h('td',{},client(row)),h('td',{},row.caller||'—'));
+        if(kind==='missed')cells.push(h('td',{},row.agent||(row.callback_state?'Non attribué':'—')),
           h('td',{},callbackStatus[row.callback_state]||'Suivi non disponible'));
         if(kind==='lost')cells.push(h('td',{},reason[row.reason]||'—'));
         return h('tr',{},h('td',{},fmt(row.at)),cells);
       });
       details.append(h('div',{class:'scroll'},h('table',{class:'t'},
-        h('thead',{},h('tr',{},headings.map(label=>h('th',{scope:'col'},label)))),h('tbody',{},body))),
-        h('div',{class:'bar'},h('button',{type:'button',disabled:offset===0,onclick:()=>openDetails(kind,Math.max(0,offset-50),null,slot,label)},'Précédent'),
-          h('button',{type:'button',disabled:offset+data.rows.length>=data.total,onclick:()=>openDetails(kind,offset+50,null,slot,label)},'Suivant')));
+        h('thead',{},h('tr',{},headings.map(([key,heading])=>h('th',{
+          scope:'col','aria-sort':key===sort?(dir==='asc'?'ascending':'descending'):'none'
+        },h('button',{type:'button',class:'sort-heading',onclick:()=>openDetails(kind,0,null,slot,label,key,key===sort&&dir==='asc'?'desc':'asc')},
+          heading+(key===sort?(dir==='asc'?' ↑':' ↓'):'')))))),h('tbody',{},body))),
+        h('div',{class:'bar'},h('button',{type:'button',disabled:offset===0,onclick:()=>openDetails(kind,Math.max(0,offset-50),null,slot,label,sort,dir)},'Précédent'),
+          h('button',{type:'button',disabled:offset+data.rows.length>=data.total,onclick:()=>openDetails(kind,offset+50,null,slot,label,sort,dir)},'Suivant')));
     } catch(error){if(request===selection)status.textContent=error.message;}
   }
   const columns=[['name','Commercial'],['status','Disponibilité CRM'],['incoming','Décrochés'],['outgoing','Sortants'],
+    ['outgoing_answered','Sortants aboutis'],['outgoing_no_answer','Sortants sans réponse'],
     ['pending','À traiter'],['processed','Traités'],['late','Rappels en retard']];
   const table=h('div',{class:'scroll'});
   function drawTable() {
@@ -1633,11 +1705,11 @@ function pilotagePage() {
         label+(key===sort?(direction===1?' ↑':' ↓'):''))));
     const rows=ordered.map(row=>h('tr',{},h('th',{scope:'row'},row.name),
       h('td',{},h('span',{class:'pilotage-status '+row.status},statuses[row.status]||'Inconnu')),
-      ['incoming','outgoing','pending','processed','late'].map(key=>h('td',{},String(row[key])))));
+      ['incoming','outgoing','outgoing_answered','outgoing_no_answer','pending','processed','late'].map(key=>h('td',{},String(row[key]??0)))));
     table.replaceChildren(h('table',{class:'t'},h('thead',{},h('tr',{},headings)),h('tbody',{},rows)));
   }
   function draw() {
-    const {answered,missed,lost=0,unknown=0,series,objective,range}=report;
+    const {answered,missed,lost=0,unknown=0,closed=0,series,objective,range}=report;
     const total=answered+missed+lost, peak=Math.max(1,...series.flatMap(slot=>[slot.answered,slot.missed,slot.lost||0]));
     const metric=(label,value,tone='',kind='')=>h(kind?'button':'div', {
       class:'card pilotage-metric '+tone, ...(kind?{type:'button',onclick:e=>openDetails(kind,0,e.currentTarget)}:{})
@@ -1659,16 +1731,21 @@ function pilotagePage() {
     content.replaceChildren(h('div',{class:'pilotage-kpis'},
       metric('Taux de réponse',total?Math.round(100*answered/total)+' %':'—'),
       metric('Appels manqués',missed,'negative','missed'),metric('Appels perdus',lost,'','lost'),
-      metric('Dossiers traités',report.rows.reduce((sum,r)=>sum+r.processed,0),'','processed')),details,
+      metric('Dossiers traités',report.rows.reduce((sum,r)=>sum+r.processed,0),'','processed'),
+      metric('Appels entrants',report.inbound??total+unknown+closed,'','inbound'),metric('Appels sortants',report.outbound??0,'','outbound'),
+      metric('Sortants aboutis',report.outgoing_answered??0,'','outgoing_answered'),
+      metric('Sortants sans réponse',report.outgoing_no_answer??0,'','outgoing_no_answer'),
+      report.closure_window ? metric('Hors horaires · '+report.closure_window.range.label,report.closure_window.count,'','closure_window') : ''),details,
       h('div',{class:'pilotage-charts'},
         h('section',{class:'card'},h('h3',{},'Activité téléphonique'),chart,
           h('p',{class:'pilotage-legend'},h('span',{class:'answered'},'Décrochés'),h('span',{class:'missed'},'Manqués'),h('span',{class:'lost'},'Perdus')),
-          h('p',{class:'muted'},'Détails Yeastar reçus · '+report.timezone+(unknown?' · '+unknown+' indéterminé(s)':'') )),
+          h('p',{class:'muted'},'Détails Yeastar reçus · '+report.timezone+(unknown?' · '+unknown+' indéterminé(s)':'')),
+          h('button',{type:'button',onclick:e=>openDetails('closed',0,e.currentTarget)},closed+' appel(s) hors horaires')),
         h('section',{class:'card pilotage-goal'},h('h3',{},'Objectif de l’équipe'),
           h('p',{},h('strong',{},objective.current+' / '+(objective.target||'—')),' appels consignés'),
           progress,h('p',{class:'muted'},'Période précédente : '+objective.previous+' appels consignés'))),
       h('section',{class:'card'},h('h3',{},'Charge par commercial'),
-        h('p',{class:'muted'},'Disponibilité, dossiers à traiter et rappels en retard au moment de la consultation.'),table));
+        h('p',{class:'muted'},'Disponibilité, dossiers à traiter et rappels en retard au moment de la consultation. Les appels occupés, échoués ou annulés restent dans le total des sortants.'),table));
     drawTable();
   }
   function setOptions(select, all, options) {
@@ -1677,15 +1754,17 @@ function pilotagePage() {
     if(options.some(([key])=>key===value)) select.value=value;
   }
   async function load(restore=false) {
-    if(period.value==='custom' && (!from.value || !to.value || from.value>to.value)){
+    const reuse = restore && saved.query;
+    if(!reuse && period.value==='custom' && (!from.value || !to.value || from.value>to.value)){
       message.textContent='Choisissez une période valide.';return;
     }
     const request=++generation;
+    refreshButton.disabled=true;
     selection++;detailOpen=false;details.hidden=true;details.replaceChildren();
     content.replaceChildren();message.textContent='Chargement…';
     try {
-      const query=restore && saved.query ? {...saved.query} : {period:period.value,team:team.value,agent:agent.value};
-      if(period.value==='custom')Object.assign(query,{from:from.value,to:to.value});
+      const query=reuse ? {...saved.query} : {period:period.value,team:team.value,agent:agent.value};
+      if(!reuse && period.value==='custom')Object.assign(query,{from:from.value,to:to.value});
       const data=await api('/pilotage?'+new URLSearchParams(query));
       if(request!==generation || !page.isConnected)return;
       report=data;appliedQuery=query;saved.query=query;
@@ -1695,16 +1774,17 @@ function pilotagePage() {
       if(restore){team.value=query.team;agent.value=query.agent;}
       message.textContent='';draw();
       if(restore && saved.list){
-        const {kind,offset,slot,label}=saved.list;
-        openDetails(kind,offset,null,slot,label);
+        const {kind,offset,slot,label,sort,dir}=saved.list;
+        openDetails(kind,offset,null,slot,label,sort,dir);
       }
     }catch(error){if(request===generation)message.textContent=error.message;}
+    finally{if(request===generation)refreshButton.disabled=false;}
   }
   period.onchange=()=>{dateFields.hidden=period.value!=='custom';if(dateFields.hidden)load();};
   dateFields.onsubmit=e=>{e.preventDefault();load();};
   team.onchange=()=>{agent.value='';load();};
   agent.onchange=()=>load();
-  const refresh=setInterval(()=>{if(!page.isConnected)clearInterval(refresh);else if(!detailOpen && !document.hidden && !page.contains(document.activeElement))load();},60000);
+  const refresh=setInterval(()=>{if(!page.isConnected)clearInterval(refresh);else if(!detailOpen && !document.hidden && !page.contains(document.activeElement))load(true);},60000);
   if(saved.query){
     period.value=saved.query.period;
     from.value=saved.query.from||'';
@@ -1741,7 +1821,7 @@ function callDashboardCard() {
   const body = h('div', {role:'status'}, 'Chargement…');
   const incoming = h('div');
   const state = h('select', {'aria-label':'État du suivi'},
-    h('option', {value:'open'}, 'À vérifier / rappeler'), h('option', {value:'short'}, 'Raccrochés en moins de 30 s'), h('option', {value:'long'}, 'Sans réponse, 30 s et plus'), h('option', {value:'done'}, 'Traités'), h('option', {value:'all'}, 'Tous'));
+    h('option', {value:'open'}, 'À rappeler'), h('option', {value:'done'}, 'Traités'), h('option', {value:'all'}, 'Tous'));
   const search = h('input', {type:'search', 'aria-label':'Rechercher un numéro', placeholder:'Rechercher un numéro…'});
   const duration = value => { const s = Number(value) || 0; return Math.floor(s / 3600) + ' h ' + String(Math.floor(s % 3600 / 60)).padStart(2, '0') + ' min ' + String(s % 60).padStart(2, '0') + ' s'; };
   const time = value => new Date(value * 1000).toLocaleString('fr-FR', {timeZone:report.timezone});
@@ -1750,17 +1830,17 @@ function callDashboardCard() {
     // Un numéro = une ligne : tous ses appels sans réponse sur la période, ouvert tant qu'un appel reste à suivre.
     const groups = new Map();
     for (const r of report.incoming) {
-      const g = groups.get(r.phone) || {phone:r.phone, calls:[], prospect_id:null, extensions:new Set(), kinds:new Set()};
-      g.calls.push(r); if (r.prospect_id) g.prospect_id = r.prospect_id; r.extensions.forEach(x => g.extensions.add(x)); g.kinds.add(r.kind);
+      const g = groups.get(r.phone) || {phone:r.phone, calls:[], prospect_id:null, extensions:new Set()};
+      g.calls.push(r); if (r.prospect_id) g.prospect_id = r.prospect_id; r.extensions.forEach(x => g.extensions.add(x));
       groups.set(r.phone, g);
     }
-    for (const g of groups.values()) { g.calls.sort((x, y) => y.received_at - x.received_at); g.open = g.calls.filter(c => c.state !== 'done'); g.state = g.open.length ? 'open' : 'done'; g.last = g.calls[0].received_at; g.short = g.calls.every(c => c.short); }
-    const keep = g => state.value === 'all' || (state.value === 'short' ? g.short : state.value === 'long' ? !g.short : g.state === state.value);
+    for (const g of groups.values()) { g.calls.sort((x, y) => y.received_at - x.received_at); g.open = g.calls.filter(c => c.state !== 'done'); g.state = g.open.length ? 'open' : 'done'; g.last = g.calls[0].received_at; }
+    const keep = g => state.value === 'all' || g.state === state.value;
     const rows = [...groups.values()].filter(g => keep(g) && g.phone.includes(search.value.trim())).sort((x, y) => y.last - x.last);
     page = Math.max(0, Math.min(page, Math.ceil(rows.length / 20) - 1));
     const items = rows.slice(page * 20, (page + 1) * 20);
     const callCount = rows.reduce((n, g) => n + g.calls.length, 0);
-    incoming.replaceChildren(h('p', {}, rows.length + ' numéro(s) à examiner · ' + callCount + ' appel(s) — page ' + (page + 1) + ' / ' + Math.max(1, Math.ceil(rows.length / 20))),
+    incoming.replaceChildren(h('p', {}, rows.length + ' numéro(s) avec appel manqué · ' + callCount + ' appel(s) — page ' + (page + 1) + ' / ' + Math.max(1, Math.ceil(rows.length / 20))),
       ...items.map(g => {
         const feedback = h('span', {role:'status', class:'err'});
         const action = manager ? h('button', {onclick:async e => {
@@ -1770,11 +1850,9 @@ function callDashboardCard() {
           catch (error) { feedback.textContent = error.message; }
           finally { button.disabled = false; }
         }}, g.state === 'done' ? 'Rouvrir le suivi' : 'Marquer traité' + (g.open.length > 1 ? ' (' + g.open.length + ' appels)' : '')) : '';
-        return h('div', {class:'card crm-incoming-group' + (g.short ? ' crm-short' : '')}, h('div', {class:'bar'}, h('strong', {}, g.phone), h('span', {class:'crm-count' + (g.calls.length > 1 ? ' hot' : '')}, String(g.calls.length)),
-            g.short ? h('span', {class:'crm-short-badge', title:'Le client a raccroché avant 30 secondes, sans arriver chez un commercial'}, 'Raccroché < 30 s') : '',
+        return h('div', {class:'card crm-incoming-group'}, h('div', {class:'bar'}, h('strong', {}, g.phone), h('span', {class:'crm-count' + (g.calls.length > 1 ? ' hot' : '')}, String(g.calls.length)),
             h('span', {class:'muted'}, (g.calls.length > 1 ? 'appels sans réponse · dernier ' : 'appel sans réponse · ') + time(g.last))),
-          g.calls.length > 1 ? h('details', {}, h('summary', {class:'muted'}, 'Voir les ' + g.calls.length + ' appels'), h('ul', {}, g.calls.map(c => h('li', {}, time(c.received_at) + ' · ' + c.duration + ' s' + (c.short ? ' (moins de 30 s)' : '') + (c.state === 'done' ? ' · traité' : ''))))) : h('p', {class:'muted'}, 'Durée de l’appel : ' + g.calls[0].duration + ' s'),
-          h('p', {}, g.kinds.has('unanswered') ? 'Aucune réponse d’un commercial associé dans les détails reçus.' : 'SVI / file / poste non associé : réponse commerciale à vérifier.'),
+          g.calls.length > 1 ? h('details', {}, h('summary', {class:'muted'}, 'Voir les ' + g.calls.length + ' appels'), h('ul', {}, g.calls.map(c => h('li', {}, time(c.received_at) + ' · ' + c.ring_seconds + ' s de sonnerie' + (c.state === 'done' ? ' · traité' : ''))))) : h('p', {class:'muted'}, 'Sonnerie au poste : ' + g.calls[0].ring_seconds + ' s'),
           h('p', {class:'muted'}, 'Destination(s) : ' + [...g.extensions].join(', ') + (g.state === 'done' ? ' · Traité le ' + time(Math.max(...g.calls.map(c => c.updated_at))) : ' · Suivi ouvert')),
           g.prospect_id ? h('button', {onclick:() => detail(g.prospect_id)}, 'Ouvrir le dossier / rappeler') : h('span', {class:'muted'}, 'Numéro sans dossier unique : rattachement dans les enregistrements Yeastar.'), ' ', action, feedback);
       }),
@@ -1795,9 +1873,7 @@ function callDashboardCard() {
       const labels = ['Commercial', 'Dossiers', 'Appels Yeastar', 'Temps', 'Résultats des dossiers'];
       const line = (label, value) => h('div', {class:'dashboard-metric'}, h('span', {}, label), h('strong', {}, String(value)));
       body.replaceChildren(h('p', {class:'muted'}, r.range.from + ' au ' + r.range.to + ' · ' + r.timezone),
-        h('div', {class:'dashboard-kpis'}, ...[['Dossiers traités par agent',sums.processed],['Sortants par agent',sums.outbound],['Réponses agent',sums.answered],['Temps de conversation',duration(sums.talk)],['Suivis entrants ouverts¹',r.totals.unanswered + r.totals.unmapped - r.totals.treated],['Raccrochés en moins de 30 s²',r.totals.short,'kpi-short']].map(([label,value,cls]) => h('div', {class:'card' + (cls ? ' ' + cls : '')}, h('strong', {}, String(value)), h('div', {}, label)))),
-        h('p', {class:'muted'}, '¹ Appels à vérifier, y compris SVI et postes non associés. Ce chiffre ne représente pas les appels perdus.'),
-        h('p', {class:'muted'}, '² Appels entrants sans réponse d’un commercial, raccrochés moins de 30 secondes après l’arrivée (pendant l’accueil ou l’attente). Leur audio n’est pas récupéré.'),
+        h('div', {class:'dashboard-kpis'}, ...[['Dossiers traités par agent',sums.processed],['Sortants par agent',sums.outbound],['Réponses agent',sums.answered],['Temps de conversation',duration(sums.talk)],['Appels manqués à rappeler',r.totals.missed-r.totals.treated],['Appels perdus',r.totals.lost],['Appels indéterminés',r.totals.unknown],['Appels hors horaires',r.totals.closed]].map(([label,value,cls]) => h('div', {class:'card' + (cls ? ' ' + cls : '')}, h('strong', {}, String(value)), h('div', {}, label)))),
         h('table', {class:'t dashboard-table'}, h('caption', {}, 'Performance commerciale et téléphonie'),
           h('thead', {}, h('tr', {}, labels.map(label => h('th', {scope:'col'}, label)))),
           h('tbody', {}, r.rows.map(row => { const t = row.telephony, p = row.totals.selected; return h('tr', {},
@@ -1808,8 +1884,8 @@ function callDashboardCard() {
             h('td', {'data-label':'Résultats des dossiers'}, results.length ? results.map(k => line(ST[k] || k, row.by_result[k] || 0)) : 'Aucun résultat')); }))),
         h('p', {class:'muted'}, 'Dossiers : une fois par commercial, avec le dernier résultat de la période. Téléphonie : une fois par identifiant d’appel et commercial ; un transfert peut concerner plusieurs agents. Durée : maximum reçu par appel et agent. La présence mesure la connexion au CRM.'),
         h('h3', {}, 'Appels entrants : suivi des réponses et rappels'),
-        h('p', {}, r.totals.inbound + ' identifiant(s) entrant(s) · ' + r.totals.answered + ' avec réponse agent · ' + r.totals.unanswered + ' sans réponse agent · ' + r.totals.unmapped + ' SVI / non associés · ' + r.totals.treated + ' suivi(s) traité(s) · ', h('strong', {class:'crm-short-text'}, r.totals.short + ' raccroché(s) en moins de 30 s'), '.'),
-        h('p', {class:'muted'}, 'Seuls les détails Yeastar reçus sont connus. Des identifiants différents restent séparés : cette liste signale des appels à vérifier, pas un taux définitif d’appels perdus. « Traité » est une validation manuelle du responsable, pas une preuve de rappel abouti.'),
+        h('p', {}, r.totals.inbound + ' identifiant(s) entrant(s) · ' + r.totals.answered + ' avec réponse agent · ' + r.totals.missed + ' manqué(s) · ' + r.totals.lost + ' perdu(s) · ' + r.totals.unknown + ' indéterminé(s) · ' + r.totals.closed + ' hors horaires · ' + r.totals.treated + ' suivi(s) traité(s).'),
+        h('p', {class:'muted'}, 'Le classement dépend des événements Yeastar reçus. Les données insuffisantes sont signalées comme indéterminées. « Traité » indique une validation manuelle du suivi.'),
         h('p', {class:'muted'}, manager ? 'Vue équipe. Les numéros inconnus restent réservés aux responsables.' : 'Les compteurs téléphoniques sont ceux de votre poste associé. La liste entrante concerne uniquement vos dossiers actuellement affectés.'));
       drawIncoming();
     } catch (error) { if (request === generation) body.replaceChildren(h('p', {class:'err'}, error.message)); }
@@ -1842,7 +1918,7 @@ async function stats() {
   try { const v = localStorage.getItem('callcrm_jps2'); if (v !== null && [0, 5, 10, 20].includes(Number(v))) jsize = Number(v); } catch (e) {}
   const jq = h('input', {type:'search', placeholder:'Rechercher dans le journal…'});
   const jpg = h('div', {class:'bar', style:'justify-content:space-between;align-items:center;margin:8px 0'});
-  const jhead = [['date', 'Date et heure'], ['user', 'Commercial'], ['client', 'Client'], ['phone', 'Téléphone'], ['cat', 'Catégorie'], ['result', 'Résultat'], ['note', 'Note']];
+  const jhead = [['date', 'Date et heure'], ['direction','Sens'], ['user', 'Commercial'], ['client', 'Client'], ['phone', 'Téléphone'], ['cat', 'Catégorie'], ['result', 'Résultat'], ['note', 'Note']];
   const jload = async () => {
     if (!jp) return;
     const p = new URLSearchParams(jp); p.set('q', jq.value); p.set('sort', jsort.k); p.set('dir', jsort.d); p.set('limit', jsize); p.set('offset', (jpage - 1) * jsize);
@@ -1858,7 +1934,8 @@ async function stats() {
         h('thead', {}, h('tr', {}, jhead.map(([k, t]) => h('th', {style:'text-align:left;padding:4px;cursor:pointer;white-space:nowrap;user-select:none', title:'Trier', onclick: () => { if (jsort.k === k) jsort.d = jsort.d === 'asc' ? 'desc' : 'asc'; else { jsort.k = k; jsort.d = k === 'date' ? 'desc' : 'asc'; } jpage = 1; jload(); }},
           t + ' ', h('small', {style: jsort.k === k ? '' : 'opacity:.35'}, jsort.k === k ? (jsort.d === 'asc' ? '▲' : '▼') : '⇅'))))),
         h('tbody', {}, r.rows.map(x => h('tr', {style:'border-top:1px solid var(--color-border);cursor:pointer', onclick: () => detail(x.prospect_id)},
-          td(fmt(Number(x.created_at))), td(x.user_name), td(nm(x)), td(x.phone), td(x.c2 || ''), td(badge(x.result), x.reason ? ' · ' + x.reason : ''), td(x.note || ''))))) : h('p', {class:'muted'}, 'Aucun appel.'));
+          td(fmt(Number(x.created_at))), td(x.call_direction==='inbound'?'Entrant':x.call_direction==='outbound'?'Sortant':'Indéterminé'),
+          td(x.user_name), td(h('button',{type:'button',onclick:e=>{e.stopPropagation();detail(x.prospect_id);}},nm(x))), td(x.phone), td(x.c2 || ''), td(badge(x.result), x.reason ? ' · ' + x.reason : ''), td(x.note || ''))))) : h('p', {class:'muted'}, 'Aucun appel.'));
     } catch (e) { box.replaceChildren(h('p', {class:'err'}, e.message)); }
   };
   let jt; jq.addEventListener('input', () => { clearTimeout(jt); jt = setTimeout(() => { jpage = 1; jload(); }, 300); });
@@ -3273,9 +3350,10 @@ function crmChat() {
    S'applique tout seul à chaque tableau de Call CRM (MutationObserver), y compris ceux affichés plus tard.
    Réglages gardés dans le navigateur, par tableau (clé = en-têtes du tableau). Un tableau déjà paginé par le serveur
    (data-server-paged) ou très court n'est pas repaginé. ---- */
+const tableCleanup = new WeakMap();
 const tblLabel = th => (th.textContent || '').replace(/[▲▼⇅↑↓]/g, '').trim();
 function enhanceTable(table) {
-  if (table.dataset.tblDone || table.closest('.crm-noenhance')) return;
+  if (!root.contains(table) || table.dataset.tblDone || table.closest('.crm-noenhance')) return;
   const head = table.tHead && table.tHead.rows[0];
   if (!head || head.cells.length < 2) return;
   table.dataset.tblDone = '1';
@@ -3345,11 +3423,29 @@ function enhanceTable(table) {
   const anchor = table.closest('.presence-table, .crm-table-wrap, [style*="overflow"]') || table;
   anchor.before(tools); anchor.after(pager);
   // Lignes ajoutées ou remplacées plus tard (tri, actualisation) : on réapplique.
-  if (body) new MutationObserver(() => apply()).observe(body, {childList: true});
+  const observer = body ? new MutationObserver(apply) : null;
+  observer?.observe(body, {childList:true});
+  tableCleanup.set(table, () => {
+    observer?.disconnect();
+    tools.remove(); pager.remove();
+    ths.forEach(th => th.querySelector(':scope > .crm-tbl-grip')?.remove());
+    delete table.dataset.tblDone;
+    tableCleanup.delete(table);
+  });
   apply();
 }
-function enhanceTables(scope = root) { scope.querySelectorAll('table').forEach(t => { try { enhanceTable(t); } catch (e) {} }); }
-new MutationObserver(muts => { for (const m of muts) for (const n of m.addedNodes) if (n.nodeType === 1) { if (n.tagName === 'TABLE') enhanceTable(n); else if (n.querySelector) enhanceTables(n); } })
-  .observe(root, {childList: true, subtree: true});
+new MutationObserver(records => {
+  const forTables = (nodes, action) => {
+    for (const node of nodes) {
+      if (node.nodeType !== 1) continue;
+      if (node.tagName === 'TABLE') action(node);
+      else node.querySelectorAll('table').forEach(action);
+    }
+  };
+  for (const record of records) {
+    forTables(record.removedNodes, table => { if (!root.contains(table)) tableCleanup.get(table)?.(); });
+  }
+  for (const record of records) forTables(record.addedNodes, table => { try { enhanceTable(table); } catch (e) {} });
+}).observe(root, {childList:true, subtree:true});
 
 })();

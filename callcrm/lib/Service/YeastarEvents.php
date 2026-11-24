@@ -11,19 +11,21 @@ class YeastarEvents {
   if(preg_match('/^213\d{9}$/D',$n))$n='+'.$n;
   return $n;
  }
+ public static function phoneVariants(string $number):array {
+  $normalized = self::number($number);
+  $national = preg_replace('/^(?:\+213|00)([567]\d{8})$/D','0$1',$normalized);
+  if (preg_match('/^\+213(\d{9})$/D',$normalized,$parts)) $national = '0'.$parts[1];
+  if (!preg_match('/^0\d{9}$/D',$national)) return [$normalized];
+  $subscriber = substr($national,1);
+  return array_values(array_unique([$normalized,$national,'+213'.$subscriber,'213'.$subscriber,'00213'.$subscriber,'0'.$national]));
+ }
  public function match(string $number):?array {
-  $n=self::number($number);$variants=[$n];
-  if(preg_match('/^0\d{9}$/D',$n))$variants=array_merge($variants,['+213'.substr($n,1),'213'.substr($n,1),'00213'.substr($n,1)]);
-  if(preg_match('/^\+213\d{9}$/D',$n))$variants=array_merge($variants,['0'.substr($n,4),substr($n,1),'00'.substr($n,1)]);
-  $q=$this->db->getQueryBuilder();$q->select('*')->from('callcrm_prospects')->where($q->expr()->in('phone',$q->createNamedParameter(array_unique($variants),IQueryBuilder::PARAM_STR_ARRAY)))->setMaxResults(2);
+  $q=$this->db->getQueryBuilder();$q->select('*')->from('callcrm_prospects')->where($q->expr()->in('phone',$q->createNamedParameter(self::phoneVariants($number),IQueryBuilder::PARAM_STR_ARRAY)))->setMaxResults(2);
   $rows=$q->executeQuery()->fetchAll();return count($rows)===1?$rows[0]:null;
  }
  /** Vrai si au moins une fiche porte ce numéro, quel que soit son commercial (évite de proposer un doublon). */
  public function known(string $number):bool {
-  $n=self::number($number);$variants=[$n];
-  if(preg_match('/^0\d{9}$/D',$n))$variants=array_merge($variants,['+213'.substr($n,1),'213'.substr($n,1),'00213'.substr($n,1)]);
-  if(preg_match('/^\+213\d{9}$/D',$n))$variants=array_merge($variants,['0'.substr($n,4),substr($n,1),'00'.substr($n,1)]);
-  $q=$this->db->getQueryBuilder();$q->select('id')->from('callcrm_prospects')->where($q->expr()->in('phone',$q->createNamedParameter(array_unique($variants),IQueryBuilder::PARAM_STR_ARRAY)))->setMaxResults(1);
+  $q=$this->db->getQueryBuilder();$q->select('id')->from('callcrm_prospects')->where($q->expr()->in('phone',$q->createNamedParameter(self::phoneVariants($number),IQueryBuilder::PARAM_STR_ARRAY)))->setMaxResults(1);
   return (bool)$q->executeQuery()->fetchOne();
  }
  public function record(string $hash,string $call,string $uid,string $phone,string $direction,string $state,?int $pid):void {

@@ -352,3 +352,63 @@ La liste des appels manqués indique le dossier accessible, le responsable et l�
 ## Call CRM 0.57.5 · Orientation de WhatsApp par poste
 
 Un message WhatsApp entrant de type texte composé uniquement d’un numéro de poste, par exemple `1014`, affecte la conversation au commercial actif associé à ce poste dans les réglages Yeastar. La migration 1025 ajoute l’affectation propre à WhatsApp. La fiche client garde son titulaire et les droits de consultation habituels. Les messages sortants, les légendes, les numéros inconnus et les numéros intégrés à un texte ne déclenchent aucune affectation. L’orientation est inscrite dans le journal d’activité avec la référence de la conversation, le poste et les affectations avant et après.
+
+## Call CRM 0.57.6 · Résultats des appels sortants
+
+Pilotage sépare les appels sortants aboutis (`ANSWERED`) et les appels sortants sans réponse (`NO ANSWER` et variantes). Les compteurs suivent la période, l’équipe et le commercial sélectionnés. Le tableau affiche les mêmes indicateurs par commercial. Les appels occupés, échoués et annulés figurent uniquement dans le total des sortants. Si plusieurs détails concernent le même appel, un décroché prime sur la tentative sans réponse. Aucun changement de schéma.
+
+## Call CRM 0.57.7 · Listes des appels entrants et sortants
+
+Dans Pilotage, les compteurs **Appels entrants**, **Appels sortants**, **Sortants aboutis** et **Sortants sans réponse** ouvrent des listes paginées qui reprennent la période, l’équipe et le commercial. La liste des entrants inclut les appels indéterminés du périmètre sélectionné. Les appels occupés, échoués ou annulés figurent dans la liste complète des sortants. Le calcul des compteurs et des listes suit les mêmes règles côté serveur. Aucun changement de schéma.
+
+## Call CRM 0.57.8 · Ouverture des fiches depuis les appels
+
+Les listes d’appels entrants et sortants dans Pilotage affichent les colonnes **Dossier** et **Appelant**. Le numéro et le nom du dossier ouvrent la fiche si elle est accessible. Si le détail Yeastar ne référence aucune fiche, Call CRM cherche une correspondance unique par numéro, y compris aux formats national et international algériens. Pour un appel entrant, l’appelant est le client identifié ou son numéro. Pour un sortant, il s’agit du commercial associé au poste, lorsqu’il est connu. Aucun changement de schéma.
+
+## Call CRM 0.57.9 · Tri des listes de Pilotage
+
+Chaque en-tête des listes détaillées permet de trier la sélection complète avant pagination. Un deuxième clic inverse le sens du tri. Les valeurs manquantes restent en fin de liste. Le tri conserve les filtres de période, équipe, commercial et créneau, et il est restauré au retour d’une fiche. Aucun changement de schéma.
+
+## Call CRM 0.57.10 · Statut IVR dans l’Historique des appels
+
+Une ligne entrante Yeastar `ANSWERED` sans commercial identifié affiche **Standard / décroché commercial non confirmé**. Le libellé **Répondu**, le filtre de statut et le tri utilisent ce même statut d’historique. Le statut brut du standard reste disponible pour le diagnostic. Aucun changement de schéma.
+
+## Call CRM 0.57.11 · Recalcul des statistiques téléphoniques
+
+Statistiques recalcule les appels entrants de la période avec la même classification que Pilotage. Un décroché commercial est confirmé par les détails ou événements Yeastar. La sonnerie sans décroché devient un appel manqué à partir de 4 secondes au poste. Les abandons confirmés et les appels indéterminés apparaissent séparément. La liste de suivi de Statistiques ne présente que les appels manqués confirmés. Les rappels déjà enregistrés, y compris les rappels traités, sont conservés. Les événements absents ne sont pas reconstitués. Aucun changement de schéma.
+
+## Call CRM 0.57.12 · Réglages de colonnes du Journal des appels
+
+Le tri et la pagination remplacent le tableau du journal. Les réglages **Colonnes** et **Largeurs par défaut** de l’ancien tableau sont désormais retirés avec lui. Le nouveau tableau récupère les préférences enregistrées. Un test jsdom vérifie qu’il ne reste qu’une barre après plusieurs tris, puis qu’elle disparaît lorsque le tableau est retiré. Aucun changement de schéma.
+
+## Call CRM 0.57.13 · Sens dans le Journal des appels
+
+Le Journal des appels affiche **Entrant**, **Sortant** ou **Indéterminé**. Le nom du client ouvre directement sa fiche. Le serveur détermine le sens d’un nouveau résultat à partir d’un événement Yeastar correspondant au compte, à la fiche ou au numéro, et à l’identifiant d’appel fourni par l’interface. Une ancienne ligne sans rapprochement et une saisie manuelle sans référence restent indéterminées. La migration 1026 ajoute la colonne de sens.
+
+## Call CRM 0.57.14 · Appels hors horaires
+
+La destination Yeastar `IVR CLOSED <6201>` permet de reconnaître les appels sur le message de fermeture même en l’absence d’événement de sonnerie. Ils figurent dans les entrants et dans une liste **Appels hors horaires**. Ils ne dégradent pas le taux de réponse et n’ajoutent pas de rappel. Un décroché commercial confirmé prime. Le réglage Nextcloud `callcrm/yeastar_closed_ivr` permet de préciser un autre numéro de destination. La classification est relue sur les détails existants et ne suppose aucun horaire à partir de l’heure seule. Aucun changement de schéma.
+
+## Call CRM 0.57.15 · Export Excel de l’Historique des appels
+
+Le bouton **Exporter Excel** reprend la sélection et le tri appliqués dans l’Historique, sur toutes les pages. L’export exige le droit d’export et respecte le périmètre d’accès. Le téléphone est inclus uniquement avec le droit d’exporter les numéros. Au-delà de 20 000 lignes, le serveur demande une période plus courte afin de produire un fichier complet. L’opération est consignée dans le journal d’activité. La pagination de l’écran reste celle du serveur. Aucun changement de schéma.
+
+## Call CRM 0.57.16 · Actualisation manuelle de Pilotage
+
+Le bouton **Actualiser** demande au serveur de recalculer Pilotage à partir des données déjà reçues. Il reprend la période, l’équipe et le commercial appliqués, puis recharge la liste ouverte avec le même créneau et le même tri. Aucun changement de schéma.
+
+## Call CRM 0.57.17 · Créneau hors horaires dans Pilotage
+
+La carte Hors horaires compte les entrants visibles entre 16 h 31 la veille et 8 h 30 le jour même. Le jeudi à 16 h 30, la carte bascule vers le créneau du week-end, qui se termine le dimanche à 8 h 30. Ce créneau reste affiché le dimanche. Le CRM utilise son fuseau configuré. L'heure de début est incluse. Le créneau s'arrête à l'heure de réouverture. La carte et sa liste utilisent le même filtre d'équipe et de commercial, indépendamment de la période choisie dans Pilotage. La liste conserve le résultat téléphonique de chaque appel. Aucun changement de schéma.
+
+## Call CRM 0.57.18 · Commercial ayant décroché
+
+Dans Pilotage, la colonne triable Répondu par affiche les commerciaux dont le décroché est confirmé par un événement Yeastar ou un CDR associé à leur poste. Elle figure dans les listes des entrants, des décrochés et du créneau hors horaires. Les noms suivent le périmètre du filtre et les droits du lecteur. Aucun changement de schéma.
+
+## Call CRM 0.57.19 · Rapprochement des appels Yeastar après création
+
+À l’ouverture ou à l’actualisation du bloc Appels et enregistrements Yeastar, le CRM rattache les appels non rattachés correspondant au numéro principal d’une fiche unique, y compris ceux reçus dans les 24 heures avant sa création. Le POST utilise les droits de consultation du bloc et respecte les rattachements existants. Les appels plus anciens ou les numéros ambigus restent disponibles pour un rattachement manuel. Aucun changement de schéma.
+
+## Call CRM 0.57.20 · Nom du commercial sur les enregistrements
+
+Le bloc Appels et enregistrements Yeastar affiche le nom du commercial quand le compte associé possède un nom d’affichage. Le libellé de l’audio disponible devient « Audio enregistré dans le CRM ».

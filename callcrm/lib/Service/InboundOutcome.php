@@ -9,6 +9,16 @@ class InboundOutcome {
 
     public function __construct(private IDBConnection $db) {}
 
+    public static function closedDestinations(): array {
+        try {
+            $extension = \OCP\Server::get(\OCP\IConfig::class)->getAppValue('callcrm','yeastar_closed_ivr','6201');
+        } catch (\Throwable $e) {
+            $extension = '6201';
+        }
+        if (!preg_match('/^\d{1,10}$/D',$extension)) return [];
+        return [$extension, 'IVR CLOSED<'.$extension.'>', 'IVR CLOSED <'.$extension.'>'];
+    }
+
     public function events(array $ids): array {
         $out = [];
         foreach (array_chunk(array_values(array_unique($ids)), 200) as $chunk) {
@@ -22,8 +32,8 @@ class InboundOutcome {
         return $out;
     }
 
-    public static function classify(array $events, string $phone, bool $answered): array {
-        $ring = $last = $length = $agents = [];
+    public static function classify(array $events, string $phone, bool $answered, bool $closed = false): array {
+        $ring = $last = $length = $agents = $responders = [];
         $started = false;
         $ended = null;
         $incomplete = false;
@@ -36,7 +46,10 @@ class InboundOutcome {
             if ($state === 'TRUNK_END') $ended ??= $at;
             if ($uid === '') continue;
             $agents[$uid] = true;
-            if (in_array($state, ['ANSWER','ANSWERED'], true)) $answered = true;
+            if (in_array($state, ['ANSWER','ANSWERED'], true)) {
+                $answered = true;
+                $responders[$uid] = true;
+            }
             if ($state === 'RING' && $ended === null) {
                 $ring[$uid] ??= $at;
                 $last[$uid] = $at;
@@ -57,9 +70,10 @@ class InboundOutcome {
         $kind = match (true) {
             $answered => 'answered',
             $seconds !== null && $seconds >= self::MIN_RING_SECONDS => 'missed',
+            $closed && !$agents => 'closed',
             $ended !== null && !$incomplete && ($seconds !== null || ($started && !$agents)) => 'lost',
             default => 'unknown',
         };
-        return ['kind'=>$kind,'agents'=>array_keys($agents),'seconds'=>$seconds];
+        return ['kind'=>$kind,'agents'=>array_keys($agents),'responders'=>array_keys($responders),'seconds'=>$seconds];
     }
 }

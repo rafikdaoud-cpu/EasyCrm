@@ -1,6 +1,7 @@
 <?php
 return ['routes' => [
 	['name'=>'yeastar_recording#list','url'=>'/api/prospects/{id}/yeastar-recordings','verb'=>'GET'],
+	['name'=>'yeastar_recording#reconcile','url'=>'/api/prospects/{id}/yeastar-recordings/reconcile','verb'=>'POST'],
 	['name'=>'yeastar_recording#callHistory','url'=>'/api/yeastar/call-history','verb'=>'GET'],
 	['name'=>'yeastar_recording#inbox','url'=>'/api/yeastar/recordings','verb'=>'GET'],
 	['name'=>'yeastar_recording#all','url'=>'/api/yeastar/recordings/all','verb'=>'GET'],

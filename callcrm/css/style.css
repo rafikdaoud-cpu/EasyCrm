@@ -857,3 +857,5 @@ body.crm-glass-on #callcrm-chat .crm-chat-panel,body.crm-glass-on #callcrm-chat 
 }
 #callcrm .pilotage-bars button:not(:disabled) { cursor:pointer; min-height:3px; }
 #callcrm .pilotage-bars button:focus-visible { outline:2px solid currentColor; outline-offset:2px; }
+
+#callcrm .pilotage-date-fields[hidden] { display:none; }

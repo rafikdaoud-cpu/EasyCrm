@@ -53,11 +53,12 @@ class MissedCalls {
                     ->where($q->expr()->lt('created_at', $q->createNamedParameter($now - 3 * 86400, IQueryBuilder::PARAM_INT)))->executeQuery()->fetchOne();
             }
             $q = $this->db->getQueryBuilder();
-            $rows = $q->select('id', 'pbx_url', 'call_id', 'phone', 'direction', 'call_status', 'prospect_id', 'created_at', 'user_id')->from('callcrm_pbx_recordings')
+            $rows = $q->select('id', 'pbx_url', 'call_id', 'phone', 'direction', 'call_status', 'prospect_id', 'created_at', 'user_id','extension')->from('callcrm_pbx_recordings')
                 ->where($q->expr()->gt('id', $q->createNamedParameter($last, IQueryBuilder::PARAM_INT)))
                 ->andWhere($q->expr()->lt('created_at', $q->createNamedParameter($now - self::SETTLE, IQueryBuilder::PARAM_INT)))
                 ->orderBy('id', 'ASC')->setMaxResults(3000)->executeQuery()->fetchAll();
             $calls = [];
+            $closed = InboundOutcome::closedDestinations();
             foreach ($rows as $r) {
                 $k = hash('sha256', json_encode([$r['pbx_url'], $r['call_id'], $r['direction'], $r['phone']]));
                 $c = $calls[$k] ?? ['phone' => self::phone((string)$r['phone']), 'direction' => $r['direction'], 'call_id' => $r['call_id'], 'at' => (int)$r['created_at'], 'answered' => false, 'pid' => null];
@@ -65,6 +66,8 @@ class MissedCalls {
                 // Le statut ANSWERED seul sur une ligne IVR ne prouve aucun décroché commercial.
                 $ok = strtoupper(trim((string)$r['call_status'])) === 'ANSWERED';
                 $c['answered'] = $c['answered'] || ($ok && ($r['direction'] === 'outbound' || (string)$r['user_id'] !== ''));
+                $c['closed'] = !empty($c['closed']) || in_array($r['extension'],$closed,true);
+                $c['agent'] = !empty($c['agent']) || $r['user_id']!=='';
                 if ($r['prospect_id']) $c['pid'] = (int)$r['prospect_id'];
                 $calls[$k] = $c; $last = max($last, (int)$r['id']);
             }
@@ -73,8 +76,8 @@ class MissedCalls {
             foreach ($calls as $c) {
                 if (strlen($c['phone']) < 6) continue;
                 if ($c['direction'] === 'inbound') {
-                    $result = InboundOutcome::classify($evidence[$c['call_id']] ?? [],$c['phone'],$c['answered']);
-                    if (in_array($result['kind'],['lost','unknown'],true)) continue;
+                    $result = InboundOutcome::classify($evidence[$c['call_id']] ?? [],$c['phone'],$c['answered'],$c['closed']&&!$c['agent']);
+                    if (in_array($result['kind'],['lost','unknown','closed'],true)) continue;
                     $c['answered'] = $result['kind'] === 'answered';
                 }
                 $this->apply($c);

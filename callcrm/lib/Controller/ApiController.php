@@ -368,7 +368,12 @@ class ApiController extends Controller {
 		if ($sd['note'] && $note === '') { return $this->err('Une note est obligatoire pour « ' . $sd['label'] . ' »'); }
 		if ((!empty($sd['reason']) && $reason==='') || ($reason!=='' && !in_array($reason, $sd['reason_options'], true))) { return $this->err('Choisissez un motif valide pour « ' . $sd['label'] . ' »'); }
 		if (!$sd['callback']) { $cb = null; }
-		$this->s->insert('callcrm_calls', ['prospect_id' => $id, 'user_id' => $this->a->uid(), 'result' => $res, 'note' => $note, 'reason' => $reason !== '' ? $reason : null, 'callback_at' => $cb, 'created_at' => $now]);
+		$call = ['prospect_id' => $id, 'user_id' => $this->a->uid(), 'result' => $res, 'note' => $note, 'reason' => $reason !== '' ? $reason : null, 'callback_at' => $cb, 'created_at' => $now];
+		$reference = $this->request->getParam('yeastar_call_id');
+		if (is_string($reference) && ($direction = $this->s->verifiedCallDirection($this->a->uid(),$id,(string)($p['phone'] ?? ''),$reference,$ref))) {
+			$call['call_direction'] = $direction;
+		}
+		$this->s->insert('callcrm_calls', $call);
 		$max = $this->maxCallbacks(); $auto = false; $n = 0;
 		if ($sd['callback'] && $max > 0) {
 			$n = $this->s->callbackCalls($id);

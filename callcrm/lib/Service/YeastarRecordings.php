@@ -73,6 +73,25 @@ class YeastarRecordings {
         foreach($values as $key=>$value) $q->set($key,$q->createNamedParameter($value));
         $q->where($q->expr()->eq('id',$q->createNamedParameter($id)))->executeStatement();
     }
+    public function attachUnlinkedForProspect(array $prospect): void {
+        $phone = YeastarEvents::number((string)$prospect['phone']);
+        if ($phone === '' || empty($prospect['created_at'])) return;
+        $variants = YeastarEvents::phoneVariants($phone);
+        $q = $this->db->getQueryBuilder();
+        $ids = $q->select('id')->from('callcrm_prospects')
+            ->where($q->expr()->in('phone',$q->createNamedParameter($variants,IQueryBuilder::PARAM_STR_ARRAY)))
+            ->setMaxResults(2)->executeQuery()->fetchAll();
+        $pid = (int)$prospect['id'];
+        if (count($ids) !== 1 || (int)$ids[0]['id'] !== $pid) return;
+
+        $q = $this->db->getQueryBuilder();
+        $q->update('callcrm_pbx_recordings')->set('prospect_id',$q->createNamedParameter($pid,IQueryBuilder::PARAM_INT))
+            ->where($q->expr()->isNull('prospect_id'))
+            ->andWhere($q->expr()->in('phone',$q->createNamedParameter($variants,IQueryBuilder::PARAM_STR_ARRAY)))
+            ->andWhere($q->expr()->gte('created_at',$q->createNamedParameter((int)$prospect['created_at']-86400,IQueryBuilder::PARAM_INT)))
+            ->executeStatement();
+    }
+
     public function list(?int $pid, int $offset=0): array {
         $q=$this->db->getQueryBuilder();$q->select('*')->from('callcrm_pbx_recordings');
         $q->where($pid===null ? $q->expr()->isNull('prospect_id') : $q->expr()->eq('prospect_id',$q->createNamedParameter($pid)));
@@ -101,10 +120,21 @@ class YeastarRecordings {
         return ['rows'=>array_map(function($r){$r['client']=$r['prospect_id']?trim(($r['lastname']??'').' '.($r['firstname']??'')):'';unset($r['lastname'],$r['firstname']);return $r;},array_slice($rows,0,50)),'has_more'=>count($rows)>50];
     }
     /** One page of CDRs, including calls without an audio file. */
-    public function callHistory(?string $uid, array $filters, int $offset, array $agentNames = []): array {
+    public function callHistory(?string $uid, array $filters, int $offset, array $agentNames = [], int $limit = 50): array {
         $q = $this->db->getQueryBuilder();
         $q->select('r.id', 'r.phone', 'r.user_id', 'r.direction', 'r.call_status', 'r.started_at',
             'r.talk_duration', 'p.lastname', 'p.firstname')->selectAlias('p.id', 'prospect_id')->from('callcrm_pbx_recordings', 'r');
+        // Yeastar also sends ANSWERED when the inbound call was picked up by the IVR.
+        $closed = InboundOutcome::closedDestinations();
+        $historyStatus = function () use ($q,$closed) {
+            $destinations = array_map(fn($value)=>$q->createNamedParameter($value),$closed);
+            $closedCase = $destinations ? "WHEN r.direction = 'inbound' AND COALESCE(r.user_id, '') = ''
+                AND r.extension IN (".implode(',',$destinations).") THEN 'CLOSED_IVR' " : '';
+            return $q->createFunction("CASE ".$closedCase."WHEN r.direction = 'inbound' AND r.call_status = 'ANSWERED'
+                AND COALESCE(r.user_id, '') = '' THEN 'SYSTEM_ANSWER' ELSE r.call_status END");
+        };
+        $status = $historyStatus();
+        $q->selectAlias($status, 'history_status');
         $client = $q->expr()->eq('p.id', 'r.prospect_id');
         if ($uid !== null) {
             $filters['user'] = $uid;
@@ -119,7 +149,7 @@ class YeastarRecordings {
         }
         $q->leftJoin($uid === null ? 'r' : 'shared', 'callcrm_prospects', 'p', $client);
         $this->filters($q, $filters);
-        if ($filters['status'] !== '') $q->andWhere($q->expr()->eq('r.call_status', $q->createNamedParameter($filters['status'])));
+        if ($filters['status'] !== '') $q->andWhere($q->expr()->eq($historyStatus(), $q->createNamedParameter($filters['status'])));
         if ($filters['client'] !== '') {
             // Match either name regardless of the order in which the user enters it.
             foreach (preg_split('/\s+/u', trim($filters['client'])) as $part) {
@@ -133,7 +163,7 @@ class YeastarRecordings {
             $q->andWhere($q->expr()->like('r.phone', $q->createNamedParameter('%' . $number . '%')));
         }
         $columns = ['date'=>'r.started_at', 'agent'=>'r.user_id', 'client'=>'p.lastname', 'phone'=>'r.phone',
-            'direction'=>'r.direction', 'status'=>'r.call_status', 'duration'=>'r.talk_duration'];
+            'direction'=>'r.direction', 'status'=>'history_status', 'duration'=>'r.talk_duration'];
         $order = $columns[$filters['sort']] ?? 'r.started_at';
         if ($order === 'r.user_id' && $agentNames) {
             $cases = [];
@@ -146,11 +176,11 @@ class YeastarRecordings {
             $order = 'agent_sort';
         }
         $q->orderBy($order, $filters['dir'] === 'asc' ? 'ASC' : 'DESC')
-            ->addOrderBy('r.id', 'DESC')->setFirstResult(max(0, $offset))->setMaxResults(51);
+            ->addOrderBy('r.id', 'DESC')->setFirstResult(max(0, $offset))->setMaxResults($limit+1);
         $rows = $q->executeQuery()->fetchAll();
         foreach ($rows as &$row) unset($row['agent_sort']);
         unset($row);
-        return ['rows'=>array_slice($rows, 0, 50), 'has_more'=>count($rows) > 50];
+        return ['rows'=>array_slice($rows, 0, $limit), 'has_more'=>count($rows) > $limit];
     }
     public function callHistoryAgentIds(): array {
         $q = $this->db->getQueryBuilder();

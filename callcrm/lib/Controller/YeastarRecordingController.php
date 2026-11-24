@@ -20,20 +20,41 @@ class YeastarRecordingController extends Controller {
     private function allowed(array $r): bool {
         return $r['prospect_id'] ? $this->visible((int)$r['prospect_id']) : $this->manager();
     }
+    private function recordingList(?int $pid): JSONResponse {
+        $result = $this->recordings->list($pid,max(0,(int)$this->request->getParam('offset',0)));
+        $users = \OCP\Server::get(\OCP\IUserManager::class);
+        $names = [];
+        foreach ($result['rows'] as &$row) {
+            $uid = (string)$row['user_id'];
+            $row['user_name'] = $uid === '' ? '' : ($names[$uid] ??= ($users->getDisplayName($uid) ?: ''));
+            if ($row['user_name'] === $uid) $row['user_name'] = '';
+            unset($row['user_id']);
+        }
+        unset($row);
+        return new JSONResponse($result);
+    }
     #[NoAdminRequired]
     public function list(int $id): JSONResponse {
         if(!$this->visible($id))return new JSONResponse(['error'=>'Dossier introuvable'],404);
-        return new JSONResponse($this->recordings->list($id,max(0,(int)$this->request->getParam('offset',0))));
+        return $this->recordingList($id);
+    }
+    #[NoAdminRequired]
+    public function reconcile(int $id): JSONResponse {
+        if (!$this->visible($id)) return new JSONResponse(['error'=>'Dossier introuvable'],404);
+        $prospect = $this->store->get($id);
+        if ($prospect) $this->recordings->attachUnlinkedForProspect($prospect);
+        return new JSONResponse(['ok'=>true]);
     }
     #[NoAdminRequired]
     public function inbox(): JSONResponse {
         if(!$this->manager())return new JSONResponse(['error'=>'Accès refusé'],403);
-        return new JSONResponse($this->recordings->list(null,max(0,(int)$this->request->getParam('offset',0))));
+        return $this->recordingList(null);
     }
     #[NoAdminRequired]
     public function callHistory(): JSONResponse {
         $role = $this->access->role();
-        if (!$this->access->can('view') || $this->access->can('mask') || (!$this->manager() && $role !== 'commercial')) {
+        $export = $this->request->getParam('export','')==='1';
+        if (!$this->access->can('view') || $this->access->can('mask') || (!$this->manager() && $role !== 'commercial') || ($export && !$this->access->can('export'))) {
             return new JSONResponse(['error'=>'Accès refusé'],403);
         }
         $filters = [];
@@ -54,7 +75,7 @@ class YeastarRecordingController extends Controller {
         $filters['number'] = preg_replace('/[^0-9+]/', '', $filters['number']);
         if (preg_match('/^(?:0|(?:00|\+)?213)(\d{9})$/D', $filters['number'], $match)) $filters['number'] = $match[1];
         $uid = $role === 'commercial' ? $this->access->uid() : null;
-        $includeAgents = $uid === null && $this->request->getParam('agents', '') === '1';
+        $includeAgents = !$export && $uid === null && $this->request->getParam('agents', '') === '1';
         $names = [];
         $users = $uid === null ? \OCP\Server::get(\OCP\IUserManager::class) : null;
         if ($includeAgents || ($uid === null && $filters['sort'] === 'agent')) {
@@ -62,7 +83,11 @@ class YeastarRecordingController extends Controller {
                 $names[$agent] = $users->getDisplayName($agent) ?: $agent;
             }
         }
-        $result = $this->recordings->callHistory($uid, $filters, (int)$this->request->getParam('offset', 0), $names);
+        $result = $this->recordings->callHistory($uid,$filters,$export?0:(int)$this->request->getParam('offset',0),
+            $names,$export?20000:50);
+        if ($export && $result['has_more']) {
+            return new JSONResponse(['error'=>'Plus de 20 000 appels correspondent. Choisissez une période plus courte.'],400);
+        }
         if ($users) {
             foreach ($result['rows'] as &$row) {
                 $agent = $row['user_id'];
@@ -74,6 +99,16 @@ class YeastarRecordingController extends Controller {
             asort($names, SORT_NATURAL | SORT_FLAG_CASE);
             $result['agents'] = [];
             foreach ($names as $agent => $name) $result['agents'][] = ['uid'=>(string)$agent,'name'=>$name];
+        }
+        if ($export) {
+            $withPhone = $this->access->can('export_phone');
+            if (!$withPhone) {
+                foreach ($result['rows'] as &$row) unset($row['phone']);
+                unset($row);
+            }
+            $result['export_phone'] = $withPhone;
+            $this->store->audit($this->access->uid(),'export',null,count($result['rows']).' appel(s) de l’historique'
+                .($withPhone?' avec téléphone':' sans téléphone'));
         }
         return new JSONResponse($result);
     }

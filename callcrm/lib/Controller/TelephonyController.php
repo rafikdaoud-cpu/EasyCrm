@@ -33,7 +33,7 @@ class TelephonyController extends Controller {
    $call=$this->client->dial($ext,YeastarEvents::number($p['phone']));
    // The PBX action cannot be rolled back; never report a failed call because logging failed.
    try{$this->events->record(hash('sha256','dial|'.($call?:bin2hex(random_bytes(16)))),$call,$this->access->uid(),YeastarEvents::number($p['phone']),'outbound','REQUESTED',(int)$p['id']);}catch(\Throwable $e){}
-   return new JSONResponse(['ok'=>true,'message'=>'Appel demandé. Répondez dans Linkus Web.']);
+   return new JSONResponse(['ok'=>true,'message'=>'Appel demandé. Répondez dans Linkus Web.','call_id'=>$call,'prospect_id'=>(int)$p['id']]);
   }catch(\RuntimeException|\InvalidArgumentException $e){return $this->error($e->getMessage());}
  }
  #[NoAdminRequired]

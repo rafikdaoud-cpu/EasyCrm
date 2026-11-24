@@ -227,11 +227,31 @@ class Store {
 			$qb->andWhere($qb->expr()->orX(...$or));
 		}
 	}
+	public function verifiedCallDirection(string $uid, int $prospect, string $phone, string $callId, int $at): ?string {
+		if ($callId==='' || strlen($callId)>128) return null;
+		$q = $this->db->getQueryBuilder();
+		$events = $q->select('prospect_id','phone','direction','state')->from('callcrm_pbx_events')
+			->where($q->expr()->eq('call_id',$q->createNamedParameter($callId)))
+			->andWhere($q->expr()->eq('user_id',$q->createNamedParameter($uid)))
+			->andWhere($q->expr()->gte('created_at',$q->createNamedParameter($at-7200,IQueryBuilder::PARAM_INT)))
+			->andWhere($q->expr()->lte('created_at',$q->createNamedParameter($at+30,IQueryBuilder::PARAM_INT)))
+			->executeQuery()->fetchAll();
+		$numbers = $phone==='' ? [] : YeastarEvents::phoneVariants($phone);
+		$directions = [];
+		foreach ($events as $event) {
+			$sameClient = $event['prospect_id'] ? (int)$event['prospect_id']===$prospect : in_array($event['phone'],$numbers,true);
+			if (!$sameClient) continue;
+			if ($event['direction']==='inbound' && in_array($event['state'],['ANSWER','ANSWERED'],true)) $directions['inbound']=true;
+			if ($event['direction']==='outbound' && in_array($event['state'],['REQUESTED','RING','ANSWER','ANSWERED','BYE'],true)) $directions['outbound']=true;
+		}
+		return count($directions)===1 ? array_key_first($directions) : null;
+	}
+
 	public function callLog(?string $uid, array $f, int $limit, int $off): array {
 		$qb = $this->db->getQueryBuilder();
-		$qb->select('c.id', 'c.user_id', 'c.result', 'c.note', 'c.callback_at', 'c.created_at', 'c.prospect_id', 'c.reason', 'p.lastname', 'p.firstname', 'p.phone', 'p.c2')
+		$qb->select('c.id', 'c.user_id', 'c.result', 'c.note', 'c.callback_at', 'c.created_at', 'c.prospect_id', 'c.reason', 'c.call_direction', 'p.lastname', 'p.firstname', 'p.phone', 'p.c2')
 			->from('callcrm_calls', 'c')->innerJoin('c', 'callcrm_prospects', 'p', $qb->expr()->eq('c.prospect_id', 'p.id'));
-		$cols = ['date' => 'c.created_at', 'user' => 'c.user_id', 'client' => 'p.lastname', 'phone' => 'p.phone', 'cat' => 'p.c2', 'result' => 'c.result', 'note' => 'c.note'];
+		$cols = ['date' => 'c.created_at', 'user' => 'c.user_id', 'client' => 'p.lastname', 'phone' => 'p.phone', 'cat' => 'p.c2', 'result' => 'c.result', 'note' => 'c.note', 'direction' => 'c.call_direction'];
 		$dir = ($f['dir'] ?? '') === 'asc' ? 'ASC' : 'DESC';
 		if (!empty($f['sort']) && isset($cols[$f['sort']])) { $qb->orderBy($cols[$f['sort']], $dir)->addOrderBy('c.id', 'DESC'); }
 		else { $qb->orderBy('c.id', 'DESC'); }
