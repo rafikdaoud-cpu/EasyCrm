@@ -444,3 +444,5 @@ Le chatbot indique la livraison gratuite dans toutes les wilayas. Une demande de
 Le chatbot fournit aussi le lien vers `https://csmtaksit.dz` quand le client demande le site officiel, en français ou en arabe.
 
 Le dossier est détaillé dans WhatsApp en français et en arabe. Le bot fournit les pièces communes et les justificatifs propres aux salariés, retraités, militaires et militaires retraités. Les autres situations passent au commercial. Une demande d’éligibilité affiche les critères d’âge, de domiciliation du revenu, de salaire minimum (20 000 DA), de durée et de plafond des mensualités communiqués par CSM Taksit. Le bot ne prend aucune décision d’acceptation.
+
+La FAQ intégrée répond en français et en arabe sur l’absence d’apport et de frais, les montants finançables (50 000 à 4 000 000 DA), les mensualités, Al Baraka Bank Algérie, la simulation, le paiement comptant en showroom, le suivi depuis l’espace client et le centre d’appel. Le salaire minimum reste de 20 000 DA. En cas de question sur l’envoi de pièces, le bot précise le document concerné puis passe la main au commercial. Aucun lien vers le site n’est ajouté à ces réponses.
