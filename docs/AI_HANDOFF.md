@@ -443,4 +443,4 @@ Le chatbot indique la livraison gratuite dans toutes les wilayas. Une demande de
 
 Le chatbot fournit aussi le lien vers `https://csmtaksit.dz` quand le client demande le site officiel, en français ou en arabe.
 
-Le dossier est détaillé dans WhatsApp en français et en arabe. Le bot fournit les pièces communes et les justificatifs propres aux salariés, retraités, militaires et militaires retraités. Les autres situations passent au commercial. Une demande d’éligibilité affiche les critères d’âge, de domiciliation du revenu, de salaire minimum, de durée et de plafond des mensualités communiqués par CSM Taksit. Le bot ne prend aucune décision d’acceptation.
+Le dossier est détaillé dans WhatsApp en français et en arabe. Le bot fournit les pièces communes et les justificatifs propres aux salariés, retraités, militaires et militaires retraités. Les autres situations passent au commercial. Une demande d’éligibilité affiche les critères d’âge, de domiciliation du revenu, de salaire minimum (20 000 DA), de durée et de plafond des mensualités communiqués par CSM Taksit. Le bot ne prend aucune décision d’acceptation.

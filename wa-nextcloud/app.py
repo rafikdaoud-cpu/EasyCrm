@@ -547,11 +547,11 @@ def bot_eligibility_reply(lang):
     if lang == "ar":
         return ("شروط الأهلية:\n• السن من 19 إلى 75 سنة عند آخر قسط.\n"
                 "• إثبات دخل ثابت ومنتظم موطّن في حساب بريد الجزائر أو لدى بنك جزائري.\n"
-                "• راتب شهري لا يقل عن 25 000 دج.\n• مدة التمويل من 12 إلى 60 شهرًا.\n"
+                "• راتب شهري لا يقل عن 20 000 دج.\n• مدة التمويل من 12 إلى 60 شهرًا.\n"
                 "• المستحقات الشهرية لا تتجاوز 30٪ من الراتب الشهري.")
     return ("Conditions d’éligibilité :\n• De 19 à 75 ans, avec 75 ans au maximum à la dernière échéance.\n"
             "• Justifier d’un revenu stable et régulier domicilié chez Algérie Poste ou dans une banque algérienne.\n"
-            "• Salaire mensuel d’au moins 25 000 DA.\n• Durée du financement de 12 à 60 mois.\n"
+            "• Salaire mensuel d’au moins 20 000 DA.\n• Durée du financement de 12 à 60 mois.\n"
             "• Les mensualités ne dépassent pas 30 % du salaire mensuel.")
 
 
