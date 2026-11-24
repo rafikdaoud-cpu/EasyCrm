@@ -34,8 +34,8 @@ class HookController extends Controller {
 		if (!$d) { $j = json_decode((string)file_get_contents('php://input'), true); if (is_array($j)) { $d = $j; } }
 		return $d;
 	}
-	private function note(array $p, string $uid, string $text, ?string $result = null): void {
-		$this->s->insert('easycrm_calls', ['prospect_id' => (int)$p['id'], 'user_id' => $uid, 'result' => $result ?? $p['status'], 'note' => mb_substr($text, 0, 1000), 'callback_at' => null, 'created_at' => time()]);
+	private function note(array $p, string $uid, string $text, ?string $result = null, ?string $direction = null): void {
+		$this->s->insert('easycrm_calls', ['prospect_id' => (int)$p['id'], 'user_id' => $uid, 'result' => $result ?? $p['status'], 'note' => mb_substr($text, 0, 1000), 'call_direction' => $direction, 'callback_at' => null, 'created_at' => time()]);
 	}
 
 	#[PublicPage]
@@ -56,7 +56,7 @@ class HookController extends Controller {
 		$txt = '☎ ' . ($e['inbound'] ? 'Appel entrant' : 'Appel sortant') . ' — ' . $e['status'] . ($e['duration'] ? ' — ' . $e['duration'] . ' s' : '') . ($e['recording'] ? ' — enregistrement : ' . $e['recording'] : '');
 		$result = ($map !== '' && in_array($map, Statuses::results(), true) && !(Statuses::get($map)['callback'] ?? false) && !(Statuses::get($map)['note'] ?? false)) ? $map : null;
 		$now = time();
-		$this->note($p, $uid, $txt, $result);
+		$this->note($p, $uid, $txt, $result, $e['direction']);
 		if ($result !== null) { $this->s->update((int)$p['id'], ['status' => $result, 'last_note' => $txt, 'last_call_at' => $now]); }
 		return new JSONResponse(['ok' => true, 'matched' => true]);
 	}

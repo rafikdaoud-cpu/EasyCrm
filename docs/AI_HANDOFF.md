@@ -412,3 +412,11 @@ Dans Pilotage, la colonne triable Répondu par affiche les commerciaux dont le d
 ## Call CRM 0.57.20 · Nom du commercial sur les enregistrements
 
 Le bloc Appels et enregistrements Yeastar affiche le nom du commercial quand le compte associé possède un nom d’affichage. Le libellé de l’audio disponible devient « Audio enregistré dans le CRM ».
+
+## EasyCrm Nextcloud 1.9.1 · Journal et enregistrements
+
+Dans Statistiques, le Journal des appels affiche un sens triable. Le webhook PBX renseigne le sens quand il reçoit une valeur reconnue. Les lignes anciennes et les saisies manuelles sans événement restent indéterminées. Les compteurs entrants et sortants ouvrent le même journal avec le filtre correspondant. Le bouton client ouvre la fiche. L’export Excel reprend les filtres et le tri jusqu’à 20 000 lignes, exige le droit d’export et masque les colonnes téléphone et note sans droit d’exporter les numéros. Il est journalisé.
+
+L’ouverture d’une fiche rapproche les enregistrements mobiles non rattachés à partir du numéro principal, jusqu’à 24 heures avant la création. Le numéro doit correspondre à une seule fiche. Un commercial ne rapproche que ses propres fichiers. Le bloc utilise le nom d’affichage et le libellé « Audio enregistré dans le CRM ».
+
+Les compteurs EasyCrm couvrent les lignes du journal, dont les appels PBX associés à une fiche. Le webhook multi-PBX existant ne conserve ni les étapes détaillées d’IVR ni les offres de sonnerie. Le Pilotage Yeastar, la distinction manqué/perdu à 4 secondes, les réglages CSM d’ouverture, la récupération d’audios depuis le P-Series et l’orientation WhatsApp par poste propre à Call CRM demandent une intégration distincte dans EasyCrm. Son connecteur, ses rôles et ses règles pays sont conservés. La migration additive 1012 ajoute `easycrm_calls.call_direction`.

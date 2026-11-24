@@ -152,7 +152,7 @@ class ApiController extends Controller {
 		if (!$p) { return $this->err('Introuvable', Http::STATUS_NOT_FOUND); }
 		$role = $this->a->role();
 		$recs = in_array($role, ['admin', 'superviseur'], true) ? $this->s->recordingsFor($id, null) : ($role === 'commercial' ? $this->s->recordingsFor($id, $this->a->uid()) : []);
-		foreach ($recs as &$r) { $r['user_name'] = $this->um->getDisplayName($r['user_id']) ?: $r['user_id']; unset($r['file']); }
+		foreach ($recs as &$r) { $r['user_name'] = $this->um->getDisplayName($r['user_id']) ?: ''; if ($r['user_name'] === $r['user_id']) { $r['user_name'] = ''; } unset($r['file'], $r['user_id']); }
 		unset($r);
 		$ex = !empty($p['extra']) ? json_decode((string)$p['extra'], true) : null; $p['extra'] = is_array($ex) ? $ex : (object)[];
 		if ($this->a->can('mask')) { $p['phone'] = $this->maskPhone($p['phone']); $p['email'] = ''; $p['remarque'] = ''; }
@@ -711,7 +711,13 @@ class ApiController extends Controller {
 	#[NoAdminRequired]
 	public function journal(): JSONResponse {
 		if (!$this->a->can('view')) { return $this->deny(); }
+		$export = $this->request->getParam('export', '') === '1';
+		if ($export && !$this->a->can('export')) { return $this->deny(); }
 		$f = $this->filters();
+		$direction = $this->request->getParam('direction', '');
+		if (!in_array($direction, ['', 'inbound', 'outbound', 'unknown'], true)) { return $this->err('Sens invalide'); }
+		$f['direction'] = $direction;
+		$withPhone = !$this->a->can('mask') && (!$export || $this->a->can('export_phone'));
 		$f['q'] = mb_substr(trim((string)$this->request->getParam('q', '')), 0, 100);
 		$f['sort'] = (string)$this->request->getParam('sort', '');
 		$f['dir'] = (string)$this->request->getParam('dir', '');
@@ -719,15 +725,47 @@ class ApiController extends Controller {
 			$f['qusers'] = [];
 			foreach ($this->um->searchDisplayName($f['q'], 20) as $u) { $f['qusers'][] = $u->getUID(); }
 		}
-		if ($this->a->can('mask')) { $f['nophone'] = true; }
+		if (!$withPhone) { $f['nophone'] = true; }
+		if ($export && !$withPhone) { $f['nonote'] = true; }
 		$limit = in_array((int)$this->request->getParam('limit', 10), [10, 20, 30, 0], true) ? (int)$this->request->getParam('limit', 10) : 10;
 		$off = max(0, (int)$this->request->getParam('offset', 0));
 		if ($limit === 0) { $limit = 5000; $off = 0; }
 		$total = $this->s->callLogCount($this->scope(), $f);
+		if ($export) {
+			if ($total > 20000) { return $this->err('Plus de 20 000 lignes. Réduisez la période avant l’export.'); }
+			$limit = 20001;
+			$off = 0;
+		}
 		$rows = $this->maskRows($this->s->callLog($this->scope(), $f, $limit, $off));
+		if ($export && count($rows) > 20000) { return $this->err('Plus de 20 000 lignes. Réduisez la période avant l’export.'); }
+		if ($export && !$withPhone) {
+			foreach ($rows as &$row) {
+				unset($row['phone'], $row['note']);
+			}
+			unset($row);
+		}
 		foreach ($rows as &$r) { $r['user_name'] = $this->um->getDisplayName($r['user_id']) ?: $r['user_id']; }
 		unset($r);
-		return new JSONResponse(['rows' => $rows, 'total' => $total]);
+		if ($export) {
+			$this->s->audit($this->a->uid(), 'export', null, count($rows) . ' appel(s) du journal');
+		}
+		$counts = [];
+		if (!$export) {
+			foreach (['inbound', 'outbound'] as $sense) {
+				$counts[$sense] = $direction === $sense ? $total : $this->s->callLogCount($this->scope(), array_replace($f, ['direction'=>$sense]));
+			}
+		}
+		return new JSONResponse(['rows' => $rows, 'total' => $total, 'export_phone' => $withPhone, 'counts' => $counts]);
+	}
+
+	#[NoAdminRequired]
+	public function reconcileRecordings(int $id): JSONResponse {
+		$role = $this->a->role();
+		if (!$this->a->can('view') || $this->a->can('mask') || !in_array($role, ['commercial', 'admin', 'superviseur'], true)) { return $this->deny(); }
+		$prospect = $this->visible($id);
+		if (!$prospect) { return $this->err('Introuvable', Http::STATUS_NOT_FOUND); }
+		$this->s->attachUnlinkedRecordings($prospect, $role === 'commercial' ? $this->a->uid() : null);
+		return new JSONResponse(['ok' => true]);
 	}
 
 	private function recFolder(): \OCP\Files\SimpleFS\ISimpleFolder {
@@ -784,7 +822,7 @@ class ApiController extends Controller {
 	public function unmatchedRecordings(): JSONResponse {
 		if (!$this->a->can('import')) { return $this->deny(); }
 		$rows = $this->s->unmatchedRecordings(50);
-		foreach ($rows as &$r) { $r['user_name'] = $this->um->getDisplayName($r['user_id']) ?: $r['user_id']; unset($r['file']); }
+		foreach ($rows as &$r) { $r['user_name'] = $this->um->getDisplayName($r['user_id']) ?: ''; if ($r['user_name'] === $r['user_id']) { $r['user_name'] = ''; } unset($r['file'], $r['user_id']); }
 		unset($r);
 		return new JSONResponse($rows);
 	}

@@ -1,5 +1,7 @@
 # Déployer Call CRM / EasyCrm
 
+**Call CRM 0.57.20** inclut les mises à jour du Pilotage, du classement Yeastar, de l’export Excel et des enregistrements. Une mise à jour depuis 0.57.5 applique la migration additive 1026. **EasyCrm 1.9.1** adapte le journal et le rapprochement des enregistrements mobiles à son connecteur multi-PBX. Une mise à jour depuis 1.9.0 applique sa migration additive 1012. Exécuter `occ upgrade` après remplacement de l’application concernée. Le [détail des changements et des capacités par édition](AI_HANDOFF.md#call-crm-0576--résultats-des-appels-sortants) figure dans le guide technique.
+
 **Call CRM 0.57.5** regroupe le correctif des liens SMS, Pilotage, la fermeture du simulateur, le classement des appels selon la sonnerie au poste et l’orientation WhatsApp par numéro de poste. Depuis 0.56.1, les migrations 1024 et 1025 s’appliquent via `occ upgrade`. Depuis 0.57.2 ou une version intermédiaire ultérieure, seule la migration 1025 reste à appliquer. Voir le [récapitulatif des changements](AI_HANDOFF.md#call-crm-0562--liens-sms-de-dépôt).
 
 **Call CRM 0.56.1** rétablit la création manuelle et l’ouverture de la fiche vierge au décroché d’un appel inconnu. Cette révision ne comporte aucune nouvelle migration. Une mise à jour depuis une version antérieure à 0.56.0 doit appliquer la migration 1023.

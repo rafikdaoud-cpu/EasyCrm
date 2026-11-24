@@ -113,8 +113,8 @@ const playRec = async (id, holder) => {
     holder.replaceChildren(a);
   } catch (e) { holder.textContent = e.message; }
 };
-const recRow = c => { const slot = h('div'); return h('div', {class:'card'}, '🎧 ', fmt(Number(c.recorded_at)), ' — ', c.user_name || c.user_id, c.phone ? ' — ' + c.phone : '',
-  c.title && !c.prospect_id ? h('div', {class:'muted'}, c.title) : '', slot, h('button', {style:'margin-top:4px', onclick: () => playRec(c.id, slot)}, T('▶ Écouter'))); };
+const recRow = c => { const slot = h('div'); return h('div', {class:'card'}, '🎧 ', fmt(Number(c.recorded_at)), ' — ', c.user_name || '', c.phone ? ' — ' + c.phone : '',
+  h('div', {class:'muted'}, T('Audio enregistré dans le CRM')), c.title && !c.prospect_id ? h('div', {class:'muted'}, c.title) : '', slot, h('button', {style:'margin-top:4px', onclick: () => playRec(c.id, slot)}, T('▶ Écouter'))); };
 const fval = (p, f) => f.builtin ? (p[f.key] || '') : ((p.extra || {})[f.key] || '');
 const collect = box => { const b = {}; box.querySelectorAll('[data-k]').forEach(e => {
   b[e.dataset.k] = e.dataset.multi ? Array.from(e.querySelectorAll('input:checked')).map(c => c.value).join(' | ') : e.value; }); return b; };
@@ -614,7 +614,12 @@ function callHistoryEntry(c) {
 async function detail(id) {
   if(!canLeave(()=>detail(id)))return;
   let d;
-  try { d = await api('/prospects/' + id); } catch (e) { return show(h('p', {class:'err'}, e.message)); }
+  try {
+    if (['admin','superviseur','commercial'].includes(me.role)) {
+      await api('/prospects/' + id + '/recordings/reconcile', {method:'POST'}).catch(() => {});
+    }
+    d = await api('/prospects/' + id);
+  } catch (e) { return show(h('p', {class:'err'}, e.message)); }
   const p = d.prospect;
   let sel = null;
   const note = h('textarea', {rows:2, placeholder:T('Note')});
@@ -820,12 +825,30 @@ async function stats() {
   try { const v = localStorage.getItem('easycrm_jps2'); if (v !== null && [0, 10, 20, 30].includes(Number(v))) jsize = Number(v); } catch (e) {}
   const jq = h('input', {type:'search', placeholder:T('Rechercher dans le journal…')});
   const jpg = h('div', {class:'bar', style:'justify-content:space-between;align-items:center;margin:8px 0'});
-  const jhead = [['date', T('Date et heure')], ['user', T('Commercial')], ['client', T('Client')], ['phone', T('Téléphone')], ['cat', lab('c2')], ['result', T('Résultat')], ['note', T('Note')]];
+  const directions = {inbound:T('Entrant'),outbound:T('Sortant'),unknown:T('Indéterminé')};
+  const sense = h('select', {'aria-label':T('Sens')}, h('option',{value:''},T('Tous les sens')),
+    Object.entries(directions).map(([value,label])=>h('option',{value},label)));
+  const journalCounts = h('div', {class:'bar'});
+  const journalStatus = h('p', {role:'status',class:'muted'});
+  const jhead = [['date', T('Date et heure')], ['user', T('Commercial')], ['client', T('Client')], ['phone', T('Téléphone')], ['direction', T('Sens')], ['cat', lab('c2')], ['result', T('Résultat')], ['note', T('Note')]];
+  const journalParams = () => {
+    const p = new URLSearchParams(jp);
+    p.set('q', jq.value); p.set('direction', sense.value); p.set('sort', jsort.k); p.set('dir', jsort.d);
+    return p;
+  };
+  let journalRequest = 0;
   const jload = async () => {
     if (!jp) return;
-    const p = new URLSearchParams(jp); p.set('q', jq.value); p.set('sort', jsort.k); p.set('dir', jsort.d); p.set('limit', jsize); p.set('offset', (jpage - 1) * jsize);
+    const request = ++journalRequest;
+    const p = journalParams();
+    p.set('limit', jsize); p.set('offset', (jpage - 1) * jsize);
     try {
       const r = await api('/journal?' + p), pages = jsize ? Math.max(1, Math.ceil(r.total / jsize)) : 1;
+      if (request !== journalRequest) return;
+      journalCounts.replaceChildren(...[['inbound','Appels entrants'],['outbound','Appels sortants']].map(([key,label])=>
+        h('button',{type:'button','aria-pressed':String(sense.value===key),onclick:()=>{
+          sense.value=sense.value===key?'':key;jpage=1;jload();
+        }},T(label)+' · '+r.counts[key])));
       if (jpage > pages) { jpage = pages; return jload(); }
       const go3 = n => { jpage = n; jload(); };
       jpg.replaceChildren(h('span', {class:'muted'}, r.total + T(' appel(s) — page ') + jpage + ' / ' + pages),
@@ -836,9 +859,33 @@ async function stats() {
         h('thead', {}, h('tr', {}, jhead.map(([k, t]) => h('th', {style:'text-align:left;padding:4px;cursor:pointer;white-space:nowrap;user-select:none', title:T('Trier'), onclick: () => { if (jsort.k === k) jsort.d = jsort.d === 'asc' ? 'desc' : 'asc'; else { jsort.k = k; jsort.d = k === 'date' ? 'desc' : 'asc'; } jpage = 1; jload(); }},
           t + ' ', h('small', {style: jsort.k === k ? '' : 'opacity:.35'}, jsort.k === k ? (jsort.d === 'asc' ? '▲' : '▼') : '⇅'))))),
         h('tbody', {}, r.rows.map(x => h('tr', {style:'border-top:1px solid var(--color-border);cursor:pointer', onclick: () => detail(x.prospect_id)},
-          td(fmt(Number(x.created_at))), td(x.user_name), td(nm(x)), td(x.phone), td(x.c2 || ''), td(badge(x.result), x.reason ? ' · ' + x.reason : ''), td(x.note || ''))))) : h('p', {class:'muted'}, T('Aucun appel.')));
-    } catch (e) { box.replaceChildren(h('p', {class:'err'}, e.message)); }
+          td(fmt(Number(x.created_at))), td(x.user_name),
+          td(h('button',{type:'button',onclick:e=>{e.stopPropagation();detail(x.prospect_id);}},nm(x))),
+          td(x.phone), td(directions[x.call_direction] || directions.unknown), td(x.c2 || ''), td(badge(x.result), x.reason ? ' · ' + x.reason : ''), td(x.note || ''))))) : h('p', {class:'muted'}, T('Aucun appel.')));
+    } catch (e) { if (request === journalRequest) box.replaceChildren(h('p', {class:'err'}, e.message)); }
   };
+  sense.addEventListener('change',()=>{jpage=1;jload();});
+  const exportButton = me.can.export ? h('button',{type:'button',onclick:async e=>{
+    if (!jp) return;
+    const button=e.currentTarget;
+    button.disabled=true;journalStatus.textContent='';
+    try {
+      const p=journalParams();p.set('export','1');
+      const r=await api('/journal?'+p);
+      if (!window.XLSX) throw new Error(T('Lecteur Excel indisponible : rechargez la page (Ctrl+F5).'));
+      const columns=jhead.filter(([key])=>r.export_phone || !['phone','note'].includes(key));
+      const values=x=>({date:fmt(Number(x.created_at)),user:x.user_name,client:nm(x),phone:x.phone,
+        direction:directions[x.call_direction]||directions.unknown,cat:x.c2,result:ST[x.result]||x.result,note:x.note});
+      const workbook=window.XLSX.utils.book_new();
+      window.XLSX.utils.book_append_sheet(workbook,window.XLSX.utils.aoa_to_sheet([
+        columns.map(([,label])=>label),...r.rows.map(row=>{
+          const data=values(row);return columns.map(([key])=>data[key]||'');
+        })
+      ]),'Journal');
+      window.XLSX.writeFile(workbook,'easycrm_journal_appels.xlsx');
+    } catch (error) { journalStatus.textContent=error.message; }
+    finally { button.disabled=false; }
+  }},T('Exporter Excel')) : '';
   let jt; jq.addEventListener('input', () => { clearTimeout(jt); jt = setTimeout(() => { jpage = 1; jload(); }, 300); });
   const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   const hbox = h('div');
@@ -912,7 +959,7 @@ async function stats() {
   show(h('h2', {}, me.can.all ? T('Statistiques') : T('Mes statistiques')),
     me.role === 'commercial' ? personalTimesCard() : '',
     h('div', {class:'bar'}, me.can.all ? [usr.el, grp.el] : '', cat.el, res, h('label', {}, T('Du '), from), h('label', {}, T('Au '), to), presets, rbtn, me.can.export ? h('button', {onclick: xl, title: me.can.export_phone ? '' : T('Export sans numéros de téléphone')}, T('⬇ Télécharger Excel') + (me.can.export_phone ? '' : T(' (sans téléphone)'))) : '', upd),
-    h('h3', {}, T('Journal des appels')), h('div', {class:'bar'}, jq), jpg,
+    h('h3', {}, T('Journal des appels')), h('div', {class:'bar'}, jq, sense, exportButton), journalCounts, journalStatus, jpg,
     h('div', {style:'overflow-x:auto'}, box), sum);
   [usr.el, grp.el, cat.el, res, from, to].forEach(e => e.addEventListener('change', load));
   load();

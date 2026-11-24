@@ -466,7 +466,13 @@ class Telephony {
 		$status = strtolower((string)$pick('status', 'disposition', 'result'));
 		$duration = (int)floatval($pick('duration', 'billsec', 'talk_time') ?: 0);
 		$ok = $status === '' || in_array($status, ['answered', 'answer', 'completed', 'success', 'connected', 'ok'], true);
-		return ['number' => self::digits($number), 'ext' => (string)$ext, 'status' => $status ?: ($duration ? 'answered' : 'unknown'),
+		$direction = match ($dir) {
+			'in', 'inbound', 'incoming' => 'inbound',
+			'out', 'outbound', 'outgoing' => 'outbound',
+			default => null,
+		};
+		if ($pick('direction', 'type') === '') { $direction = null; }
+		return ['direction' => $direction, 'number' => self::digits($number), 'ext' => (string)$ext, 'status' => $status ?: ($duration ? 'answered' : 'unknown'),
 			'answered' => $ok && $duration > 0, 'duration' => $duration, 'recording' => (string)$pick('recording', 'recording_url', 'recordingfile', 'recordurl'),
 			'uid' => (string)$pick('uniqueid', 'id', 'call_id', 'callid'), 'inbound' => $in];
 	}

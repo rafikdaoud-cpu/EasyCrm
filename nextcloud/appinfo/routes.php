@@ -26,6 +26,7 @@ return ['routes' => [
 	['name' => 'api#me', 'url' => '/api/me', 'verb' => 'GET'],
 	['name' => 'api#prospects', 'url' => '/api/prospects', 'verb' => 'GET'],
 	['name' => 'api#show', 'url' => '/api/prospects/{id}', 'verb' => 'GET'],
+	['name' => 'api#reconcileRecordings', 'url' => '/api/prospects/{id}/recordings/reconcile', 'verb' => 'POST'],
 	['name' => 'api#call', 'url' => '/api/prospects/{id}/call', 'verb' => 'POST'],
 	['name' => 'api#assign', 'url' => '/api/prospects/{id}/assign', 'verb' => 'POST'],
 	['name' => 'api#destroy', 'url' => '/api/prospects/{id}/delete', 'verb' => 'POST'],

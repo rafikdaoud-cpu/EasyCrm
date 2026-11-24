@@ -149,6 +149,27 @@ class Store {
 		if ($uid !== null) { $qb->andWhere($qb->expr()->eq('user_id', $qb->createNamedParameter($uid))); }
 		return $qb->executeQuery()->fetchAll();
 	}
+	public function attachUnlinkedRecordings(array $prospect, ?string $uid): void {
+		$phone = Phone::normalize((string)$prospect['phone']);
+		if ($phone === null || empty($prospect['created_at'])) { return; }
+		$international = Phone::whatsapp($phone);
+		$variants = array_values(array_unique([$phone, $international, '+'.$international, '00'.$international]));
+		$q = $this->db->getQueryBuilder();
+		$ids = $q->select('id')->from('easycrm_prospects')
+			->where($q->expr()->in('phone', $q->createNamedParameter($variants, IQueryBuilder::PARAM_STR_ARRAY)))
+			->setMaxResults(2)->executeQuery()->fetchAll();
+		$id = (int)$prospect['id'];
+		if (count($ids) !== 1 || (int)$ids[0]['id'] !== $id) { return; }
+
+		$q = $this->db->getQueryBuilder();
+		$q->update('easycrm_recordings')->set('prospect_id', $q->createNamedParameter($id, IQueryBuilder::PARAM_INT))
+			->where($q->expr()->isNull('prospect_id'))
+			->andWhere($q->expr()->neq('file', $q->createNamedParameter('pending')))
+			->andWhere($q->expr()->in('phone', $q->createNamedParameter($variants, IQueryBuilder::PARAM_STR_ARRAY)))
+			->andWhere($q->expr()->gte('recorded_at', $q->createNamedParameter((int)$prospect['created_at']-86400, IQueryBuilder::PARAM_INT)));
+		if ($uid !== null) { $q->andWhere($q->expr()->eq('user_id', $q->createNamedParameter($uid))); }
+		$q->executeStatement();
+	}
 	public function unmatchedRecordings(int $limit): array {
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('*')->from('easycrm_recordings')->where($qb->expr()->isNull('prospect_id'))->orderBy('recorded_at', 'DESC')->setMaxResults($limit);
@@ -160,6 +181,8 @@ class Store {
 		return (bool)$qb->executeQuery()->fetch();
 	}
 	private function logWhere(IQueryBuilder $qb, ?string $uid, array $f): void {
+		if (($f['direction'] ?? '') === 'unknown') { $qb->andWhere($qb->expr()->isNull('c.call_direction')); }
+		elseif (!empty($f['direction'])) { $qb->andWhere($qb->expr()->eq('c.call_direction', $qb->createNamedParameter($f['direction']))); }
 		if ($uid !== null) { $qb->andWhere($qb->expr()->eq('c.user_id', $qb->createNamedParameter($uid))); }
 		if (!empty($f['user'])) { $qb->andWhere($qb->expr()->eq('c.user_id', $qb->createNamedParameter($f['user']))); }
 		if (!empty($f['result'])) { $qb->andWhere($qb->expr()->eq('c.result', $qb->createNamedParameter($f['result']))); }
@@ -171,16 +194,19 @@ class Store {
 		if ($q !== '') {
 			$l = $qb->createNamedParameter('%' . $this->db->escapeLikeParameter($q) . '%');
 			$or = [];
-			foreach (empty($f['nophone']) ? ['p.lastname', 'p.firstname', 'p.phone', 'c.note', 'c.user_id'] : ['p.lastname', 'p.firstname', 'c.note', 'c.user_id'] as $col) { $or[] = $qb->expr()->like($col, $l); }
+			$columns = ['p.lastname', 'p.firstname', 'c.user_id'];
+			if (empty($f['nophone'])) { $columns[] = 'p.phone'; }
+			if (empty($f['nonote'])) { $columns[] = 'c.note'; }
+			foreach ($columns as $col) { $or[] = $qb->expr()->like($col, $l); }
 			if (!empty($f['qusers'])) { $or[] = $qb->expr()->in('c.user_id', $qb->createNamedParameter($f['qusers'], IQueryBuilder::PARAM_STR_ARRAY)); }
 			$qb->andWhere($qb->expr()->orX(...$or));
 		}
 	}
 	public function callLog(?string $uid, array $f, int $limit, int $off): array {
 		$qb = $this->db->getQueryBuilder();
-		$qb->select('c.id', 'c.user_id', 'c.result', 'c.note', 'c.callback_at', 'c.created_at', 'c.prospect_id', 'c.reason', 'p.lastname', 'p.firstname', 'p.phone', 'p.c2')
+		$qb->select('c.id', 'c.user_id', 'c.result', 'c.note', 'c.callback_at', 'c.created_at', 'c.prospect_id', 'c.reason', 'c.call_direction', 'p.lastname', 'p.firstname', 'p.phone', 'p.c2')
 			->from('easycrm_calls', 'c')->innerJoin('c', 'easycrm_prospects', 'p', $qb->expr()->eq('c.prospect_id', 'p.id'));
-		$cols = ['date' => 'c.created_at', 'user' => 'c.user_id', 'client' => 'p.lastname', 'phone' => 'p.phone', 'cat' => 'p.c2', 'result' => 'c.result', 'note' => 'c.note'];
+		$cols = ['date' => 'c.created_at', 'user' => 'c.user_id', 'client' => 'p.lastname', 'phone' => 'p.phone', 'cat' => 'p.c2', 'result' => 'c.result', 'note' => 'c.note', 'direction' => 'c.call_direction'];
 		$dir = ($f['dir'] ?? '') === 'asc' ? 'ASC' : 'DESC';
 		if (!empty($f['sort']) && isset($cols[$f['sort']])) { $qb->orderBy($cols[$f['sort']], $dir)->addOrderBy('c.id', 'DESC'); }
 		else { $qb->orderBy('c.id', 'DESC'); }
