@@ -487,10 +487,10 @@ def bot_service_reply(body, lang):
     if words & {"livraison", "livrez", "livrer", "توصيل", "التوصيل", "شحن", "الشحن"}:
         answers.append("التوصيل مجاني إلى جميع ولايات الجزائر." if arabic else
                        "La livraison est gratuite dans toutes les wilayas d’Algérie.")
-    if words & {"dossier", "documents", "justificatifs", "pieces", "ملف", "الملف", "وثائق", "الوثائق", "الاوراق", "اوراق"}:
+    if words & {"dossier", "documents", "justificatifs", "pieces", "ملف", "الملف", "وثايق", "الوثايق", "الاوراق", "اوراق"}:
         label = "الوثائق المطلوبة لتكوين الملف" if arabic else "Liste des pièces à fournir"
         answers.append(f"{label} : https://eshop.csmtaksit.dz/dossier-a-fournir/")
-    if words & {"faq"} or any(term in question for term in ("questions frequentes", "الاسئلة الشائعة", "اسئلة شائعة")):
+    if words & {"faq"} or any(bot_key(term) in question for term in ("questions fréquentes", "الأسئلة الشائعة", "أسئلة شائعة")):
         label = "الأسئلة الشائعة" if arabic else "Questions fréquentes"
         answers.append(f"{label} : https://eshop.csmtaksit.dz/faq/")
     return "\n\n".join(answers)
