@@ -656,8 +656,10 @@ def bot_step(state, choice, body, config=None):
             return ("language", "", texts.get("welcome", "Bonjour • مرحباً بكم في CSM Taksit. Choisissez votre langue / اختاروا اللغة."),
                     [("fr", "Français"), ("ar", "العربية")])
         t = texts.get(lang, {})
+        if lang == "fr" and t.get("agent") == "Un commercial":
+            t = {**t, "agent": "Parler à un conseiller"}
         defaults = ("ما المنتج الذي تبحثون عنه؟", "دراجة نارية", "أجهزة منزلية", "أثاث وتجهيز المنزل", "التحدث إلى مستشار") if lang == "ar" else (
-            "Quel produit recherchez-vous ?", "Moto", "Électroménager", "Meubles / Aménagement", "Un commercial")
+            "Quel produit recherchez-vous ?", "Moto", "Électroménager", "Meubles / Aménagement", "Parler à un conseiller")
         return ("product", lang, t.get("product", defaults[0]),
                 [(key, t.get(key, default)) for key, default in zip(("moto", "appliance", "furniture", "agent"), defaults[1:])])
     step, lang = state

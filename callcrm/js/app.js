@@ -2788,7 +2788,7 @@ function chatbotSettingsCard() {
     faq:['Question en français','Question en arabe','Réponse en français','Réponse en arabe']
   };
   const labels={product:'Question sur le produit',moto:'Bouton Moto',appliance:'Bouton Électroménager',furniture:'Choix Meubles / Aménagement',
-    agent:'Bouton Commercial',model:'Question sur le modèle',wilaya:'Question sur la wilaya',handoff:'Message de relais'};
+    agent:'Choix Conseiller',model:'Question sur le modèle',wilaya:'Question sur la wilaya',handoff:'Message de relais'};
   const welcome=h('textarea',{rows:2,maxlength:900,dir:'auto'});
   const fields={}, replies={};
   let config=null;
@@ -2796,7 +2796,7 @@ function chatbotSettingsCard() {
     fields[lang]={};
     for(const key of Object.keys(labels)){
       const button=['moto','appliance','furniture','agent'].includes(key);
-      fields[lang][key]=button?h('input',{maxlength:key==='furniture'?24:20,dir:lang==='ar'?'rtl':'ltr'}):
+      fields[lang][key]=button?h('input',{maxlength:['furniture','agent'].includes(key)?24:20,dir:lang==='ar'?'rtl':'ltr'}):
         h('textarea',{rows:2,maxlength:900,dir:lang==='ar'?'rtl':'ltr'});
     }
   }

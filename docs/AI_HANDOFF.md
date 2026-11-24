@@ -460,3 +460,7 @@ Une annonce de relais place la conversation en attente. Le chatbot continue de t
 ## Call CRM 0.57.25 · Arrêt du chatbot à la reprise humaine
 
 Lors d’un message entrant, le service vérifie aussi la présence d’une réponse humaine récente dans l’historique de la conversation CRM. Ceci couvre une reprise déjà enregistrée même si l’état local du bot n’a pas été arrêté pour le même identifiant. Les messages du bot et les accusés automatiques ne comptent pas comme des réponses humaines. Après la reprise, l’accusé automatique de réception des pièces est également suspendu pour cette conversation lorsque le chatbot est activé. Déployer Call CRM et le service WhatsApp ensemble. Aucun changement de schéma.
+
+## Call CRM 0.57.26 · Libellé français du choix conseiller
+
+La liste de produits WhatsApp et l’administration du chatbot affichent « Parler à un conseiller » comme libellé français par défaut. Le réglage précédemment enregistré avec « Un commercial » est actualisé. Les autres personnalisations et le libellé arabe sont conservés. Déployer Call CRM et wa-nextcloud pour synchroniser l’écran et le menu WhatsApp.
