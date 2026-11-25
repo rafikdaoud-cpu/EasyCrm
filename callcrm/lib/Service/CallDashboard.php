@@ -250,6 +250,17 @@ class CallDashboard {
         return ['agents'=>$agents,'totals'=>$totals,'incoming'=>$incoming];
     }
 
+    /** Décroché par un commercial de la sélection, d'après les détails du standard ou ses événements de sonnerie. */
+    private function answeredBySelection(array $call, array $events, array $uids): bool {
+        foreach ($call['agents'] as $uid => $agent) {
+            if ($agent['answered'] && in_array((string)$uid, $uids, true)) return true;
+        }
+        foreach ($events as $event) {
+            if (in_array($event['state'], ['ANSWER','ANSWERED'], true) && in_array((string)$event['user_id'], $uids, true)) return true;
+        }
+        return false;
+    }
+
     /** Managers explicitly acknowledge a follow-up; this is not proof of a callback. */
     public function followup(int $id, string $state, string $uid): void {
         if (!in_array($state,['open','done'],true)) throw new \InvalidArgumentException('Suivi invalide.');
