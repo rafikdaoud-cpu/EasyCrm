@@ -5,7 +5,7 @@ html, body { background: #0f1430 !important; }
 .crm-wall {
 	--bg: #0f1430; --panel: #171d3d; --line: rgba(255,255,255,.08); --text: #f2f4fa; --muted: #9aa3c0;
 	--accent: #4a90e2; --warn: #e8a23a; --lost: #6b7393;
-	box-sizing: border-box; height: 100vh; overflow: hidden; padding: 1.4vw 2.2vw; color: var(--text); background: var(--bg);
+	box-sizing: border-box; position: fixed; inset: 0; z-index: 10; overflow: hidden; padding: 1.4vw 2.2vw; color: var(--text); background: var(--bg);
 	font: 400 clamp(14px, 1.15vw, 28px)/1.35 Arial, Helvetica, sans-serif;
 	display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; gap: .9vw;
 }
@@ -52,7 +52,7 @@ html, body { background: #0f1430 !important; }
 .crm-wall-legend .missed::before { background: var(--warn); }
 .crm-wall-legend .lost::before { background: var(--lost); }
 @media (max-width: 900px) {
-	.crm-wall { height: auto; overflow: visible; font-size: 15px; padding: 16px; gap: 14px; }
+	.crm-wall { position: static; overflow: visible; font-size: 15px; padding: 16px; gap: 14px; }
 	.crm-wall-row, .crm-wall-main { grid-template-columns: 1fr 1fr; }
 	.crm-wall-main { grid-template-columns: 1fr; }
 	.crm-wall-head { flex-direction: column; align-items: flex-start; }
