@@ -18,8 +18,8 @@ test('écran du plateau : chiffres du jour, top 3 et aucune donnée client',asyn
   assert.match(text,/Appels entrants284/);
   assert.match(text,/Taux de réponse[\s\S]*32 %/);              // 56 / (56+105+16)
   assert.match(text,/12 déjà rappelés/);
-  assert.deepEqual([...w.document.querySelectorAll('.crm-wall-name')].map(n=>n.textContent),['Sara Mimoun','Nawel Belaifa','Rofaida Lezzar']);
-  assert.match(text,/Amira 4/);                                  // les autres, en une ligne
+  assert.deepEqual([...w.document.querySelectorAll('.crm-wall-name')].map(n=>n.textContent),['sara mimoun','nawel belaifa','rofaida lezzar']);
+  assert.match(text,/amira 4/);                                  // les autres, en une ligne
   assert.equal(w.document.querySelectorAll('.crm-wall-hour').length,2,'heures de nuit masquées');
   assert.match(text,/6 \/ 9/);
 });

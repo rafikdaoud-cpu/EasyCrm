@@ -1,7 +1,7 @@
 /* Écran du plateau commercial (TV) : fond bleu nuit CSM, chiffres lisibles à plusieurs mètres, une seule couleur d'accent. */
 html, body { background: #0f1430 !important; }
 #body-public, #body-public #content { background: #0f1430; }
-#body-public header, #body-public footer, #body-public .footer, #body-public #header { display: none !important; }
+#body-public > header, #body-public > footer, #body-public .footer, #body-public #header { display: none !important; }
 .crm-wall {
 	--bg: #0f1430; --panel: #171d3d; --line: rgba(255,255,255,.08); --text: #f2f4fa; --muted: #9aa3c0;
 	--accent: #4a90e2; --warn: #e8a23a; --lost: #6b7393;
@@ -11,7 +11,7 @@ html, body { background: #0f1430 !important; }
 }
 .crm-wall *, .crm-wall *::before, .crm-wall *::after { box-sizing: border-box; }
 .crm-wall-loading { margin: auto; color: var(--muted); font-size: 1.6em; }
-.crm-wall-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 2vw; border-bottom: 1px solid var(--line); padding-bottom: 1vw; }
+.crm-wall-head { display: flex !important; align-items: flex-end; justify-content: space-between; gap: 2vw; border-bottom: 1px solid var(--line); padding-bottom: 1vw; }
 .crm-wall-head h1 { margin: 0; font-size: 2.2em; font-weight: 500; letter-spacing: 0; }
 .crm-wall-head p { margin: .2em 0 0; color: var(--muted); }
 .crm-wall-clock { color: var(--muted); font-size: 1.3em; text-transform: capitalize; font-variant-numeric: tabular-nums; }
@@ -22,18 +22,20 @@ html, body { background: #0f1430 !important; }
 .crm-wall-stat small { color: var(--muted); font-size: .9em; }
 .crm-wall-stat.accent strong { color: var(--accent); }
 .crm-wall-stat.warn strong { color: var(--warn); }
-.crm-wall-main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 1.4vw; min-height: 0; }
+.crm-wall-main { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 1.4vw; min-height: 0; }
+.crm-wall-main > .crm-wall-panel { overflow: hidden; }
 .crm-wall-panel h2 { margin: 0 0 .8em; font-size: 1.3em; font-weight: 500; color: var(--muted); }
 .crm-wall-top ol { list-style: none; margin: 0; padding: 0; display: grid; gap: .9vw; }
 .crm-wall-top li { display: grid; grid-template-columns: 2.4em minmax(0, 1fr) auto; align-items: center; gap: 1vw; padding: .8vw 1vw; border-radius: 12px; background: rgba(255,255,255,.03); }
 .crm-wall-top li.rank-1 { background: rgba(74,144,226,.14); }
 .crm-wall-rank { display: grid; place-items: center; width: 2em; height: 2em; border-radius: 50%; border: 1px solid var(--line); font-size: 1.2em; font-variant-numeric: tabular-nums; }
 .rank-1 .crm-wall-rank { background: var(--accent); border-color: var(--accent); color: #fff; }
-.crm-wall-name { font-size: 1.5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crm-wall-name { font-size: 1.4em; line-height: 1.15; overflow-wrap: anywhere; text-transform: capitalize; }
 .crm-wall-figures { text-align: end; color: var(--muted); }
 .crm-wall-figures b { color: var(--text); font-size: 1.8em; font-weight: 500; font-variant-numeric: tabular-nums; }
 .crm-wall-figures small { display: block; font-size: .85em; }
 .crm-wall-others, .crm-wall-empty { color: var(--muted); margin: 1em 0 0; }
+.crm-wall-others { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: capitalize; }
 .crm-wall-chart { display: flex; align-items: stretch; gap: .5vw; height: 22vh; }
 .crm-wall-hour { flex: 1; display: flex; flex-direction: column; align-items: center; gap: .4em; min-width: 0; }
 .crm-wall-bars { flex: 1; width: 100%; display: flex; flex-direction: column-reverse; justify-content: flex-start; border-bottom: 1px solid var(--line); }
