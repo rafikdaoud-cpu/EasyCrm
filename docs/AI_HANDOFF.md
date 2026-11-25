@@ -504,3 +504,11 @@ Page en lecture seule pour une télévision du plateau commercial : `/apps/callc
 Le lien ne demande pas de compte. Le jeton (40 caractères alphanumériques) n’est conservé que sous forme d’empreinte SHA-256 dans `callcrm/wall_token_hash`. Administration → Écran du plateau (TV) crée un nouveau lien (l’ancien cesse de fonctionner) ou le désactive ; droit « Configurer le CRM ». Jeton inconnu : 404 et ralentissement anti-force brute de Nextcloud ; 60 requêtes par 10 minutes et par adresse. La page n’expose aucune donnée client : uniquement des compteurs et les noms des commerciaux.
 
 Tests : `tests/callcrm-wall-ui.cjs` (rendu des chiffres, calcul du taux, classement, heures de nuit masquées, lien invalide).
+
+## Call CRM 0.58.6 — menu du standard par équipe (25/11/2026)
+- `Service/YeastarTeams` + tâche `SyncYeastarTeams` (5 min). Réglage JSON `callcrm/yeastar_team_queues` (pas d'écran) :
+  groupe AD → équipe CRM locale (`crm_equipe_*`, alignée sur l'AD ; AD vide ignoré) → file Yeastar `CSM_<EQUIPE>` (copie de la file modèle,
+  postes des membres sans admin/superviseur, n° 6402–6449) → touche du SVI d'accueil 6200. Sans réponse / touche invalide : file de secours après `prompt_repeat`.
+- Le SVI n'est touché que si `prompt` est renseigné (messages déposés à la main : l'API n'a pas de route pour les messages personnalisés).
+- `YeastarRouting` : les SVI CRM_<poste> ne reprennent que le 1er message (accueil), répété une fois.
+- Écrans du plateau (0.58.1–0.58.5) : compteurs limités au jour, pauses comptées même poste fermé, écran plein cadre.

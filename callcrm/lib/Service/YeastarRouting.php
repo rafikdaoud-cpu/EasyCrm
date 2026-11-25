@@ -106,6 +106,8 @@ class YeastarRouting {
 			$b = ['name' => 'CRM_' . $ext] + array_intersect_key($tpl, array_flip(self::IVR_COPY)) + ['dial_ext_option' => 'disable'];
 			foreach ($tpl as $k => $x) if (preg_match('/^press(\d|_hash|_star)_dest$/D', $k) && $x !== '') { $b[$k] = 'extension'; $b[$k . '_value'] = $id; }
 			foreach (['timeout', 'invalid'] as $k) { $b[$k . '_dest'] = 'extension'; $b[$k . '_dest_value'] = $id; }
+			// Accueil seul : le menu des équipes (2e message) ne concerne pas les clients déjà suivis par un commercial.
+			$b['prompt'] = explode(',', (string)$b['prompt'])[0]; $b['prompt_repeat'] = 1;
 			$h = hash('sha256', json_encode($b));
 			if (isset($mine[$ext])) {
 				$iid = (int)$mine[$ext]['id'];

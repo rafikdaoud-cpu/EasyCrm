@@ -25,6 +25,7 @@ node tests/callcrm-neglected-ui.cjs
 "$PHP_BIN" tests/yeastar-routing.php
 "$PHP_BIN" tests/short-calls.php
 "$PHP_BIN" tests/yeastar-cdr.php
+"$PHP_BIN" tests/yeastar-teams.php
 "$PHP_BIN" tests/inactive-owners.php
 "$PHP_BIN" tests/team-move.php
 "$PHP_BIN" tests/notifier.php
