@@ -27,6 +27,16 @@
   const stat = (label, value, note, tone) => h('div', {class: 'crm-wall-stat' + (tone ? ' ' + tone : '')},
     h('span', {class: 'crm-wall-label'}, label), h('strong', {}, value), note ? h('small', {}, note) : '');
 
+  function team(t) {
+    const parts = [];
+    if (t.pause) parts.push(t.pause + ' en pause');
+    if (t.lunch) parts.push(t.lunch + ' en pause déjeuner');
+    const box = stat('Commerciaux en ligne', t.online + ' / ' + t.total, parts.join(' · ') || 'personne en pause');
+    if (t.breaks.length) box.append(h('ul', {class: 'crm-wall-breaks'}, t.breaks.map(b =>
+      h('li', {class: b.overdue ? 'overdue' : ''}, b.name.split(' ')[0].toLowerCase() + ' · ' + (b.kind === 'lunch' ? 'déjeuner' : 'pause') + ' ' + b.minutes + ' min'))));
+    return box;
+  }
+
   function chart(series) {
     const hours = series.filter(s => Number(s.label) >= 7 && Number(s.label) <= 18);
     const peak = Math.max(1, ...hours.map(s => s.answered + s.missed + s.lost));
@@ -70,9 +80,9 @@
           h('h2', {}, 'Appels entrants par heure'), chart(c.series || []),
           h('p', {class: 'crm-wall-legend'}, h('span', {class: 'answered'}, 'Décrochés'), h('span', {class: 'missed'}, 'Manqués'), h('span', {class: 'lost'}, 'Perdus')))),
       h('section', {class: 'crm-wall-row'},
-        stat('Commerciaux connectés', d.team.online + ' / ' + d.team.total, d.team.pause ? d.team.pause + ' en pause' : 'aucun en pause'),
-        stat('Appels manqués à rappeler', num(d.open_missed), 'en attente dans Appels manqués', d.open_missed ? 'warn' : ''),
-        stat('Rappels clients en retard', num(d.late_callbacks), 'date de rappel dépassée', d.late_callbacks ? 'warn' : ''),
+        team(d.team),
+        stat('Manqués du jour à rappeler', num(d.open_missed), 'appels d’aujourd’hui encore sans rappel', d.open_missed ? 'warn' : ''),
+        stat('Rappels du jour en retard', num(d.late_callbacks), 'prévus aujourd’hui, heure dépassée', d.late_callbacks ? 'warn' : ''),
         stat('Dossiers traités', num(d.agents.reduce((t, a) => t + a.processed, 0)), 'résultats d’appel saisis aujourd’hui')));
     tick(zone);
   }

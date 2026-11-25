@@ -92,21 +92,44 @@ class WallController extends Controller {
         }
         // Classement : dossiers traités (résultats d'appel saisis), puis appels décrochés et sortants aboutis.
         usort($agents, fn($a, $b) => [$b['processed'], $b['answered'] + $b['reached'], $b['outgoing']] <=> [$a['processed'], $a['answered'] + $a['reached'], $a['outgoing']]);
+        $dayStart = (int)$range['start'];
+        // Seulement la journée : les retards anciens restent dans Appels manqués et Rappels.
         $q = $this->db->getQueryBuilder();
         $openMissed = (int)$q->select($q->func()->count('*'))->from('callcrm_missed')
-            ->where($q->expr()->eq('state', $q->createNamedParameter('open')))->executeQuery()->fetchOne();
+            ->where($q->expr()->eq('state', $q->createNamedParameter('open')))
+            ->andWhere($q->expr()->gte('last_at', $q->createNamedParameter($dayStart, IQueryBuilder::PARAM_INT)))->executeQuery()->fetchOne();
         $late = 0;
         if ($keys = Statuses::callbackKeys()) {
             $q = $this->db->getQueryBuilder();
             $late = (int)$q->select($q->func()->count('*'))->from('callcrm_prospects')
                 ->where($q->expr()->in('status', $q->createNamedParameter($keys, IQueryBuilder::PARAM_STR_ARRAY)))
+                ->andWhere($q->expr()->gte('callback_at', $q->createNamedParameter($dayStart, IQueryBuilder::PARAM_INT)))
                 ->andWhere($q->expr()->lt('callback_at', $q->createNamedParameter($now, IQueryBuilder::PARAM_INT)))->executeQuery()->fetchOne();
         }
-        $count = fn(string $status) => count(array_filter($agents, fn($a) => $a['status'] === $status));
+        // Pauses commencées aujourd'hui, même si le poste a été fermé ou mis en veille pendant la pause
+        // (le signal de présence s'arrête alors, et le commercial apparaîtrait « absent »).
+        $breaks = [];
+        if ($uids) {
+            $q = $this->db->getQueryBuilder();
+            $rows = $q->select('user_id', 'pause_kind', 'pause_started_at')->from('callcrm_presence')
+                ->where($q->expr()->in('user_id', $q->createNamedParameter($uids, IQueryBuilder::PARAM_STR_ARRAY)))
+                ->andWhere($q->expr()->eq('paused', $q->createNamedParameter(1, IQueryBuilder::PARAM_INT)))
+                ->andWhere($q->expr()->gte('pause_started_at', $q->createNamedParameter($dayStart, IQueryBuilder::PARAM_INT)))
+                ->orderBy('pause_started_at', 'ASC')->executeQuery()->fetchAll();
+            foreach ($rows as $r) {
+                $lunch = $r['pause_kind'] === 'lunch';
+                $minutes = intdiv(max(0, $now - (int)$r['pause_started_at']), 60);
+                // Mêmes seuils que Présence : pause 10 min, déjeuner 70 min.
+                $breaks[] = ['name' => $users[$r['user_id']], 'kind' => $lunch ? 'lunch' : 'pause', 'minutes' => $minutes, 'overdue' => $minutes > ($lunch ? 70 : 10)];
+            }
+        }
+        $onBreak = array_column($breaks, 'name');
+        $online = count(array_filter($agents, fn($a) => $a['status'] === 'online' && !in_array($a['name'], $onBreak, true)));
+        $kinds = array_count_values(array_column($breaks, 'kind'));
         unset($activity['agents'], $activity['days']);
         return new JSONResponse([
             'now' => $now, 'timezone' => $zone->getName(), 'calls' => $activity,
-            'team' => ['online' => $count('online'), 'pause' => $count('pause'), 'total' => count($agents)],
+            'team' => ['online' => $online, 'pause' => $kinds['pause'] ?? 0, 'lunch' => $kinds['lunch'] ?? 0, 'total' => count($agents), 'breaks' => $breaks],
             'agents' => $agents, 'open_missed' => $openMissed, 'late_callbacks' => $late,
         ], 200, ['Cache-Control' => 'no-store', 'Referrer-Policy' => 'no-referrer']);
     }

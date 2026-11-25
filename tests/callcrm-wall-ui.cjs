@@ -6,7 +6,7 @@ const tick=()=>new Promise(r=>setTimeout(r,30));
 test('écran du plateau : chiffres du jour, top 3 et aucune donnée client',async()=>{
   const dom=new JSDOM('<main id="crm-wall" data-api="/api/public/ecran/x"></main>',{url:'https://cloud.example.test',runScripts:'outside-only'});
   const w=dom.window;
-  const data={now:1795600000,timezone:'Africa/Algiers',open_missed:12,late_callbacks:3,team:{online:6,pause:1,total:9},
+  const data={now:1795600000,timezone:'Africa/Algiers',open_missed:12,late_callbacks:3,team:{online:6,pause:1,lunch:2,total:9,breaks:[{name:'Sara Mimoun',kind:'lunch',minutes:20,overdue:false},{name:'Amira Berghout',kind:'pause',minutes:14,overdue:true}]},
     calls:{inbound:284,answered:56,missed:105,lost:16,menu:37,closed:70,unknown:0,outbound:184,outgoing_answered:96,outgoing_no_answer:31,missed_called_back:9,lost_called_back:3,
       series:[{label:'09',answered:5,missed:3,lost:1},{label:'10',answered:8,missed:6,lost:0},{label:'03',answered:0,missed:0,lost:0}]},
     agents:[{name:'Sara Mimoun',status:'online',processed:40,answered:12,outgoing:30,reached:18},{name:'Nawel Belaifa',status:'online',processed:31,answered:9,outgoing:22,reached:11},
@@ -21,7 +21,7 @@ test('écran du plateau : chiffres du jour, top 3 et aucune donnée client',asyn
   assert.deepEqual([...w.document.querySelectorAll('.crm-wall-name')].map(n=>n.textContent),['sara mimoun','nawel belaifa','rofaida lezzar']);
   assert.match(text,/amira 4/);                                  // les autres, en une ligne
   assert.equal(w.document.querySelectorAll('.crm-wall-hour').length,2,'heures de nuit masquées');
-  assert.match(text,/6 \/ 9/);
+  assert.match(text,/6 \/ 9/);assert.match(text,/1 en pause · 2 en pause déjeuner/);assert.equal(w.document.querySelectorAll('.crm-wall-breaks .overdue').length,1);
 });
 
 test('écran du plateau : lien renouvelé ou invalide',async()=>{

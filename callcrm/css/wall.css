@@ -51,6 +51,8 @@ html, body { background: #0f1430 !important; }
 .crm-wall-legend .answered::before { background: var(--accent); }
 .crm-wall-legend .missed::before { background: var(--warn); }
 .crm-wall-legend .lost::before { background: var(--lost); }
+.crm-wall-breaks { list-style: none; margin: .3em 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: .2em .8em; color: var(--muted); font-size: .85em; text-transform: capitalize; max-height: 2.6em; overflow: hidden; }
+.crm-wall-breaks .overdue { color: var(--warn); }
 @media (max-width: 900px) {
 	.crm-wall { position: static; overflow: visible; font-size: 15px; padding: 16px; gap: 14px; }
 	.crm-wall-row, .crm-wall-main { grid-template-columns: 1fr 1fr; }
