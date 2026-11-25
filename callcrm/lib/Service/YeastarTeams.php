@@ -34,7 +34,7 @@ class YeastarTeams {
 	private function saveState(array $s): void { $this->config->setAppValue('callcrm', self::STATE, json_encode($s, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)); }
 
 	private function ok(array $r, string $what): array {
-		if ((string)($r['errcode'] ?? '') !== '0') throw new \RuntimeException($what . ' : ' . substr((string)($r['errmsg'] ?? '?'), 0, 120));
+		if ((string)($r['errcode'] ?? '') !== '0') throw new \RuntimeException($what . ' : ' . substr((string)($r['errmsg'] ?? '?') . ' ' . json_encode($r['invalid_param_list'] ?? [], JSON_UNESCAPED_UNICODE), 0, 240));
 		return $r;
 	}
 
@@ -90,6 +90,8 @@ class YeastarTeams {
 			foreach ($this->ok($this->client->call('GET', 'queue/list', []), 'Lecture des files')['queue_list'] ?? [] as $q) $queues[(string)$q['name']] = $q;
 			$tpl = $this->ok($this->client->call('GET', 'queue/get', ['id' => (int)($c['template_queue'] ?? 1)]), 'Lecture de la file modèle')['data'] ?? [];
 			unset($tpl['id'], $tpl['number'], $tpl['name'], $tpl['static_agent_list'], $tpl['dynamic_agent_list']);
+			// Le standard renvoie ces valeurs à 0 quand l'option est coupée, mais les refuse à l'écriture.
+			foreach (['max_pause_miss_call', 'weight'] as $k) if (empty($tpl[$k])) unset($tpl[$k]);
 			$tpl['manager_list'] = array_map(fn($m) => ['value' => (string)$m['value'], 'type' => $m['type']], $tpl['manager_list'] ?? []);
 			$keys = []; $summary = [];
 			foreach ($c['teams'] ?? [] as $t) {
