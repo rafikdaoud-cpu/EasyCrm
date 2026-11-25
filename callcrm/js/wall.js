@@ -21,7 +21,7 @@
   const num = n => new Intl.NumberFormat('fr-FR').format(n || 0);
   const pct = (a, b) => b ? Math.round(100 * a / b) + ' %' : '—';
   const clock = h('time', {class: 'crm-wall-clock'});
-  const tick = zone => { clock.textContent = new Intl.DateTimeFormat('fr-FR', {weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: zone}).format(new Date()); };
+  const tick = zone => { const t = new Intl.DateTimeFormat('fr-FR', {weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: zone}).format(new Date()); clock.textContent = t.charAt(0).toUpperCase() + t.slice(1); };
   let zone = 'Africa/Algiers', failures = 0;
 
   const stat = (label, value, note, tone) => h('div', {class: 'crm-wall-stat' + (tone ? ' ' + tone : '')},
