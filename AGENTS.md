@@ -10,6 +10,7 @@ This repository has independent Nextcloud applications and Odoo editions. Read [
 - Run `tools/test-nextcloud.sh`; prerequisites and limitations are in the handoff. Keep tests meaningful and preserve command failures.
 - Preserve server-side role checks, CSRF protection, user isolation, transactionality and single-account time accounting. Do not use client-provided user IDs or time counters as authority.
 - Update the handoff and deployment notes with new behavior and tests. Distinguish local tests from live Nextcloud validation and Git publication from deployment.
+- After every completed modification, update the relevant documentation, commit the change and its documentation, push to GitHub, and verify the remote commit before reporting completion. Report any publication blocker explicitly. Keep private imports and secrets out of Git.
 - Never commit SSH private keys, tokens, backups, node_modules or local runtime files. No VPS access is established by this repository. Do not claim or perform remote changes without the actual connection and user authorization.
 
 - Final lunch rules override older chat descriptions: separate lunch totals, once per civil day, ordinary pause red above 10 min, lunch tolerance above 60 min and red above 70 min. Do not reset deadlines on reload or heartbeat gaps; enforce quota server-side.
