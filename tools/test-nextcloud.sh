@@ -7,11 +7,13 @@ node -e 'require("jsdom")'
 for edition in callcrm nextcloud; do
   while IFS= read -r -d '' file; do "$PHP_BIN" -l "$file" > /dev/null; done < <(find "$edition" -name '*.php' -print0)
   node --check "$edition/js/app.js"
+  [ -f "$edition/js/wall.js" ] && node --check "$edition/js/wall.js"
   "$PHP_BIN" "$edition/tests/presence.php"
   node "$edition/tests/announcements-ui.cjs"
 done
 node tests/transfers-ui.cjs
 node tests/admin-panels-ui.cjs
+node tests/callcrm-wall-ui.cjs
 node tests/yeastar-settings-ui.cjs
 node tests/callcrm-calls-ui.cjs
 node tests/callcrm-whatsapp-ui.cjs

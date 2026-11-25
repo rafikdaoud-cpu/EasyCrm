@@ -496,3 +496,11 @@ Pilotage, Statistiques et Appels manqués classent un entrant d’abord avec ces
 Rappelés : un appel manqué ou perdu est rappelé si un appel sortant vers le même numéro suit l’appel, même après la période affichée. Pilotage affiche « Manqués rappelés » et « Perdus rappelés » (nombre sur total, avec la liste) et la colonne « Rappelé le » dans les listes des manqués et des perdus.
 
 Tests : `tests/yeastar-cdr.php` rejoue des appels réels du 24/11 (accueil seul, fermeture, file 3 s et 68 s, commercial puis file, décroché via la file, poste sans compte, messagerie). Validation en ligne : recalcul du 24/11 comparé au journal du standard.
+
+## Call CRM 0.58.0 · Écran du plateau (TV)
+
+Page en lecture seule pour une télévision du plateau commercial : `/apps/callcrm/ecran/{jeton}` (gabarit `wall`, `js/wall.js`, `css/wall.css`), données `GET /api/public/ecran/{jeton}` actualisées chaque minute. Contenu du jour : entrants (hors horaires et abandons au menu à part), taux de réponse (décrochés / décrochés + manqués + perdus), manqués et perdus avec le nombre déjà rappelés, sortants et aboutis, top 3 des commerciaux (dossiers traités, puis décrochés et sortants aboutis), activité par heure de 7 h à 18 h, commerciaux connectés ou en pause, appels manqués à rappeler et rappels clients en retard.
+
+Le lien ne demande pas de compte. Le jeton (40 caractères alphanumériques) n’est conservé que sous forme d’empreinte SHA-256 dans `callcrm/wall_token_hash`. Administration → Écran du plateau (TV) crée un nouveau lien (l’ancien cesse de fonctionner) ou le désactive ; droit « Configurer le CRM ». Jeton inconnu : 404 et ralentissement anti-force brute de Nextcloud ; 60 requêtes par 10 minutes et par adresse. La page n’expose aucune donnée client : uniquement des compteurs et les noms des commerciaux.
+
+Tests : `tests/callcrm-wall-ui.cjs` (rendu des chiffres, calcul du taux, classement, heures de nuit masquées, lien invalide).

@@ -17,6 +17,11 @@ return ['routes' => [
 
 	// Lien de dépôt de documents : page publique du client (sans compte) et API publique par jeton.
 	['name'=>'collect_public#page','url'=>'/collecte/{token}','verb'=>'GET'],
+	// Écran du plateau (TV) : lien secret sans compte, chiffres du jour seulement.
+	['name'=>'wall#page','url'=>'/ecran/{token}','verb'=>'GET'],
+	['name'=>'wall#data','url'=>'/api/public/ecran/{token}','verb'=>'GET'],
+	['name'=>'wall#settings','url'=>'/api/wall','verb'=>'GET'],
+	['name'=>'wall#token','url'=>'/api/wall','verb'=>'POST'],
 	['name'=>'collect_public#info','url'=>'/api/public/collecte/{token}','verb'=>'GET'],
 	['name'=>'collect_public#upload','url'=>'/api/public/collecte/{token}/doc/{index}','verb'=>'POST'],
 	['name'=>'collect_public#remove','url'=>'/api/public/collecte/{token}/doc/{index}/delete','verb'=>'POST'],

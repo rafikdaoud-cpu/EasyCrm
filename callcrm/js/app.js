@@ -2783,6 +2783,22 @@ function adminPanels() {
   }
 }
 
+/** Écran du plateau (TV) : lien secret sans compte, chiffres du jour seulement ; un nouveau lien remplace l'ancien. */
+function wallSettingsCard() {
+  const status=h('p',{role:'status',class:'muted'},'Chargement…'), link=h('div');
+  const show=active=>{status.textContent=active?'Un lien est actif. Pour l’afficher à nouveau, créez-en un nouveau : l’ancien cessera de fonctionner.':'Aucun lien actif.';};
+  const send=async body=>{
+    try{const r=await api('/wall',{method:'POST',body});show(r.active);
+      link.replaceChildren(r.url?h('p',{},h('a',{href:r.url,target:'_blank',rel:'noopener noreferrer'},r.url),' ',
+        h('button',{type:'button',onclick:async e=>{try{await navigator.clipboard.writeText(r.url);e.target.textContent='Copié';}catch(x){e.target.textContent='Copie impossible';}}},'Copier')):'');
+    }catch(e){status.textContent=e.message;}};
+  api('/wall').then(r=>show(r.active)).catch(e=>{status.textContent=e.message;});
+  return h('div',{class:'card'},h('h3',{},'Écran du plateau (TV)'),
+    h('p',{class:'muted'},'Page à afficher en plein écran sur une télévision : appels entrants et sortants du jour, taux de réponse, top 3 des commerciaux, équipe connectée et rappels en attente. Elle s’ouvre sans compte grâce à un lien secret et n’affiche aucune donnée client. Actualisation automatique chaque minute.'),
+    status,link,h('div',{class:'bar'},h('button',{type:'button',class:'primary',onclick:()=>send({})},'Créer un nouveau lien'),
+      h('button',{type:'button',onclick:()=>{if(confirm('Désactiver le lien de l’écran du plateau ?'))send({disable:1});}},'Désactiver le lien')));
+}
+
 function chatbotSettingsCard() {
   const box=h('details',{class:'card'},h('summary',{},'WhatsApp · Chatbot'));
   const form=h('div'), preview=h('div'), message=h('p',{role:'status',class:'muted'});
@@ -2999,7 +3015,7 @@ function admin() {
       }}, 'Réattribuer aux commerciaux actuels')),
     orph,
     h('p', {class:'muted'}, 'Profils : définis par les groupes (AD ou Nextcloud) associés aux rôles administrateur, superviseur, commercial et lecture seule.'));
-  if(me.can.fields)root.querySelector('.crm-page')?.append(yeastarSettingsCard(),yeastarRoutingCard(),smsSettingsCard(),documentSettingsCard(),collectSettingsCard());
+  if(me.can.fields)root.querySelector('.crm-page')?.append(yeastarSettingsCard(),yeastarRoutingCard(),smsSettingsCard(),documentSettingsCard(),collectSettingsCard(),wallSettingsCard());
   if(me.can.assign)root.querySelector('.crm-page')?.append(documentsCard(),yeastarRecordingsCard());
   adminPanels();
   api('/recordings').then(rows => {
