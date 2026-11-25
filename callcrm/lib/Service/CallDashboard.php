@@ -60,6 +60,39 @@ class CallDashboard {
         return self::aggregate($records);
     }
 
+    /** Étapes du journal complet du standard et correspondance poste → compte, pour classer les appels. */
+    public static function journal(array $callIds): array {
+        try {
+            $cdr = \OCP\Server::get(YeastarCdr::class);
+            return [$cdr->legs($callIds), $cdr->owners()];
+        } catch (\Throwable $e) {
+            return [[], []];
+        }
+    }
+
+    /** Pour chaque appel non décroché : heure du premier appel sortant vers ce numéro après lui, s'il existe. */
+    private function calledBack(array $calls): array {
+        if (!$calls) return [];
+        $phones = array_values(array_unique(array_column($calls,'phone')));
+        $first = [];
+        foreach (array_chunk($phones,200) as $chunk) {
+            $q = $this->db->getQueryBuilder();
+            $rows = $q->select('phone','created_at')->from('callcrm_pbx_recordings')
+                ->where($q->expr()->eq('direction',$q->createNamedParameter('outbound')))
+                ->andWhere($q->expr()->in('phone',$q->createNamedParameter($chunk,IQueryBuilder::PARAM_STR_ARRAY)))
+                ->andWhere($q->expr()->gte('created_at',$q->createNamedParameter(min(array_column($calls,'at')),IQueryBuilder::PARAM_INT)))
+                ->orderBy('created_at','ASC')->executeQuery()->fetchAll();
+            foreach ($rows as $r) $first[$r['phone']][] = (int)$r['created_at'];
+        }
+        $out = [];
+        foreach ($calls as $i => $c) {
+            foreach ($first[$c['phone']] ?? [] as $at) {
+                if ($at > $c['at']) { $out[$i] = $at; break; }
+            }
+        }
+        return $out;
+    }
+
     public static function closureRange(int $now, \DateTimeZone $zone): array {
         $today = (new \DateTimeImmutable('@'.$now))->setTimezone($zone);
         $weekday = (int)$today->format('N');
@@ -83,16 +116,18 @@ class CallDashboard {
         $buckets = [];
         for ($time=$start; $time<$end; $time=$hourly?$time->add(new \DateInterval('PT1H')):$time->modify('+1 day')) {
             $key = $hourly ? $time->format('Y-m-d H P') : $time->format('Y-m-d');
-            $buckets[$key] = ['slot'=>$time->getTimestamp(), 'label'=>$time->format($hourly?'H':'d/m'), 'answered'=>0, 'missed'=>0, 'lost'=>0, 'unknown'=>0, 'closed'=>0];
+            $buckets[$key] = ['slot'=>$time->getTimestamp(), 'label'=>$time->format($hourly?'H':'d/m'), 'answered'=>0, 'missed'=>0, 'lost'=>0, 'menu'=>0, 'unknown'=>0, 'closed'=>0];
         }
         if ($slot !== null && !in_array($slot,array_column($buckets,'slot'),true)) {
             throw new \InvalidArgumentException('Créneau hors période.');
         }
-        $totals = ['answered'=>0,'missed'=>0,'lost'=>0,'unknown'=>0,'closed'=>0,'inbound'=>0,'outbound'=>0,'outgoing_answered'=>0,'outgoing_no_answer'=>0];
-        $matches = [];
+        $totals = ['answered'=>0,'missed'=>0,'lost'=>0,'menu'=>0,'unknown'=>0,'closed'=>0,'inbound'=>0,'outbound'=>0,'outgoing_answered'=>0,'outgoing_no_answer'=>0,
+            'missed_called_back'=>0,'lost_called_back'=>0];
+        $matches = $unanswered = [];
         $calls = ($uids || $includeUnassigned) ? $this->callsForRange($range) : [];
         $closed = InboundOutcome::closedDestinations();
         $evidence = (new InboundOutcome($this->db))->events(array_column($calls,'call_id'));
+        [$legs, $owners] = self::journal(array_column($calls,'call_id'));
         foreach ($calls as $call) {
             $visible = array_intersect_key($call['agents'], $agents);
             $prospects = array_keys($call['prospects']);
@@ -123,7 +158,7 @@ class CallDashboard {
                 if ($agent['answered']) $agents[$uid]['incoming']++;
             }
             $events = $evidence[$call['call_id']] ?? [];
-            $result = InboundOutcome::classify($events,$call['phone'],$call['answered'],
+            $result = YeastarCdr::classify($legs[$call['call_id']] ?? [],$closed,$owners) ?? InboundOutcome::classify($events,$call['phone'],$call['answered'],
                 !$call['agents'] && (bool)array_intersect($closed,array_keys($call['extensions'])));
             $ringAgents = array_intersect($uids,$result['agents']);
             if (!$visible && !$ringAgents && !$includeUnassigned) continue;
@@ -138,13 +173,24 @@ class CallDashboard {
             $totals['inbound']++;
             $totals[$result['kind']]++;
             if ($detail === '') $buckets[$key][$result['kind']]++;
-            if (($detail === 'inbound' || $detail === $result['kind']) && ($slot === null || $buckets[$key]['slot'] === $slot)) {
+            if (in_array($result['kind'],['missed','lost'],true)) $unanswered[] = ['phone'=>$call['phone'],'at'=>$call['received_at'],'kind'=>$result['kind'],'match'=>null];
+            if (($detail === 'inbound' || $detail === $result['kind'] || in_array($detail,['missed_called_back','lost_called_back'],true) && $detail === $result['kind'].'_called_back')
+                && ($slot === null || $buckets[$key]['slot'] === $slot)) {
                 $matches[] = ['id'=>$call['id'],'phone'=>$call['phone'],'at'=>$call['received_at'],
                     'ring_seconds'=>$result['seconds'],'total_seconds'=>$call['total_duration'],'outcome'=>$result['kind'],
-                    'prospect_id'=>$prospectId,'responders'=>$responders,
+                    'prospect_id'=>$prospectId,'responders'=>$responders,'called_back_at'=>null,
                     'reason'=>$result['kind']==='lost' ? ($result['seconds']===null?'before_ring':'short_ring') : null];
+                if (in_array($result['kind'],['missed','lost'],true)) $unanswered[array_key_last($unanswered)]['match'] = array_key_last($matches);
             }
         }
+        // Rappelés = un appel sortant vers ce numéro après l'appel manqué ou perdu (même après la période affichée).
+        $back = $this->calledBack($unanswered);
+        foreach ($unanswered as $i => $u) {
+            if (!isset($back[$i])) continue;
+            $totals[$u['kind'].'_called_back']++;
+            if ($u['match'] !== null) $matches[$u['match']]['called_back_at'] = $back[$i];
+        }
+        if (in_array($detail,['missed_called_back','lost_called_back'],true)) $matches = array_values(array_filter($matches, fn($m) => $m['called_back_at'] !== null));
         if ($detail !== '') {
             usort($matches,fn($a,$b)=>$b['at']<=>$a['at'] ?: $b['id']<=>$a['id']);
             return $matches;
@@ -170,8 +216,9 @@ class CallDashboard {
         }
         $closed = InboundOutcome::closedDestinations();
         $evidence = (new InboundOutcome($this->db))->events(array_column($calls,'call_id'));
+        [$legs, $owners] = self::journal(array_column($calls,'call_id'));
         $incoming = [];
-        $totals = ['inbound'=>0,'answered'=>0,'missed'=>0,'lost'=>0,'unknown'=>0,'closed'=>0,'treated'=>0];
+        $totals = ['inbound'=>0,'answered'=>0,'missed'=>0,'lost'=>0,'menu'=>0,'unknown'=>0,'closed'=>0,'treated'=>0];
         foreach ($calls as $c) {
             foreach ($c['agents'] as $uid=>$a) {
                 if (!isset($agents[$uid])) continue;
@@ -184,11 +231,11 @@ class CallDashboard {
             $pid=count($pids)===1 && $pids[0]!=='' ? (int)$pids[0] : null;
             if ($viewer!==null && (!$pid || !isset($owned[(string)$pid]))) continue;
             $events = $evidence[$c['call_id']] ?? [];
-            $result = InboundOutcome::classify($events,$c['phone'],$c['answered'],
+            $result = YeastarCdr::classify($legs[$c['call_id']] ?? [],$closed,$owners) ?? InboundOutcome::classify($events,$c['phone'],$c['answered'],
                 !$c['agents'] && (bool)array_intersect($closed,array_keys($c['extensions'])));
             if ($viewer === null && !$global) {
                 if (!array_intersect($uids,array_merge(array_keys($c['agents']),$result['agents']))) continue;
-                if ($result['kind']==='answered' && !$this->answeredBySelection($c,$events,$uids)) continue;
+                if ($result['kind']==='answered' && !array_intersect($uids,$result['responders']) && !$this->answeredBySelection($c,$events,$uids)) continue;
             }
             $totals['inbound']++;
             $totals[$result['kind']]++;

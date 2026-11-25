@@ -50,8 +50,8 @@ class DashboardController extends Controller {
         $detail = $this->request->getParam('detail', '');
         $rawSlot = $this->request->getParam('slot');
         $slot = $rawSlot === null ? null : filter_var($rawSlot,FILTER_VALIDATE_INT);
-        if (!is_string($team) || !is_string($agent) || !in_array($detail,['','answered','missed','lost','closed','closure_window','processed','inbound','outbound','outgoing_answered','outgoing_no_answer'],true)
-            || $slot === false || ($slot !== null && !in_array($detail,['answered','missed','lost'],true))) return new JSONResponse(['error'=>'Filtre invalide'],400);
+        if (!is_string($team) || !is_string($agent) || !in_array($detail,['','answered','missed','lost','menu','missed_called_back','lost_called_back','closed','closure_window','processed','inbound','outbound','outgoing_answered','outgoing_no_answer'],true)
+            || $slot === false || ($slot !== null && !in_array($detail,['answered','missed','lost','menu'],true))) return new JSONResponse(['error'=>'Filtre invalide'],400);
         $scope = \OCA\CallCrm\Service\TeamScope::users();
         $users = [];
         $groups = [Access::groups()['commercial']];
@@ -99,7 +99,7 @@ class DashboardController extends Controller {
                 $sort = $this->request->getParam('sort','at');
                 $direction = $this->request->getParam('dir','desc');
                 $labelFields = ['client','caller','agent','callback_state','answered_by'];
-                $fields = array_merge(['at','phone','ring_seconds','total_seconds','outcome','result','reason'],$labelFields);
+                $fields = array_merge(['at','phone','ring_seconds','total_seconds','outcome','result','reason','called_back_at'],$labelFields);
                 if (!in_array($sort,$fields,true) || !in_array($direction,['asc','desc'],true)) {
                     throw new \InvalidArgumentException('Tri invalide.');
                 }
@@ -153,9 +153,9 @@ class DashboardController extends Controller {
     }
 
     private function sortPilotage(array &$rows, string $key, string $direction): void {
-        $numeric = in_array($key,['at','created_at','ring_seconds','total_seconds'],true);
+        $numeric = in_array($key,['at','created_at','ring_seconds','total_seconds','called_back_at'],true);
         $labels = match ($key) {
-            'outcome' => ['answered'=>'Décroché','missed'=>'Manqué','lost'=>'Perdu','unknown'=>'Indéterminé','closed'=>'Hors horaires',
+            'outcome' => ['answered'=>'Décroché','missed'=>'Manqué','lost'=>'Perdu','menu'=>'Abandon au menu d’accueil','unknown'=>'Indéterminé','closed'=>'Hors horaires',
                 'outgoing_answered'=>'Abouti','outgoing_no_answer'=>'Sans réponse','outgoing_other'=>'Autre résultat'],
             'callback_state' => ['open'=>'À rappeler','attempted'=>'Rappel tenté','done'=>'Traité'],
             'reason' => ['before_ring'=>'Raccroché avant la sonnerie','short_ring'=>'Sonnerie de moins de 4 s'],

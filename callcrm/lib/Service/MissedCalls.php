@@ -73,11 +73,13 @@ class MissedCalls {
             }
             uasort($calls, fn($a, $b) => $a['at'] <=> $b['at']);
             $evidence = (new InboundOutcome($this->db))->events(array_column($calls,'call_id'));
+            [$legs, $owners] = CallDashboard::journal(array_column($calls,'call_id'));
             foreach ($calls as $c) {
                 if (strlen($c['phone']) < 6) continue;
                 if ($c['direction'] === 'inbound') {
-                    $result = InboundOutcome::classify($evidence[$c['call_id']] ?? [],$c['phone'],$c['answered'],$c['closed']&&!$c['agent']);
-                    if (in_array($result['kind'],['lost','unknown','closed'],true)) continue;
+                    $result = YeastarCdr::classify($legs[$c['call_id']] ?? [],$closed,$owners)
+                        ?? InboundOutcome::classify($evidence[$c['call_id']] ?? [],$c['phone'],$c['answered'],$c['closed']&&!$c['agent']);
+                    if (in_array($result['kind'],['lost','menu','unknown','closed'],true)) continue;
                     $c['answered'] = $result['kind'] === 'answered';
                 }
                 $this->apply($c);

@@ -480,3 +480,19 @@ Administration → WhatsApp · Chatbot accepte le fichier Excel d’origine avec
 Sur une demande de prix avec une référence identifiable, le bot donne par défaut la mensualité indicative sur 60 mois. Il utilise la durée demandée quand elle figure dans le listing. Une mensualité absente reste indisponible. Les doublons au montant identique donnent une seule réponse. Les références ou montants contradictoires demandent une précision. Le bot ne calcule aucun prix comptant à partir des mensualités. Déployer les deux composants du même commit. Le classeur tarifaire est importé dans Call CRM et reste hors de GitHub.
 
 Chaque mensualité du listing est suivie d’un message bilingue signalant qu’elle peut varier légèrement. L’équipe recontactera le client. Le message indique aussi le numéro 0553 553 553 et les horaires du dimanche au jeudi, de 8 h 30 à 16 h 30.
+
+## Call CRM 0.57.30 · Journal complet du standard, abandons au menu, appels rappelés
+
+Constat sur le 24/11/2026 (284 entrants) : les détails envoyés par le webhook Yeastar sont incomplets (étapes de file et de poste manquantes, aucune durée de sonnerie). Pilotage laissait 71 appels en « Indéterminé », classait en « Perdu » des appels ayant sonné plus d’une minute dans la file et comptait 53 décrochés au lieu de 56.
+
+La tâche `SyncYeastarCdr` (toutes les 2 minutes) relit le journal du standard par l’API `cdr/search` et l’enregistre dans `callcrm_pbx_cdr` (migration 1027, une ligne par étape, clé unique par étape). Au premier passage, elle rattrape les 92 derniers jours, quatre jours par passage. Elle ne fait rien tant que Yeastar est désactivé. Une erreur de lecture est notée dans `callcrm/yeastar_cdr_error`. Les dates envoyées au standard suivent son format système (jj/mm/aaaa) dans le fuseau du CRM.
+
+Pilotage, Statistiques et Appels manqués classent un entrant d’abord avec ces étapes (`YeastarCdr::classify`), puis avec les événements de sonnerie si le journal ne contient pas l’appel :
+- Décroché : une étape de poste répondue avec du temps de conversation, y compris via une file. Le commercial est retrouvé par l’association poste → compte des réglages Yeastar.
+- Hors horaires : l’appel passe par le message de fermeture (`callcrm/yeastar_closed_ivr`, 6201 par défaut). Entre 16 h 30 et 8 h 30, le standard y envoie les appels ; ils ne comptent ni comme manqués ni comme abandons.
+- Abandon au menu d’accueil : raccroché dans le message d’accueil (ou l’accueil personnalisé d’un commercial) sans avoir atteint de file ni de poste. Nouveau compteur et nouvelle liste ; il n’entre pas dans le taux de réponse et n’ouvre pas de rappel.
+- Manqué : la file ou un poste a sonné 4 s ou plus sans réponse (durée de sonnerie fournie par le journal). Perdu : moins de 4 s.
+
+Rappelés : un appel manqué ou perdu est rappelé si un appel sortant vers le même numéro suit l’appel, même après la période affichée. Pilotage affiche « Manqués rappelés » et « Perdus rappelés » (nombre sur total, avec la liste) et la colonne « Rappelé le » dans les listes des manqués et des perdus.
+
+Tests : `tests/yeastar-cdr.php` rejoue des appels réels du 24/11 (accueil seul, fermeture, file 3 s et 68 s, commercial puis file, décroché via la file, poste sans compte, messagerie). Validation en ligne : recalcul du 24/11 comparé au journal du standard.

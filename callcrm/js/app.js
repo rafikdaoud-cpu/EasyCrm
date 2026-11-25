@@ -1623,7 +1623,8 @@ function pilotagePage() {
   const statuses={online:'Connecté au CRM',pause:'En pause',absent:'Absent'};
   let report, appliedQuery, selection=0, detailOpen=false, trigger;
   const details = h('section',{class:'card crm-pilotage-details',hidden:true});
-  const names={answered:'Appels décrochés',missed:'Appels manqués',lost:'Appels perdus',closed:'Appels hors horaires',closure_window:'Appels entrants hors horaires',processed:'Dossiers traités',
+  const names={answered:'Appels décrochés',missed:'Appels manqués',lost:'Appels perdus',menu:'Abandons au menu d’accueil',
+    missed_called_back:'Appels manqués rappelés',lost_called_back:'Appels perdus rappelés',closed:'Appels hors horaires',closure_window:'Appels entrants hors horaires',processed:'Dossiers traités',
     inbound:'Appels entrants',outbound:'Appels sortants',outgoing_answered:'Sortants aboutis',outgoing_no_answer:'Sortants sans réponse'};
 
   async function openDetails(kind, offset=0, button=null, slot=null, label='', sort='at', dir='desc') {
@@ -1631,6 +1632,7 @@ function pilotagePage() {
     const request=++selection, processed=kind==='processed';
     const showResponder=['inbound','answered','closure_window'].includes(kind);
     const outgoing=['outbound','outgoing_answered','outgoing_no_answer'].includes(kind);
+    const callbacks=['missed','lost','missed_called_back','lost_called_back'].includes(kind);
     saved.list={kind,offset,slot,label,sort,dir};
     detailOpen=true;
     details.hidden=false;
@@ -1665,8 +1667,9 @@ function pilotagePage() {
         headings.push(['client','Dossier'],['caller','Appelant']);
         if(kind==='missed')headings.push(['agent','Responsable du rappel'],['callback_state','Suivi du rappel']);
         if(kind==='lost')headings.push(['reason','Motif']);
+        if(callbacks)headings.push(['called_back_at','Rappelé le']);
       }
-      const outcomes={answered:'Décroché',missed:'Manqué',lost:'Perdu',unknown:'Indéterminé',closed:'Hors horaires',
+      const outcomes={answered:'Décroché',missed:'Manqué',lost:'Perdu',menu:'Abandon au menu d’accueil',unknown:'Indéterminé',closed:'Hors horaires',
         outgoing_answered:'Abouti',outgoing_no_answer:'Sans réponse',outgoing_other:'Autre résultat'};
       const callbackStatus={open:'À rappeler',attempted:'Rappel tenté',done:'Traité'};
       const reason={before_ring:'Raccroché avant la sonnerie',short_ring:'Sonnerie de moins de 4 s'};
@@ -1681,6 +1684,7 @@ function pilotagePage() {
         if(kind==='missed')cells.push(h('td',{},row.agent||(row.callback_state?'Non attribué':'—')),
           h('td',{},callbackStatus[row.callback_state]||'Suivi non disponible'));
         if(kind==='lost')cells.push(h('td',{},reason[row.reason]||'—'));
+        if(callbacks)cells.push(h('td',{},row.called_back_at?fmt(row.called_back_at):'Pas encore'));
         return h('tr',{},h('td',{},fmt(row.at)),cells);
       });
       details.append(h('div',{class:'scroll'},h('table',{class:'t'},
@@ -1711,7 +1715,7 @@ function pilotagePage() {
     table.replaceChildren(h('table',{class:'t'},h('thead',{},h('tr',{},headings)),h('tbody',{},rows)));
   }
   function draw() {
-    const {answered,missed,lost=0,unknown=0,closed=0,series,objective,range}=report;
+    const {answered,missed,lost=0,menu=0,unknown=0,closed=0,missed_called_back=0,lost_called_back=0,series,objective,range}=report;
     const total=answered+missed+lost, peak=Math.max(1,...series.flatMap(slot=>[slot.answered,slot.missed,slot.lost||0]));
     const metric=(label,value,tone='',kind='')=>h(kind?'button':'div', {
       class:'card pilotage-metric '+tone, ...(kind?{type:'button',onclick:e=>openDetails(kind,0,e.currentTarget)}:{})
@@ -1733,8 +1737,10 @@ function pilotagePage() {
     content.replaceChildren(h('div',{class:'pilotage-kpis'},
       metric('Taux de réponse',total?Math.round(100*answered/total)+' %':'—'),
       metric('Appels manqués',missed,'negative','missed'),metric('Appels perdus',lost,'','lost'),
+      metric('Manqués rappelés',missed_called_back+' / '+missed,'','missed_called_back'),metric('Perdus rappelés',lost_called_back+' / '+lost,'','lost_called_back'),
+      metric('Abandons au menu d’accueil',menu,'','menu'),
       metric('Dossiers traités',report.rows.reduce((sum,r)=>sum+r.processed,0),'','processed'),
-      metric('Appels entrants',report.inbound??total+unknown+closed,'','inbound'),metric('Appels sortants',report.outbound??0,'','outbound'),
+      metric('Appels entrants',report.inbound??total+menu+unknown+closed,'','inbound'),metric('Appels sortants',report.outbound??0,'','outbound'),
       metric('Sortants aboutis',report.outgoing_answered??0,'','outgoing_answered'),
       metric('Sortants sans réponse',report.outgoing_no_answer??0,'','outgoing_no_answer'),
       report.closure_window ? metric('Hors horaires · '+report.closure_window.range.label,report.closure_window.count,'','closure_window') : ''),details,
@@ -1875,7 +1881,7 @@ function callDashboardCard() {
       const labels = ['Commercial', 'Dossiers', 'Appels Yeastar', 'Temps', 'Résultats des dossiers'];
       const line = (label, value) => h('div', {class:'dashboard-metric'}, h('span', {}, label), h('strong', {}, String(value)));
       body.replaceChildren(h('p', {class:'muted'}, r.range.from + ' au ' + r.range.to + ' · ' + r.timezone),
-        h('div', {class:'dashboard-kpis'}, ...[['Dossiers traités par agent',sums.processed],['Sortants par agent',sums.outbound],['Réponses agent',sums.answered],['Temps de conversation',duration(sums.talk)],['Appels manqués à rappeler',r.totals.missed-r.totals.treated],['Appels perdus',r.totals.lost],['Appels indéterminés',r.totals.unknown],['Appels hors horaires',r.totals.closed]].map(([label,value,cls]) => h('div', {class:'card' + (cls ? ' ' + cls : '')}, h('strong', {}, String(value)), h('div', {}, label)))),
+        h('div', {class:'dashboard-kpis'}, ...[['Dossiers traités par agent',sums.processed],['Sortants par agent',sums.outbound],['Réponses agent',sums.answered],['Temps de conversation',duration(sums.talk)],['Appels manqués à rappeler',r.totals.missed-r.totals.treated],['Appels perdus',r.totals.lost],['Abandons au menu d’accueil',r.totals.menu??0],['Appels indéterminés',r.totals.unknown],['Appels hors horaires',r.totals.closed]].map(([label,value,cls]) => h('div', {class:'card' + (cls ? ' ' + cls : '')}, h('strong', {}, String(value)), h('div', {}, label)))),
         h('table', {class:'t dashboard-table'}, h('caption', {}, 'Performance commerciale et téléphonie'),
           h('thead', {}, h('tr', {}, labels.map(label => h('th', {scope:'col'}, label)))),
           h('tbody', {}, r.rows.map(row => { const t = row.telephony, p = row.totals.selected; return h('tr', {},

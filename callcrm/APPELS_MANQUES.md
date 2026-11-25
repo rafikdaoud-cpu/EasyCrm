@@ -57,3 +57,7 @@ données réelles du 17/11/2026.
 Pour les nouveaux détails entrants, Call CRM rapproche les événements signés 30011 et le détail 30012 par identifiant d’appel et numéro. Un décroché au poste prime. Sans décroché, au moins **4 secondes** de sonnerie sur un même poste donnent un appel manqué à rappeler. Une fin d’appel dans le SVI, en file ou avant ce seuil donne un appel perdu si les événements permettent de le déterminer. Les sonneries simultanées ne s’additionnent pas. Les appels indéterminés sont signalés dans Pilotage et ne créent pas de nouveau rappel. Les anciens rappels restent dans leur état actuel.
 
 Le taux de réponse de Pilotage inclut les appels perdus dans son dénominateur et exclut les appels indéterminés. Le diagnostic repose sur les événements transmis par le P550. Les trunks entrants et les postes commerciaux doivent être surveillés. La migration 1024 ajoute un index pour le rapprochement des événements.
+
+## Call CRM 0.57.30 · Classement par le journal du standard
+
+Le classement s’appuie d’abord sur le journal complet du standard (durée de sonnerie de la file et des postes). Un appel qui raccroche dans le message d’accueil devient un « Abandon au menu d’accueil » et n’ouvre pas de rappel. Les appels hors horaires (message de fermeture, de 16 h 30 à 8 h 30) restent à part. Pilotage indique pour chaque appel manqué ou perdu s’il a été rappelé (appel sortant vers le numéro ensuite). Voir `docs/AI_HANDOFF.md`, section 0.57.30.
