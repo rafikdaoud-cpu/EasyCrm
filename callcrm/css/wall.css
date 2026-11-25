@@ -7,7 +7,7 @@ html, body { background: #0f1430 !important; }
 	--accent: #4a90e2; --warn: #e8a23a; --lost: #6b7393;
 	box-sizing: border-box; height: 100vh; overflow: hidden; padding: 1.4vw 2.2vw; color: var(--text); background: var(--bg);
 	font: 400 clamp(14px, 1.15vw, 28px)/1.35 Arial, Helvetica, sans-serif;
-	display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; gap: 1.1vw;
+	display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; gap: .9vw;
 }
 .crm-wall *, .crm-wall *::before, .crm-wall *::after { box-sizing: border-box; }
 .crm-wall-loading { margin: auto; color: var(--muted); font-size: 1.6em; }
@@ -18,7 +18,7 @@ html, body { background: #0f1430 !important; }
 .crm-wall-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1.4vw; }
 .crm-wall-stat, .crm-wall-panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: .9vw 1.2vw; min-width: 0; }
 .crm-wall-label { display: block; color: var(--muted); }
-.crm-wall-stat strong { display: block; font-size: 2.6em; font-weight: 500; line-height: 1.1; margin: .1em 0; font-variant-numeric: tabular-nums; }
+.crm-wall-stat strong { display: block; font-size: 2.3em; font-weight: 500; line-height: 1.1; margin: .1em 0; font-variant-numeric: tabular-nums; }
 .crm-wall-stat small { color: var(--muted); font-size: .9em; }
 .crm-wall-stat.accent strong { color: var(--accent); }
 .crm-wall-stat.warn strong { color: var(--warn); }
