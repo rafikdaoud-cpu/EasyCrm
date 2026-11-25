@@ -89,7 +89,7 @@ class YeastarTeams {
 			$queues = [];
 			foreach ($this->ok($this->client->call('GET', 'queue/list', []), 'Lecture des files')['queue_list'] ?? [] as $q) $queues[(string)$q['name']] = $q;
 			$tpl = $this->ok($this->client->call('GET', 'queue/get', ['id' => (int)($c['template_queue'] ?? 1)]), 'Lecture de la file modèle')['data'] ?? [];
-			unset($tpl['id'], $tpl['number'], $tpl['name'], $tpl['static_agent_list'], $tpl['dynamic_agent_list']);
+			unset($tpl['id'], $tpl['number'], $tpl['name'], $tpl['static_agent_list'], $tpl['dynamic_agent_list'], $tpl['call_log_view_range'], $tpl['call_log_specific_member']); // illisibles en écriture (erreur interne du standard)
 			// Le standard renvoie ces valeurs à 0 quand l'option est coupée, mais les refuse à l'écriture.
 			foreach (['max_pause_miss_call', 'weight'] as $k) if (empty($tpl[$k])) unset($tpl[$k]);
 			$tpl['manager_list'] = array_map(fn($m) => ['value' => (string)$m['value'], 'type' => $m['type']], $tpl['manager_list'] ?? []);
