@@ -50,7 +50,7 @@ class DashboardController extends Controller {
         $detail = $this->request->getParam('detail', '');
         $rawSlot = $this->request->getParam('slot');
         $slot = $rawSlot === null ? null : filter_var($rawSlot,FILTER_VALIDATE_INT);
-        if (!is_string($team) || !is_string($agent) || !in_array($detail,['','answered','missed','lost','menu','missed_called_back','lost_called_back','closed','closure_window','processed','inbound','outbound','outgoing_answered','outgoing_no_answer'],true)
+        if (!is_string($team) || !is_string($agent) || !in_array($detail,['','answered','missed','lost','menu','missed_called_back','lost_called_back','closed','closure_window','processed','inbound','outbound','outgoing_answered','outgoing_no_answer','outgoing_other'],true)
             || $slot === false || ($slot !== null && !in_array($detail,['answered','missed','lost','menu'],true))) return new JSONResponse(['error'=>'Filtre invalide'],400);
         $scope = \OCA\CallCrm\Service\TeamScope::users();
         $users = [];
@@ -156,7 +156,7 @@ class DashboardController extends Controller {
         $numeric = in_array($key,['at','created_at','ring_seconds','total_seconds','called_back_at'],true);
         $labels = match ($key) {
             'outcome' => ['answered'=>'Décroché','missed'=>'Manqué','lost'=>'Perdu','menu'=>'Abandon au menu d’accueil','unknown'=>'Indéterminé','closed'=>'Hors horaires',
-                'outgoing_answered'=>'Abouti','outgoing_no_answer'=>'Sans réponse','outgoing_other'=>'Autre résultat'],
+                'outgoing_answered'=>'Abouti','outgoing_no_answer'=>'Sans réponse','outgoing_other'=>'Occupé ou échec'],
             'callback_state' => ['open'=>'À rappeler','attempted'=>'Rappel tenté','done'=>'Traité'],
             'reason' => ['before_ring'=>'Raccroché avant la sonnerie','short_ring'=>'Sonnerie de moins de 4 s'],
             'result' => array_column(\OCA\CallCrm\Service\Statuses::all(),'label','key'),

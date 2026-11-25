@@ -1625,13 +1625,13 @@ function pilotagePage() {
   const details = h('section',{class:'card crm-pilotage-details',hidden:true});
   const names={answered:'Appels décrochés',missed:'Appels manqués',lost:'Appels perdus',menu:'Abandons au menu d’accueil',
     missed_called_back:'Appels manqués rappelés',lost_called_back:'Appels perdus rappelés',closed:'Appels hors horaires',closure_window:'Appels entrants hors horaires',processed:'Dossiers traités',
-    inbound:'Appels entrants',outbound:'Appels sortants',outgoing_answered:'Sortants aboutis',outgoing_no_answer:'Sortants sans réponse'};
+    inbound:'Appels entrants',outbound:'Appels sortants',outgoing_answered:'Sortants aboutis',outgoing_no_answer:'Sortants sans réponse',outgoing_other:'Sortants occupés ou en échec'};
 
   async function openDetails(kind, offset=0, button=null, slot=null, label='', sort='at', dir='desc') {
     if(button)trigger=button;
     const request=++selection, processed=kind==='processed';
     const showResponder=['inbound','answered','closure_window'].includes(kind);
-    const outgoing=['outbound','outgoing_answered','outgoing_no_answer'].includes(kind);
+    const outgoing=['outbound','outgoing_answered','outgoing_no_answer','outgoing_other'].includes(kind);
     const callbacks=['missed','lost','missed_called_back','lost_called_back'].includes(kind);
     saved.list={kind,offset,slot,label,sort,dir};
     detailOpen=true;
@@ -1670,7 +1670,7 @@ function pilotagePage() {
         if(callbacks)headings.push(['called_back_at','Rappelé le']);
       }
       const outcomes={answered:'Décroché',missed:'Manqué',lost:'Perdu',menu:'Abandon au menu d’accueil',unknown:'Indéterminé',closed:'Hors horaires',
-        outgoing_answered:'Abouti',outgoing_no_answer:'Sans réponse',outgoing_other:'Autre résultat'};
+        outgoing_answered:'Abouti',outgoing_no_answer:'Sans réponse',outgoing_other:'Occupé ou échec'};
       const callbackStatus={open:'À rappeler',attempted:'Rappel tenté',done:'Traité'};
       const reason={before_ring:'Raccroché avant la sonnerie',short_ring:'Sonnerie de moins de 4 s'};
       const client=row=>row.prospect_id?h('button',{type:'button',onclick:()=>detail(row.prospect_id)},row.client||'Ouvrir la fiche'):row.client||'—';
@@ -1743,6 +1743,7 @@ function pilotagePage() {
       metric('Appels entrants',report.inbound??total+menu+unknown+closed,'','inbound'),metric('Appels sortants',report.outbound??0,'','outbound'),
       metric('Sortants aboutis',report.outgoing_answered??0,'','outgoing_answered'),
       metric('Sortants sans réponse',report.outgoing_no_answer??0,'','outgoing_no_answer'),
+      metric('Sortants occupés ou en échec',report.outgoing_other??0,'','outgoing_other'),
       report.closure_window ? metric('Hors horaires · '+report.closure_window.range.label,report.closure_window.count,'','closure_window') : ''),details,
       h('div',{class:'pilotage-charts'},
         h('section',{class:'card'},h('h3',{},'Activité téléphonique'),chart,

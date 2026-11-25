@@ -228,12 +228,12 @@ test('pilotage renders calls, progress and a sortable workload with team and per
             callback_state:'attempted',agent:'Brahim',client:'Dossier à rappeler',prospect_id:12,caller:'Appelant de test',reason:'short_ring',
             answered_by:query.get('detail')==='inbound'?'Brahim':'',
             outcome:{inbound:'answered',outbound:'outgoing_other',outgoing_answered:'outgoing_answered',
-              outgoing_no_answer:'outgoing_no_answer'}[query.get('detail')]}];
+              outgoing_no_answer:'outgoing_no_answer',outgoing_other:'outgoing_other'}[query.get('detail')]}];
         const range=query.get('detail')==='closure_window' ? {label:'19/11/2026 16:30 → 22/11/2026 08:30'}
           : {from:'2026-11-01',to:'2026-11-03'};
         return {rows,total:1,range};
       }
-      return {answered:7,missed:3,inbound:11,outbound:8,outgoing_answered:4,outgoing_no_answer:2,series:[{slot:1763899200,label:'09',answered:7,missed:3,lost:1}],timezone:'Africa/Algiers',
+      return {answered:7,missed:3,inbound:11,outbound:8,outgoing_answered:4,outgoing_no_answer:2,outgoing_other:2,series:[{slot:1763899200,label:'09',answered:7,missed:3,lost:1}],timezone:'Africa/Algiers',
         closure_window:{count:1,range:{label:'19/11/2026 16:30 → 22/11/2026 08:30'}},
         objective:{current:12,target:20,previous:9},range:{from:'2026-11-23',to:'2026-11-23'},
         teams:[{id:'e1',label:'Équipe 1'}],agents:rows,rows};
@@ -270,8 +270,9 @@ test('pilotage renders calls, progress and a sortable workload with team and per
   assert.equal(queries.at(-1).get('to'),'2026-11-03');
   for(const [label,kind,expected] of [
     ['Appels manqués','missed','4 s'],['Appels perdus','lost','2 s'],['Dossiers traités','processed','Dossier de test'],
-    ['Appels entrants','inbound','Décroché'],['Appels sortants','outbound','Autre résultat'],
-    ['Sortants aboutis','outgoing_answered','Abouti'],['Sortants sans réponse','outgoing_no_answer','Sans réponse']
+    ['Appels entrants','inbound','Décroché'],['Appels sortants','outbound','Occupé ou échec'],
+    ['Sortants aboutis','outgoing_answered','Abouti'],['Sortants sans réponse','outgoing_no_answer','Sans réponse'],
+    ['Sortants occupés ou en échec','outgoing_other','Occupé ou échec']
   ]) {
     [...root.querySelectorAll('.pilotage-kpis button')].find(button=>button.textContent.startsWith(label)).click();
     await tick();

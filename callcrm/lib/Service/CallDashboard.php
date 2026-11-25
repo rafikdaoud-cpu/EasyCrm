@@ -121,7 +121,7 @@ class CallDashboard {
         if ($slot !== null && !in_array($slot,array_column($buckets,'slot'),true)) {
             throw new \InvalidArgumentException('Créneau hors période.');
         }
-        $totals = ['answered'=>0,'missed'=>0,'lost'=>0,'menu'=>0,'unknown'=>0,'closed'=>0,'inbound'=>0,'outbound'=>0,'outgoing_answered'=>0,'outgoing_no_answer'=>0,
+        $totals = ['answered'=>0,'missed'=>0,'lost'=>0,'menu'=>0,'unknown'=>0,'closed'=>0,'inbound'=>0,'outbound'=>0,'outgoing_answered'=>0,'outgoing_no_answer'=>0,'outgoing_other'=>0,
             'missed_called_back'=>0,'lost_called_back'=>0];
         $matches = $unanswered = [];
         $calls = ($uids || $includeUnassigned) ? $this->callsForRange($range) : [];
@@ -145,7 +145,7 @@ class CallDashboard {
                     $noAnswer = $noAnswer || $agent['no_answer'];
                 }
                 $outcome = $answered ? 'outgoing_answered' : ($noAnswer ? 'outgoing_no_answer' : 'outgoing_other');
-                if ($outcome !== 'outgoing_other') $totals[$outcome]++;
+                $totals[$outcome]++;
                 if ($detail === 'outbound' || $detail === $outcome) {
                     $matches[] = ['id'=>$call['id'],'phone'=>$call['phone'],'at'=>$call['received_at'],
                         'outcome'=>$outcome,'total_seconds'=>$call['total_duration'],'prospect_id'=>$prospectId,
