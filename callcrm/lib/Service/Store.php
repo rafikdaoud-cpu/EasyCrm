@@ -46,6 +46,12 @@ class Store {
 		if (!empty($f['status'])) { $qb->andWhere($qb->expr()->eq('status', $qb->createNamedParameter($f['status']))); }
 		if (!empty($f['assigned'])) { $qb->andWhere($qb->expr()->eq('assigned_to', $qb->createNamedParameter($f['assigned']))); }
 		if (($f['attrib'] ?? '') === 'no') { $qb->andWhere($qb->expr()->orX($qb->expr()->isNull('assigned_to'), $qb->expr()->eq('assigned_to', $qb->createNamedParameter('')))); }
+		if (($f['attrib'] ?? '') === 'released') {
+			// Non assigné aujourd'hui, et l'historique de la fiche (tenu depuis le 03/11/2026) montre un retrait d'un commercial.
+			$qb->andWhere($qb->expr()->orX($qb->expr()->isNull('assigned_to'), $qb->expr()->eq('assigned_to', $qb->createNamedParameter(''))));
+			$qb->andWhere('id IN (SELECT prospect_id FROM *PREFIX*callcrm_client_events WHERE kind = ' . $qb->createNamedParameter('assign')
+				. ' AND body LIKE ' . $qb->createNamedParameter('%"to":null%') . ' AND body NOT LIKE ' . $qb->createNamedParameter('{"from":null%') . ')');
+		}
 		elseif (($f['attrib'] ?? '') === 'yes') { $qb->andWhere($qb->expr()->isNotNull('assigned_to'), $qb->expr()->neq('assigned_to', $qb->createNamedParameter(''))); }
 		if (!empty($f['cat'])) { $qb->andWhere($qb->expr()->in('c2', $qb->createNamedParameter((array)$f['cat'], IQueryBuilder::PARAM_STR_ARRAY))); }
 		if (!empty($f['src'])) { $qb->andWhere($qb->expr()->in('source', $qb->createNamedParameter((array)$f['src'], IQueryBuilder::PARAM_STR_ARRAY))); }

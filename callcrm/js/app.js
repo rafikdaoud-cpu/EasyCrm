@@ -891,7 +891,7 @@ async function list(k) {
   if (me.can.all) {
     a = multi('Commerciaux', me.commerciaux.map(u => ({v:u.uid, t:u.name})), (filt.user || filt.assigned || '').split('|'));
     g = multi('Groupes de commerciaux', (me.groups || []).map(group => ({v:group.id, t:group.name})), (filt.group || '').split('|'));
-    attrib = h('select', {'aria-label':'Attribution'}, [['', 'Assignés et non assignés'], ['yes', 'Assignés'], ['no', 'Non assignés']]
+    attrib = h('select', {'aria-label':'Attribution'}, [['', 'Assignés et non assignés'], ['yes', 'Assignés'], ['no', 'Non assignés'], ['released', 'Remis en non assigné (déjà assignés)']]
       .map(([v, l]) => h('option', {value:v, selected: filt.attrib === v}, l)));
     bar.append(attrib, a.el, g.el);
   }

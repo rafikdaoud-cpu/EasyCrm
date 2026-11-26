@@ -197,7 +197,7 @@ class WaController extends Controller {
 		if ($c['linked']) {
 			if (!\OCA\CallCrm\Service\TeamScope::canSee($c['p_assigned'])) return $this->deny();
 			$this->wa->updateConv($id, ['routed_to'=>null]);
-			$this->s->update((int)$c['prospect_id'], ['assigned_to' => $uid === '' ? null : $uid]);
+			$this->s->update((int)$c['prospect_id'], ['assigned_to' => $uid === '' ? null : $uid], $this->a->uid());
 			$this->s->audit($this->a->uid(), 'assign', (int)$c['prospect_id'], ($c['owner'] ?? '—') . ' → ' . ($uid === '' ? '—' : $uid) . ' (depuis WhatsApp)');
 		} else {
 			$this->wa->updateConv($id, ['assigned_to' => $uid === '' ? null : $uid, 'routed_to'=>null]);
