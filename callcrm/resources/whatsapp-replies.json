@@ -93,5 +93,10 @@
     "label": "Pièces · militaire retraité",
     "fr": "Pièces à fournir :\n• Deux copies de la carte nationale d’identité ou du permis de conduire biométrique en cours de validité.\n• Deux copies de l’acte de naissance.\n• Deux copies du certificat de résidence valide, daté de 3 mois au plus.\n• Une fiche familiale pour les personnes mariées.\n• Un relevé de compte postal ou bancaire des 3 derniers mois.\n• Un chèque postal ou bancaire barré.\n• Deux photos d’identité.\n\nEn plus :\n• Avis de radiation.\n• Attestation de salaire.",
     "ar": "الوثائق المطلوبة:\n• نسختان من بطاقة التعريف الوطنية أو رخصة سياقة بيومترية سارية المفعول.\n• نسختان من شهادة الميلاد.\n• نسختان من شهادة إقامة سارية المفعول لا يتعدى تاريخها 3 أشهر.\n• شهادة عائلية للمتزوجين.\n• كشف حساب بريدي أو بنكي لآخر 3 أشهر.\n• صك بريدي أو بنكي مشطوب.\n• صورتان شمسيتان.\n\nإضافةً إلى ذلك:\n• إشعار بالشطب.\n• شهادة كشف الراتب."
+  },
+  "prices": {
+    "label": "Prix (renvoi vers le site)",
+    "fr": "Tous nos produits, avec leur prix et la mensualité selon la durée, sont sur notre site : https://csmtaksit.dz . Un conseiller peut aussi vous aider ici si vous le souhaitez.",
+    "ar": "تجدون جميع منتجاتنا مع أسعارها والقسط الشهري حسب المدة على موقعنا : https://csmtaksit.dz . ويمكن لأحد مستشارينا مساعدتكم هنا إن رغبتم."
   }
 }

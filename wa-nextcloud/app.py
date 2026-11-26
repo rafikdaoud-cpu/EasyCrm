@@ -468,7 +468,8 @@ def bot_key(value):
     return " ".join(re.findall(r"[^\W_]+", "".join(c for c in folded if not unicodedata.combining(c))))
 
 
-PRICE_WORDS = {"prix", "tarif", "combien", "mensualite", "mensualites", "سعر", "السعر", "ثمن", "الثمن",
+PRICE_WORDS = {"prix", "tarif", "tarifs", "combien", "mensualite", "mensualites", "chhal", "ch7al", "bch7al", "bchhal", "shhal",
+               "سعر", "السعر", "ثمن", "الثمن",
                "بكم", "شحال", "القسط", "قسط", "الاقساط"}
 
 
@@ -682,6 +683,10 @@ def bot_service_reply(body, lang, config):
     if question == "site" or any(f" {bot_key(term)} " in f" {question} " for term in website_terms):
         label = "يمكنكم زيارة موقعنا الرسمي" if arabic else "Vous pouvez visiter notre site officiel"
         answers.append(reply("website", f"{label} : https://csmtaksit.dz"))
+    elif words & PRICE_WORDS and not (config.get("catalog") or config.get("listing")):
+        # Pas de liste de prix chargée : le site montre tous les produits, leurs prix et les mensualités.
+        answers.append(reply("prices", "تجدون جميع منتجاتنا مع أسعارها والقسط الشهري حسب المدة على موقعنا : https://csmtaksit.dz . ويمكن لأحد مستشارينا مساعدتكم هنا إن رغبتم."
+                             if arabic else "Tous nos produits, avec leur prix et la mensualité selon la durée, sont sur notre site : https://csmtaksit.dz . Un conseiller peut aussi vous aider ici si vous le souhaitez."))
     if bot_matches_phrase(question, ("parler à un conseiller", "parler à un commercial", "joindre un conseiller",
                                      "الحديث مع مستشار", "التحدث إلى مستشار", "لم تجد جوابك")):
         return "waiting_agent", reply("consultant", "يمكنكم الاتصال بمركز الاتصال على 0553 553 553. الخدمة مجانية ودون التزام."
