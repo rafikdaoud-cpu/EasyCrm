@@ -212,6 +212,45 @@ test('editing an existing client submits only the changed fields and the current
   dom.window.close();
 });
 
+test('pilotage exports summary, workload and the full open list to Excel', async () => {
+  const dom=new JSDOM('<main></main>');
+  const {document,Node}=dom.window, root=document.querySelector('main');
+  const queries=[], sheets={};
+  const XLSX={utils:{book_new:()=>({}),aoa_to_sheet:rows=>rows,book_append_sheet:(book,rows,name)=>{sheets[name]=rows;}},
+    writeFile:(book,name)=>{sheets.file=name;}};
+  const rows=[{uid:'a',name:'Alice',status:'online',incoming:2,outgoing:5,outgoing_answered:3,outgoing_no_answer:1,pending:3,processed:4,late:2}];
+  const ctx=vm.createContext({document,Node,URLSearchParams,setInterval:()=>0,clearInterval:()=>{},window:{XLSX},
+    me:{uid:'manager',can:{export:true}},show:page=>root.replaceChildren(page),fmt:String,ST:{},detail:()=>{},
+    api:async path=>{
+      const query=new URLSearchParams(path.split('?')[1]);queries.push(query);
+      if(query.has('detail')) return {rows:Array.from({length:query.get('export')?60:1},(_, i)=>({at:i+1,phone:'0550',total_seconds:3,
+        outcome:'outgoing_answered',client:'',caller:'X'})),total:60,range:{from:'2026-11-01',to:'2026-11-26'},export_phone:false};
+      return {answered:1,missed:0,inbound:1,outbound:60,outgoing_answered:60,outgoing_no_answer:0,outgoing_other:0,
+        series:[],timezone:'Africa/Algiers',objective:{current:0,target:0,previous:0},range:{from:'2026-11-01',to:'2026-11-26'},
+        teams:[],agents:rows,rows};
+    }
+  });
+  vm.runInContext(part('const h =','async function api(')+part('function pilotagePage()','function dashboardPeriodFilter('),ctx);
+  vm.runInContext('pilotagePage()',ctx);
+  await tick();
+  [...root.querySelectorAll('.pilotage-kpis button')].find(button=>button.textContent.startsWith('Sortants aboutis')).click();
+  await tick();
+  [...root.querySelectorAll('button')].find(button=>button.textContent==='Exporter Excel').click();
+  await tick();
+  assert.equal(queries.at(-1).get('export'),'1');
+  assert.equal(queries.at(-1).get('detail'),'outgoing_answered');
+  const same=(a,b)=>assert.equal(JSON.stringify(a),JSON.stringify(b));
+  same(sheets['Synthèse'].find(row=>row[0]==='Sortants aboutis'),['Sortants aboutis',60]);
+  same(sheets['Par commercial'][1],['Alice','Connecté au CRM',2,5,3,1,3,4,2]);
+  const list=sheets['Sortants aboutis'];
+  assert.equal(list.length,61);
+  assert.ok(!list[0].includes('Numéro'));
+  same(list[0],['Date','Durée totale (s)','Résultat','Dossier','Appelant']);
+  same(list[1],['1',3,'Abouti','','X']);
+  assert.equal(sheets.file,'callcrm_pilotage_2026-11-01_2026-11-26.xlsx');
+  dom.window.close();
+});
+
 test('pilotage renders calls, progress and a sortable workload with team and period filters', async () => {
   const dom=new JSDOM('<main></main>');
   const {document,Node,Event}=dom.window, root=document.querySelector('main');

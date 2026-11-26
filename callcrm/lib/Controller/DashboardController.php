@@ -2,7 +2,7 @@
 namespace OCA\CallCrm\Controller;
 
 use OCA\CallCrm\AppInfo\Application;
-use OCA\CallCrm\Service\{Access, Presence, CallDashboard, MissedCalls, Prefs, TeamScope, YeastarEvents};
+use OCA\CallCrm\Service\{Access, Presence, CallDashboard, MissedCalls, Prefs, Store, TeamScope, YeastarEvents};
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\JSONResponse;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
@@ -10,7 +10,8 @@ use OCP\{IRequest,IGroupManager,IDBConnection};
 
 class DashboardController extends Controller {
     public function __construct(IRequest $request, private Access $access, private Presence $presence,
-        private CallDashboard $dashboard, private IGroupManager $gm, private IDBConnection $db) {
+        private CallDashboard $dashboard, private IGroupManager $gm, private IDBConnection $db,
+        private Store $store) {
         parent::__construct(Application::APP_ID,$request);
     }
     private function manager(): bool { return in_array($this->access->role(),['admin','superviseur'],true); }
@@ -114,6 +115,22 @@ class DashboardController extends Controller {
                 }
                 $key = $sort==='at' && $detail==='processed' ? 'created_at' : $sort;
                 $this->sortPilotage($items,$key,$direction);
+                if ($this->request->getParam('export','')==='1') {
+                    if (!$this->access->can('export')) return new JSONResponse(['error'=>'Export non autorisé'],403);
+                    if (!$byLabel) {
+                        $labeled = [];
+                        foreach (array_chunk($items,100) as $chunk) array_push($labeled,...$this->pilotageLabels($chunk,$names,$detail));
+                        $items = $labeled;
+                    }
+                    $phones = $this->access->can('export_phone');
+                    if (!$phones) foreach ($items as &$row) {
+                        if (($row['caller'] ?? null)===($row['phone'] ?? null)) $row['caller'] = null;
+                        $row['phone'] = null;
+                    }
+                    unset($row);
+                    $this->store->audit($this->access->uid(),'export',null,'Pilotage · '.$detail.' : '.count($items).' ligne(s)'.($phones?' avec téléphone':' sans téléphone'));
+                    return new JSONResponse(['rows'=>$items,'total'=>count($items),'range'=>$range,'export_phone'=>$phones]);
+                }
                 $page = array_slice($items,$offset,50);
                 if (!$byLabel) $page = $this->pilotageLabels($page,$names,$detail);
                 return new JSONResponse(['rows'=>$page,'total'=>count($items),'range'=>$range]);

@@ -1616,8 +1616,9 @@ function pilotagePage() {
     h('button',{type:'submit'},'Appliquer'));
   const message = h('p',{role:'status'}), content = h('div',{class:'crm-pilotage-content'});
   const refreshButton = h('button',{type:'button',onclick:()=>load(true)},'Actualiser');
+  const excelButton = h('button',{type:'button',title:'Synthèse, charge par commercial et, si elle est ouverte, la liste détaillée complète',onclick:()=>exportExcel()},'Exporter Excel');
   const page = h('section',{class:'crm-pilotage'},
-    h('div',{class:'crm-card-head'},h('h2',{},'Pilotage commercial'),refreshButton),
+    h('div',{class:'crm-card-head'},h('h2',{},'Pilotage commercial'),h('div',{class:'bar'},excelButton,refreshButton)),
     h('div',{class:'crm-pilotage-filters'},period,team,agent),dateFields,message,content);
   let generation=0, sort='name', direction=1;
   const statuses={online:'Connecté au CRM',pause:'En pause',absent:'Absent'};
@@ -1627,6 +1628,71 @@ function pilotagePage() {
     missed_called_back:'Appels manqués rappelés',lost_called_back:'Appels perdus rappelés',closed:'Appels hors horaires',closure_window:'Appels entrants hors horaires',processed:'Dossiers traités',
     inbound:'Appels entrants',outbound:'Appels sortants',outgoing_answered:'Sortants aboutis',outgoing_no_answer:'Sortants sans réponse',outgoing_other:'Sortants occupés ou en échec'};
 
+  const outcomes={answered:'Décroché',missed:'Manqué',lost:'Perdu',menu:'Abandon au menu d’accueil',unknown:'Indéterminé',closed:'Hors horaires',
+    outgoing_answered:'Abouti',outgoing_no_answer:'Sans réponse',outgoing_other:'Occupé ou échec'};
+  const callbackStatus={open:'À rappeler',attempted:'Rappel tenté',done:'Traité'};
+  const reason={before_ring:'Raccroché avant la sonnerie',short_ring:'Sonnerie de moins de 4 s'};
+  function listColumns(kind) {
+    const outgoing=['outbound','outgoing_answered','outgoing_no_answer','outgoing_other'].includes(kind);
+    const headings=[['at','Date']];
+    if(kind==='processed')return headings.concat([['client','Dossier'],['agent','Commercial'],['result','Dernier résultat']]);
+    headings.push(['phone','Numéro']);
+    if(!outgoing)headings.push(['ring_seconds','Sonnerie au poste']);
+    headings.push(['total_seconds','Durée totale']);
+    if(outgoing||['inbound','closed','closure_window'].includes(kind))headings.push(['outcome','Résultat']);
+    if(['inbound','answered','closure_window'].includes(kind))headings.push(['answered_by','Répondu par']);
+    headings.push(['client','Dossier'],['caller','Appelant']);
+    if(kind==='missed')headings.push(['agent','Responsable du rappel'],['callback_state','Suivi du rappel']);
+    if(kind==='lost')headings.push(['reason','Motif']);
+    if(['missed','lost','missed_called_back','lost_called_back'].includes(kind))headings.push(['called_back_at','Rappelé le']);
+    return headings;
+  }
+  function excelCell(kind,key,row) {
+    const value=row[key];
+    if(key==='at'||key==='called_back_at')return value?fmt(value):(key==='called_back_at'?'Pas encore':'');
+    if(key==='ring_seconds'||key==='total_seconds')return value==null?'':Number(value);
+    if(key==='outcome')return outcomes[value]||'';
+    if(key==='result')return ST[value]||value||'';
+    if(key==='callback_state')return callbackStatus[value]||'';
+    if(key==='reason')return reason[value]||'';
+    if(key==='agent'&&kind==='missed')return value||(row.callback_state?'Non attribué':'');
+    return value==null?'':String(value);
+  }
+  async function exportExcel() {
+    const api_=window.XLSX;
+    if(!api_){message.textContent='Excel indisponible. Rechargez la page.';return;}
+    if(!report)return;
+    excelButton.disabled=true;message.textContent='Préparation de l’export…';
+    try {
+      const book=api_.utils.book_new();
+      const cards=[...content.querySelectorAll('.pilotage-kpis .pilotage-metric')]
+        .map(card=>{const value=card.querySelector('strong')?.textContent||'';return [card.querySelector('span')?.textContent||'',/^\d+$/.test(value)?Number(value):value];});
+      const periodText=report.range.label||report.range.from+' au '+report.range.to;
+      const filters=[['Période',periodText],['Équipe',team.selectedOptions[0]?.textContent||''],['Commercial',agent.selectedOptions[0]?.textContent||''],[]];
+      api_.utils.book_append_sheet(book,api_.utils.aoa_to_sheet([...filters,['Indicateur','Valeur'],...cards]),'Synthèse');
+      const keys=['incoming','outgoing','outgoing_answered','outgoing_no_answer','pending','processed','late'];
+      api_.utils.book_append_sheet(book,api_.utils.aoa_to_sheet([columns.map(([,label])=>label),
+        ...report.rows.map(row=>[row.name,statuses[row.status]||'Inconnu',...keys.map(key=>Number(row[key]??0))])]),'Par commercial');
+      let note='';
+      if(detailOpen&&saved.list&&me.can?.export){
+        const {kind,slot,label,sort,dir}=saved.list;
+        const query={...appliedQuery,detail:kind,sort,dir,export:'1'};
+        if(slot!==null)query.slot=slot;
+        const data=await api('/pilotage?'+new URLSearchParams(query));
+        const cols=listColumns(kind).filter(([key])=>key!=='phone'||data.export_phone);
+        api_.utils.book_append_sheet(book,api_.utils.aoa_to_sheet([
+          cols.map(([key,heading])=>key.endsWith('_seconds')?heading+' (s)':heading),
+          ...data.rows.map(row=>cols.map(([key])=>excelCell(kind,key,row)))]),(names[kind]||'Liste').slice(0,31));
+        note=' · liste « '+names[kind]+(label?' · '+label:'')+' » : '+data.rows.length+' ligne(s)';
+      }
+      const filename='callcrm_pilotage_'+(report.range.from||'')+'_'+(report.range.to||'')+'.xlsx';
+      if(window.CRMApp?.saveFile)window.CRMApp.saveFile('data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,'+
+        api_.write(book,{bookType:'xlsx',type:'base64'}),filename);
+      else api_.writeFile(book,filename);
+      message.textContent='Export Excel prêt'+note+'.';
+    } catch(error){message.textContent=error.message;}
+    finally{excelButton.disabled=false;}
+  }
   async function openDetails(kind, offset=0, button=null, slot=null, label='', sort='at', dir='desc') {
     if(button)trigger=button;
     const request=++selection, processed=kind==='processed';
@@ -1656,23 +1722,7 @@ function pilotagePage() {
       status.textContent=(data.total ? (offset+1)+' à '+(offset+data.rows.length)+' sur '+data.total : 'Aucun résultat')+' · '+periodText;
       if(!data.rows.length)return;
       const seconds=n=>n==null?'—':n+' s';
-      const headings=[['at','Date']];
-      if(processed)headings.push(['client','Dossier'],['agent','Commercial'],['result','Dernier résultat']);
-      else {
-        headings.push(['phone','Numéro']);
-        if(!outgoing)headings.push(['ring_seconds','Sonnerie au poste']);
-        headings.push(['total_seconds','Durée totale']);
-        if(outgoing||['inbound','closed','closure_window'].includes(kind))headings.push(['outcome','Résultat']);
-        if(showResponder)headings.push(['answered_by','Répondu par']);
-        headings.push(['client','Dossier'],['caller','Appelant']);
-        if(kind==='missed')headings.push(['agent','Responsable du rappel'],['callback_state','Suivi du rappel']);
-        if(kind==='lost')headings.push(['reason','Motif']);
-        if(callbacks)headings.push(['called_back_at','Rappelé le']);
-      }
-      const outcomes={answered:'Décroché',missed:'Manqué',lost:'Perdu',menu:'Abandon au menu d’accueil',unknown:'Indéterminé',closed:'Hors horaires',
-        outgoing_answered:'Abouti',outgoing_no_answer:'Sans réponse',outgoing_other:'Occupé ou échec'};
-      const callbackStatus={open:'À rappeler',attempted:'Rappel tenté',done:'Traité'};
-      const reason={before_ring:'Raccroché avant la sonnerie',short_ring:'Sonnerie de moins de 4 s'};
+      const headings=listColumns(kind);
       const client=row=>row.prospect_id?h('button',{type:'button',onclick:()=>detail(row.prospect_id)},row.client||'Ouvrir la fiche'):row.client||'—';
       const body=data.rows.map(row=>{
         const cells=processed?[h('td',{},client(row)),h('td',{},row.agent),h('td',{},ST[row.result]||row.result)]
