@@ -63,12 +63,13 @@ function smsDialog({title,intro,preview,send}){
 }
 function clientSms(p){smsDialog({title:'SMS à '+([p.firstname,p.lastname].filter(Boolean).join(' ')||p.phone),intro:'Envoyé au '+p.phone+' avec l’expéditeur de l’entreprise. Le message est enregistré dans la chronologie du client.',
  send:async text=>{const r=await api('/prospects/'+p.id+'/sms',{method:'POST',body:{text}});return '✔ SMS envoyé ('+r.segments+' SMS facturé'+(r.segments>1?'s':'')+').';}});}
-/** Effet verre (clair et sombre selon le thème Nextcloud), mémorisé sur ce poste. */
-// Effet verre actif par défaut ; seul un choix explicite « désactivé » (0) le coupe.
-const glassOn = () => { try { return localStorage.getItem('callcrm_glass') !== '0'; } catch (e) { return true; } };
-function setGlass(on) {
-  try { localStorage.setItem('callcrm_glass', on ? '1' : '0'); } catch (e) {}
-  root.classList.toggle('crm-glass', on); document.body.classList.toggle('crm-glass-on', on);
+/** Relief 3D (clair et sombre selon le thème Nextcloud), mémorisé sur ce poste ; remplace l'ancien effet verre. */
+// Actif par défaut ; seul un choix explicite « désactivé » (0) le coupe.
+const depthOn = () => { try { return localStorage.getItem('callcrm_depth') !== '0'; } catch (e) { return true; } };
+function setDepth(on) {
+  try { localStorage.setItem('callcrm_depth', on ? '1' : '0'); } catch (e) {}
+  root.classList.remove('crm-glass'); document.body.classList.remove('crm-glass-on');
+  root.classList.toggle('crm-depth', on);
 }
 async function api(path, opt = {}) {
   const o = {method: opt.method || 'GET', headers: {requesttoken: tok(), Accept: 'application/json'}};
@@ -855,7 +856,7 @@ function nav() {
     h('div', {class:'nav', role:'navigation'}, items),
     h('div', {class:'crm-sidebar-note crm-sidebar-user'}, h('span', {class:'crm-avatar', 'aria-hidden':'true'}, (who.match(/[\p{L}\p{N}]+/gu) || ['?']).slice(0, 2).map(w => w[0]).join('').toUpperCase()),
       h('span', {}, h('strong', {}, who), h('small', {class:'muted'}, role))),
-    h('button', {type:'button', class:'crm-glass-toggle', 'aria-pressed':String(glassOn()), onclick: e => { setGlass(!glassOn()); e.currentTarget.setAttribute('aria-pressed', String(glassOn())); }}, '◇ Effet verre'),
+    h('button', {type:'button', class:'crm-depth-toggle', 'aria-pressed':String(depthOn()), onclick: e => { setDepth(!depthOn()); e.currentTarget.setAttribute('aria-pressed', String(depthOn())); }}, '▣ Relief 3D'),
     h('div', {class:'crm-credit muted'}, 'By Rafik DAOUD'));
 }
 function go(k) { if(typeof canLeave==='function'&&!canLeave(()=>go(k)))return; if (k === 'dossiers') k = 'nouveaux'; if (k === 'sim') { openSim(null); return; } tab = k; if(k==='documents'){show(h('h2',{},'Pièces reçues'),documentsCard());return;} if(k==='search'||k==='neglected'){discovery(k);return;} if(k==='call-history'){callHistoryPage();return;} if(k==='enregistrements'){recordingsPage();return;} if(k==='manques'){missedPage();return;} if(k==='agenda'){agenda();return;} if(k==='pilotage'){pilotagePage();return;} if (k === 'journee' && me.role === 'commercial') myDay(); else if (k === 'wa') waList(); else if (k === 'stats') stats(); else if (k === 'admin') admin(); else if (k === 'annonce') show(h('h2', {}, 'Annonce'), announcementCard()); else if (k === 'commerciaux') presenceBoard(); else list(k); }
@@ -3521,7 +3522,7 @@ function crmChat() {
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshRooms(); });
 }
 (async () => {
-  setGlass(glassOn());
+  setDepth(depthOn());
   try { me = await api('/me'); }
   catch (e) { root.textContent = e.offline ? 'Connexion indisponible : rechargez la page quand le réseau revient.' : 'Accès refusé : demandez à l’administrateur de vous ajouter à un groupe callcrm_*.'; return; }
   applyStatuses();

@@ -3,7 +3,7 @@ const {test}=require('node:test'),assert=require('node:assert/strict'),fs=requir
 const {JSDOM}=require('jsdom');
 const src=fs.readFileSync('callcrm/js/app.js','utf8');
 const part=(a,b)=>src.slice(src.indexOf(a),src.indexOf(b,src.indexOf(a)));
-const code=part('const h =','async function api(')+part('/* ---- Discussion interne','(async () => {\n  setGlass(glassOn());');
+const code=part('const h =','async function api(')+part('/* ---- Discussion interne','(async () => {\n  setDepth(depthOn());');
 const tick=(ms=30)=>new Promise(r=>setTimeout(r,ms));
 function setup(){
  const dom=new JSDOM('<!doctype html><head></head><body><main id="callcrm"></main></body>',{url:'https://cloud.example.test/apps/callcrm/',pretendToBeVisual:true});
