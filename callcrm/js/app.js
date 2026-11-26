@@ -886,12 +886,14 @@ async function list(k) {
   const box = h('div', {}, skel());
   const q = h('input', {type:'search', placeholder:'Nom, téléphone, commentaire…', 'aria-label':'Rechercher dans les dossiers', value:filt.q});
   const bar = h('div', {class:'bar'}, q);
-  let s, a, g;
+  let s, a, g, attrib;
   if (K.all) { s = h('select', {}, h('option', {value:''}, 'Tous statuts'), Object.entries(ST).map(([v, l]) => h('option', {value:v, selected: filt.status === v}, l))); bar.append(s); }
   if (me.can.all) {
     a = multi('Commerciaux', me.commerciaux.map(u => ({v:u.uid, t:u.name})), (filt.user || filt.assigned || '').split('|'));
     g = multi('Groupes de commerciaux', (me.groups || []).map(group => ({v:group.id, t:group.name})), (filt.group || '').split('|'));
-    bar.append(a.el, g.el);
+    attrib = h('select', {'aria-label':'Attribution'}, [['', 'Assignés et non assignés'], ['yes', 'Assignés'], ['no', 'Non assignés']]
+      .map(([v, l]) => h('option', {value:v, selected: filt.attrib === v}, l)));
+    bar.append(attrib, a.el, g.el);
   }
   const category = multi('Produits demandés', (me.options.c2 || []).map(c => ({v:c, t:c})), (filt.cat || '').split('|'));
   bar.append(category.el);
@@ -951,8 +953,8 @@ async function list(k) {
   const load = async (keep) => {
     if (keep !== true) { page = 1; sel.clear(); }
     lastQuery = null;
-    filt = {q:q.value, status: s ? s.value : '', user:a ? a.values().join('|') : '', group:g ? g.values().join('|') : '', cat:category.values().join('|'), src:origin.values().join('|')};
-    const p = new URLSearchParams({q:filt.q, status: K.status || filt.status, user:filt.user, group:filt.group, cat:filt.cat, src:filt.src, rappels: K.rappels ? 1 : '', asc: K.asc ? 1 : '',
+    filt = {q:q.value, status: s ? s.value : '', attrib: attrib ? attrib.value : '', user:a ? a.values().join('|') : '', group:g ? g.values().join('|') : '', cat:category.values().join('|'), src:origin.values().join('|')};
+    const p = new URLSearchParams({q:filt.q, status: K.status || filt.status, attrib:filt.attrib, user:filt.user, group:filt.group, cat:filt.cat, src:filt.src, rappels: K.rappels ? 1 : '', asc: K.asc ? 1 : '',
       reg_from: dts(rf.value, 0), reg_to: dts(rt.value, 86400), proc_from: dts(pf.value, 0), proc_to: dts(pt.value, 86400),
       sort:sortBy.k, dir:sortBy.d, paged:1, limit:pageSize, offset:(page - 1) * pageSize});
     lastQuery = Object.fromEntries([...p].filter(([k]) => !['paged','limit','offset','sort','dir'].includes(k)));
@@ -974,7 +976,7 @@ async function list(k) {
       pager.replaceChildren(...mk()); pagerB.replaceChildren(...mk());
     } catch (e) { box.replaceChildren(h('p', {class:'err'}, e.message)); }
   };
-  [q, s, a?.el, g?.el, category.el, origin.el, rf, rt, pf, pt].forEach(e => e && e.addEventListener('change', () => load()));
+  [q, s, attrib, a?.el, g?.el, category.el, origin.el, rf, rt, pf, pt].forEach(e => e && e.addEventListener('change', () => load()));
   bar.classList.add('crm-filters');
   const head = h('div', {class:'crm-page-head'}, h('div', {}, h('h2', {}, K.t), h('p', {class:'muted'}, K.asc ? 'Du plus ancien au plus récent.' : 'Cliquez sur un client pour ouvrir sa fiche.')),
     (me.can.create || me.sms?.bulk) ? h('div', {class:'crm-page-actions'}, me.sms?.bulk ? h('button', {onclick: bulkSms}, '✉ SMS à la sélection') : '', me.can.create ? h('button', {class:'primary', onclick: () => addForm()}, '+ Nouveau client') : '') : '');

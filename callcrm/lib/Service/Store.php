@@ -45,6 +45,8 @@ class Store {
 		TeamScope::prospects($qb);
 		if (!empty($f['status'])) { $qb->andWhere($qb->expr()->eq('status', $qb->createNamedParameter($f['status']))); }
 		if (!empty($f['assigned'])) { $qb->andWhere($qb->expr()->eq('assigned_to', $qb->createNamedParameter($f['assigned']))); }
+		if (($f['attrib'] ?? '') === 'no') { $qb->andWhere($qb->expr()->orX($qb->expr()->isNull('assigned_to'), $qb->expr()->eq('assigned_to', $qb->createNamedParameter('')))); }
+		elseif (($f['attrib'] ?? '') === 'yes') { $qb->andWhere($qb->expr()->isNotNull('assigned_to'), $qb->expr()->neq('assigned_to', $qb->createNamedParameter(''))); }
 		if (!empty($f['cat'])) { $qb->andWhere($qb->expr()->in('c2', $qb->createNamedParameter((array)$f['cat'], IQueryBuilder::PARAM_STR_ARRAY))); }
 		if (!empty($f['src'])) { $qb->andWhere($qb->expr()->in('source', $qb->createNamedParameter((array)$f['src'], IQueryBuilder::PARAM_STR_ARRAY))); }
 		if (isset($f['users']) && is_array($f['users'])) { $qb->andWhere($qb->expr()->in('assigned_to', $qb->createNamedParameter($f['users'] ?: ['-'], IQueryBuilder::PARAM_STR_ARRAY))); }

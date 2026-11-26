@@ -277,6 +277,8 @@ class ApiController extends Controller {
 		// Same union-of-groups / intersection-with-users rules as the reports.
 		$selected = $this->filters();
 		$f['users'] = $selected['users'];
+		$attrib = (string)$this->request->getParam('attrib', '');
+		$f['attrib'] = $this->a->can('all') && in_array($attrib, ['yes', 'no'], true) ? $attrib : '';
 		$f['cat'] = $selected['cat'];
 		$f['src'] = array_values(array_intersect(array_filter(explode('|', (string)$this->request->getParam('src', ''))), \OCA\CallCrm\Service\ClientActivity::SOURCES));
 		$f['sort'] = (string)$this->request->getParam('sort', ''); $f['dir'] = (string)$this->request->getParam('dir', '');
