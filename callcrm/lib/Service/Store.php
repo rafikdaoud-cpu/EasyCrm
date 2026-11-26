@@ -71,12 +71,35 @@ class Store {
 			$qb->andWhere($or);
 		}
 	}
+	/** Dernière modification : inscription, dernier appel consigné ou dernier événement de la fiche (note, modification, attribution…). */
+	private const MODIFIED_SQL = 'GREATEST(p.created_at, COALESCE(p.last_call_at, 0), COALESCE((SELECT MAX(e.created_at) FROM *PREFIX*callcrm_client_events e WHERE e.prospect_id = p.id), 0))';
+	/** Ajoute modified_at et handled_by (auteur du dernier appel consigné) aux lignes d'une page de la liste. */
+	public function withActivity(array $rows): array {
+		$ids = array_map(fn($r) => (int)$r['id'], $rows);
+		if (!$ids) return $rows;
+		$q = $this->db->getQueryBuilder();
+		$q->select('prospect_id')->selectAlias($q->func()->max('created_at'), 'at')->from('callcrm_client_events')
+			->where($q->expr()->in('prospect_id', $q->createNamedParameter($ids, IQueryBuilder::PARAM_INT_ARRAY)))->groupBy('prospect_id');
+		$events = array_column($q->executeQuery()->fetchAll(), 'at', 'prospect_id');
+		$q = $this->db->getQueryBuilder();
+		$q->select('prospect_id', 'user_id', 'created_at', 'id')->from('callcrm_calls')
+			->where($q->expr()->in('prospect_id', $q->createNamedParameter($ids, IQueryBuilder::PARAM_INT_ARRAY)))->orderBy('created_at', 'ASC')->addOrderBy('id', 'ASC');
+		$handled = array_column($q->executeQuery()->fetchAll(), 'user_id', 'prospect_id'); // le dernier appel l'emporte
+		foreach ($rows as &$r) {
+			$id = (int)$r['id'];
+			$r['modified_at'] = max((int)$r['created_at'], (int)($r['last_call_at'] ?? 0), (int)($events[$id] ?? 0));
+			$r['handled_by'] = $handled[$id] ?? null;
+		}
+		return $rows;
+	}
 	public function search(?string $uid, array $f, int $limit, int $off): array {
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('p.*')->from('callcrm_prospects', 'p');
 		$this->where($qb, $uid, $f);
 		$cols = ['nom' => 'lastname', 'date' => 'created_at', 'statut' => 'status', 'wilaya' => 'c5', 'categorie' => 'c2', 'source' => 'source', 'appel' => 'last_call_at', 'rappel' => 'callback_at'];
-		if (!empty($f['sort']) && isset($cols[$f['sort']])) {
+		if (($f['sort'] ?? '') === 'modif') {
+			$qb->orderBy($qb->createFunction(self::MODIFIED_SQL), ($f['dir'] ?? '') === 'desc' ? 'DESC' : 'ASC')->addOrderBy('id', 'DESC');
+		} elseif (!empty($f['sort']) && isset($cols[$f['sort']])) {
 			$qb->orderBy($cols[$f['sort']], ($f['dir'] ?? '') === 'desc' ? 'DESC' : 'ASC')->addOrderBy('id', 'DESC');
 		} elseif (!empty($f['rappels'])) { $qb->orderBy('callback_at', 'ASC'); } else { $qb->orderBy('id', !empty($f['asc']) ? 'ASC' : 'DESC'); }
 		$qb->setMaxResults($limit)->setFirstResult($off);

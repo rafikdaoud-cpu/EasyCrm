@@ -255,7 +255,11 @@ class ApiController extends Controller {
 		if ($this->request->getParam('paged')) {
 			$lim = (int)$this->request->getParam('limit', 10); if (!in_array($lim, [10, 20, 30, 0], true)) { $lim = 10; }
 			$eff = $lim === 0 ? 5000 : $lim; if ($lim === 0) { $off = 0; }
-			return new JSONResponse(['rows' => $this->maskRows($this->s->search($this->scope(), $f, $eff, $off)), 'total' => $this->s->count($this->scope(), $f), 'limit' => $lim]);
+			$rows = $this->s->withActivity($this->s->search($this->scope(), $f, $eff, $off));
+			$names = [];
+			foreach ($rows as &$r) { $u = $r['handled_by']; $r['handled_name'] = $u === null ? null : ($names[$u] ??= ($this->um->getDisplayName($u) ?: $u)); }
+			unset($r);
+			return new JSONResponse(['rows' => $this->maskRows($rows), 'total' => $this->s->count($this->scope(), $f), 'limit' => $lim]);
 		}
 		return new JSONResponse($this->maskRows($this->s->search($this->scope(), $f, 50, $off)));
 	}

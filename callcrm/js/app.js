@@ -900,7 +900,7 @@ async function list(k) {
   const origin = multi('Sources', Object.entries(SOURCES).map(([v, t]) => ({v, t})), (filt.src || '').split('|'));
   bar.append(origin.el);
   let page = 1;
-  const SORTS = [['', 'Tri par défaut'], ['nom', 'Nom'], ['date', 'Date d’enregistrement'], ['statut', 'Statut'], ['wilaya', 'Wilaya'], ['categorie', 'Catégorie'], ['source', 'Source'], ['appel', 'Dernier appel'], ['rappel', 'Date de rappel']];
+  const SORTS = [['', 'Tri par défaut'], ['nom', 'Nom'], ['date', 'Date d’enregistrement'], ['modif', 'Dernière modification'], ['statut', 'Statut'], ['wilaya', 'Wilaya'], ['categorie', 'Catégorie'], ['source', 'Source'], ['appel', 'Dernier appel'], ['rappel', 'Date de rappel']];
   const so = h('select', {title:'Trier par'}, SORTS.map(([v, l]) => h('option', {value:v, selected: sortBy.k === v}, l)));
   const sd = h('button', {title:'Sens du tri', onclick: () => { sortBy.d = sortBy.d === 'asc' ? 'desc' : 'asc'; syncSort(); load(); }}, sortBy.d === 'asc' ? '↑ Croissant' : '↓ Décroissant');
   const syncSort = () => { so.value = sortBy.k; sd.textContent = sortBy.d === 'asc' ? '↑ Croissant' : '↓ Décroissant'; const nh = rowHead(!!me.can.assign, sortCol); head0?.replaceWith(nh); head0 = nh; };
@@ -987,7 +987,8 @@ async function list(k) {
 }
 /** Liste des dossiers (grille) : colonnes affichables / masquables et redimensionnables, réglages gardés dans le navigateur. */
 const LIST_COLS = [['cell-who', 'Client', 'minmax(200px,2.2fr)', true], ['cell-w', 'Wilaya', 'minmax(90px,1fr)'], ['cell-c', 'Produit', 'minmax(110px,1.2fr)'],
-  ['cell-s', 'État', '178px'], ['cell-cb', 'Rappel', 'minmax(120px,1.2fr)'], ['cell-d', 'Inscrit le', '110px'], ['cell-act', 'Actions', '84px', true]];
+  ['cell-s', 'État', '178px'], ['cell-cb', 'Rappel', 'minmax(120px,1.2fr)'], ['cell-d', 'Inscrit le', '110px'],
+  ['cell-m', 'Modifié le', '130px'], ['cell-t', 'Traité par', 'minmax(110px,1fr)'], ['cell-src', 'Source', 'minmax(110px,1fr)'], ['cell-act', 'Actions', '84px', true]];
 function listGridColumns(card) {
   let st = tblStore.get('dossiers', {hidden: [], widths: {}});
   const save = () => tblStore.set('dossiers', st);
@@ -1064,12 +1065,15 @@ function row(r, onSel) {
   return h('div', {class:'row' + (late ? ' overdue' : ''), onclick: e => { if (e.target.closest('input, a.wa')) return; detail(r.id); }},
     ck ? h('div', {class:'cell-ck'}, ck) : '',
     h('div', {class:'cell-who'}, h('div', {class:'av'}, (nm(r).match(/[\p{L}\p{N}]+/gu) || ['?']).slice(0, 2).map(w => w[0]).join('').toUpperCase()),
-      h('div', {class:'main'}, h('strong', {}, nm(r)), h('div', {class:'muted'}, r.phone || 'Sans numéro'), srcBadge(r))),
+      h('div', {class:'main'}, h('strong', {}, nm(r)), h('div', {class:'muted'}, r.phone || 'Sans numéro'))),
     h('div', {class:'cell cell-w'}, r.c5 || '—'),
     h('div', {class:'cell cell-c muted'}, r.c2 || '—'),
     h('div', {class:'cell cell-s side'}, badge(r.status)),
     h('div', {class:'cell cell-cb' + (late ? ' late' : '')}, r.callback_at ? (late ? 'En retard · ' : '') + fmt(Number(r.callback_at)) : '—'),
     h('div', {class:'cell cell-d muted', title: Number(r.last_call_at) ? 'Traité le ' + fmt(Number(r.last_call_at)) : 'Jamais traité'}, fmtD(r.created_at)),
+    h('div', {class:'cell cell-m muted'}, Number(r.modified_at) ? fmt(Number(r.modified_at)) : '—'),
+    h('div', {class:'cell cell-t'}, r.handled_name || '—'),
+    h('div', {class:'cell cell-src'}, srcBadge(r) || '—'),
     h('div', {class:'cell cell-act'},
       tel ? h('a', {class:'crm-row-btn call', href:'tel:' + r.phone, title:'Appeler ' + r.phone, 'aria-label':'Appeler ' + nm(r)}, '☎') : '',
       tel ? h('a', {class:'crm-row-btn wa', href:'https://wa.me/' + waOf(r), target:'_blank', rel:'noopener noreferrer', title:'WhatsApp', 'aria-label':'WhatsApp ' + nm(r)}, '💬') : ''));
@@ -1084,7 +1088,8 @@ function rowHead(withCk, onSort) {
   };
   return h('div', {class:'row crm-row-head'}, withCk ? h('div', {class:'cell-ck'}) : '', col('cell-who', 'Client', 'nom'),
     col('cell cell-w', fieldLabel('c5', 'Wilaya'), 'wilaya'), col('cell cell-c', fieldLabel('c2', 'Produit'), 'categorie'), col('cell cell-s', 'État', 'statut'),
-    col('cell cell-cb', 'Rappel', 'rappel'), col('cell cell-d', 'Inscrit le', 'date'), h('div', {class:'cell cell-act'}));
+    col('cell cell-cb', 'Rappel', 'rappel'), col('cell cell-d', 'Inscrit le', 'date'),
+    col('cell cell-m', 'Modifié le', 'modif'), col('cell cell-t', 'Traité par'), col('cell cell-src', 'Source', 'source'), h('div', {class:'cell cell-act'}));
 }
 
 /** Note non modifiable : tentatives sans succès (réponses « avec date de rappel »), avec date et heure exactes. */
