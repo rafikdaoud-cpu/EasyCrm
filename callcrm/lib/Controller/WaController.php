@@ -2,6 +2,7 @@
 namespace OCA\CallCrm\Controller;
 use OCA\CallCrm\AppInfo\Application;
 use OCA\CallCrm\Service\Access;
+use OCA\CallCrm\Service\Lookup;
 use OCA\CallCrm\Service\Store;
 use OCA\CallCrm\Service\Wa;
 use OCA\CallCrm\Service\WaChatbot;
@@ -104,6 +105,70 @@ class WaController extends Controller {
 		}
 		return new JSONResponse($data);
 	}
+	/**
+	 * Réponses du chatbot (produit, modèle, wilaya) : la fiche prospect est créée ou complétée, et une fiche
+	 * sans commercial va au commercial le moins chargé de l'équipe du produit, qui est prévenu.
+	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	public function bot(): JSONResponse {
+		if (!$this->secretOk()) { return $this->deny(); }
+		$key = Wa::waId((string)$this->request->getParam('wa_id', ''));
+		$row = $key !== '' ? $this->wa->convByWaId($key) : null;
+		$c = $row ? $this->wa->conv((int)$row['id']) : null;
+		if (!$c) { return $this->err('Conversation inconnue', Http::STATUS_NOT_FOUND); }
+		$cat = (string)$this->request->getParam('category', '');
+		if (!in_array($cat, Lookup::CATEGORIES, true)) { $cat = ''; }
+		$wilaya = Lookup::wilaya(mb_substr(trim((string)$this->request->getParam('wilaya', '')), 0, 80));
+		$model = mb_substr(trim((string)$this->request->getParam('model', '')), 0, 120);
+		$pid = $c['linked'] ? (int)$c['prospect_id'] : 0;
+		if (!$pid) {
+			$phone = Wa::localPhone((string)$c['wa_id']);
+			if (!$phone) { return new JSONResponse(['ok' => true, 'prospect' => null]); } // numéro étranger : fiche à créer à la main
+			if ($ex = $this->s->prospectByPhone($phone)) {
+				$pid = (int)$ex['id'];
+			} else {
+				$pid = $this->s->insert('callcrm_prospects', ['source' => 'whatsapp', 'lastname' => mb_substr(trim((string)$c['name']) ?: 'Client WhatsApp ' . $phone, 0, 255),
+					'firstname' => '', 'email' => '', 'phone' => $phone, 'c1' => '', 'c2' => $cat, 'c5' => $wilaya, 'status' => 'nouveau',
+					'created_at' => time(), 'assigned_to' => null, 'last_note' => 'Fiche créée par le chatbot WhatsApp']);
+				$this->s->audit(null, 'wa_prospect', $pid, $phone . ' (chatbot)');
+			}
+			$this->wa->updateConv((int)$c['id'], ['prospect_id' => $pid]);
+		}
+		$p = $this->s->get($pid);
+		if (!$p) { return $this->err('Fiche introuvable', Http::STATUS_NOT_FOUND); }
+		$upd = [];
+		if ($cat !== '' && trim((string)$p['c2']) === '') { $upd['c2'] = $cat; }
+		if ($wilaya !== '' && trim((string)$p['c5']) === '') { $upd['c5'] = $wilaya; }
+		$routed = null;
+		$category = $cat !== '' ? $cat : (string)$p['c2'];
+		if (empty($p['assigned_to']) && empty($c['routed_to']) && $category !== '') {
+			$gid = Access::cats()[$category] ?? null;
+			$group = $gid ? $this->gm->get($gid) : null;
+			$com = $this->commerciaux();
+			$members = $group ? array_values(array_filter(array_map(fn($u) => $u->getUID(), array_values($group->getUsers())),
+				fn($u) => in_array($u, $com, true) && ($this->um->get($u)?->isEnabled() ?? false))) : [];
+			$routed = $this->wa->leastBusy($members);
+			if ($routed) { $upd['assigned_to'] = $routed; }
+		}
+		if ($upd) { $this->s->update($pid, $upd, 'chatbot'); }
+		$said = array_filter(['produit' => $cat, 'modèle' => $model, 'wilaya' => $wilaya]);
+		if ($said) {
+			$this->s->addClientNote($pid, 'chatbot', 'WhatsApp (chatbot) : ' . implode(', ', array_map(fn($k, $v) => $k . ' ' . $v, array_keys($said), $said)));
+		}
+		if ($routed) {
+			$this->s->audit(null, 'wa_bot_route', $pid, ($c['wa_id'] ?? '') . ' → ' . $routed . ' (' . $category . ')');
+			try {
+				$m = Server::get(\OCP\Notification\IManager::class);
+				$n = $m->createNotification();
+				$n->setApp('callcrm')->setUser($routed)->setDateTime(new \DateTime())->setObject('prospect', (string)$pid)
+					->setSubject('wa_routed', ['name' => trim(($p['firstname'] ?? '') . ' ' . ($p['lastname'] ?? '')), 'category' => $category]);
+				$m->notify($n);
+			} catch (\Throwable $e) {}
+		}
+		return new JSONResponse(['ok' => true, 'prospect' => $pid, 'routed' => $routed]);
+	}
+
 	#[PublicPage]
 	#[NoCSRFRequired]
 	public function status(): JSONResponse {

@@ -119,6 +119,7 @@ return ['routes' => [
 	['name' => 'api#update', 'url' => '/api/prospects/{id}/update', 'verb' => 'POST'],
 	['name' => 'wa#inbound', 'url' => '/api/wa/inbound', 'verb' => 'POST'],
 	['name' => 'wa#status', 'url' => '/api/wa/status', 'verb' => 'POST'],
+	['name' => 'wa#bot', 'url' => '/api/wa/bot', 'verb' => 'POST'],
 	['name' => 'wa#list', 'url' => '/api/wa', 'verb' => 'GET'],
 	['name' => 'wa#counters', 'url' => '/api/wa/counters', 'verb' => 'GET'],
 	['name' => 'wa#forProspect', 'url' => '/api/wa/prospect/{pid}', 'verb' => 'GET'],

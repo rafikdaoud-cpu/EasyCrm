@@ -48,6 +48,20 @@ class Wa {
 		$r = $qb->executeQuery()->fetch();
 		return $r ?: null;
 	}
+	/** Parmi ces commerciaux, celui qui a le moins de conversations WhatsApp ouvertes (à égalité : le premier). */
+	public function leastBusy(array $uids): ?string {
+		if (!$uids) return null;
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('p.assigned_to')->selectAlias($qb->func()->count('*'), 'n')->from('callcrm_wa_conv', 'c')
+			->innerJoin('c', 'callcrm_prospects', 'p', $qb->expr()->eq('c.prospect_id', 'p.id'))
+			->where($qb->expr()->eq('c.status', $qb->createNamedParameter('ouvert')))
+			->andWhere($qb->expr()->in('p.assigned_to', $qb->createNamedParameter($uids, IQueryBuilder::PARAM_STR_ARRAY)))
+			->groupBy('p.assigned_to');
+		$load = array_fill_keys($uids, 0);
+		foreach ($qb->executeQuery()->fetchAll() as $r) { $load[$r['assigned_to']] = (int)$r['n']; }
+		asort($load, SORT_NUMERIC);
+		return (string)array_key_first($load);
+	}
 	public function convByBsuid(string $b): ?array {
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('*')->from('callcrm_wa_conv')->where($qb->expr()->eq('bsuid', $qb->createNamedParameter($b)))->setMaxResults(1);

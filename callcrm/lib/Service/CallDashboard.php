@@ -93,12 +93,28 @@ class CallDashboard {
         return $out;
     }
 
+    /** Jours ouvrés (N ISO) : dimanche au jeudi et samedi (équipe réduite) ; seul le vendredi est fermé. 8 h 30 – 16 h 30. */
+    public const OPEN_DAYS = [7, 1, 2, 3, 4, 6];
+
+    /**
+     * Dernière fermeture : la nuit précédente, ou la fermeture en cours quand le lendemain n'est pas ouvré
+     * (jeudi soir et vendredi → reprise samedi 8 h 30).
+     */
     public static function closureRange(int $now, \DateTimeZone $zone): array {
         $today = (new \DateTimeImmutable('@'.$now))->setTimezone($zone);
-        $weekday = (int)$today->format('N');
-        $weekend = $weekday >= 5 || ($weekday === 4 && $today >= $today->setTime(16, 30));
-        $start = $today->modify('-'.($weekend ? $weekday - 4 : 1).' day')->setTime(16, $weekend ? 30 : 31);
-        $end = $today->modify('+'.($weekend ? 7 - $weekday : 0).' day')->setTime(8, 30);
+        $open = fn(\DateTimeImmutable $d) => in_array((int)$d->format('N'), self::OPEN_DAYS, true);
+        $previousOpen = function (\DateTimeImmutable $d) use ($open) { do { $d = $d->modify('-1 day'); } while (!$open($d)); return $d; };
+        $nextOpen = function (\DateTimeImmutable $d) use ($open) { do { $d = $d->modify('+1 day'); } while (!$open($d)); return $d; };
+        $closing = $today->setTime(16, 30);
+        if (!$open($today) || ($today >= $closing && !$open($today->modify('+1 day')))) {
+            $start = ($open($today) ? $today : $previousOpen($today))->setTime(16, 30);
+            $end = $nextOpen($today)->setTime(8, 30);
+        } else {
+            $before = $previousOpen($today);
+            // Nuit ordinaire : 16 h 31 (comme avant) ; après un jour fermé : 16 h 30.
+            $start = $before->setTime(16, $before->format('Y-m-d') === $today->modify('-1 day')->format('Y-m-d') ? 31 : 30);
+            $end = $today->setTime(8, 30);
+        }
         return [
             'start'=>$start->getTimestamp(), 'end'=>$end->getTimestamp(),
             'from'=>$start->format('Y-m-d'), 'to'=>$end->format('Y-m-d'),

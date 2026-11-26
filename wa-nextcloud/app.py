@@ -430,6 +430,39 @@ def set_bot_state(phone, step, language=""):
                     "SET step=excluded.step, language=excluded.language", (phone, step, language))
 
 
+OPEN_DAYS = {6, 0, 1, 2, 3, 5}  # dimanche au jeudi et samedi (weekday() : lundi = 0) ; vendredi fermé
+
+
+def business_open(now=None):
+    now = now or datetime.now(ZoneInfo("Africa/Algiers"))
+    return now.weekday() in OPEN_DAYS and (8, 30) <= (now.hour, now.minute) < (16, 30)
+
+
+def closed_notice(lang):
+    if lang == "ar":
+        return ("مستشارونا متواجدون من الأحد إلى الخميس من 8:30 إلى 16:30، ويوم السبت من 8:30 إلى 16:30 بفريق مخفّض. "
+                "سنرد عليكم عند استئناف العمل.")
+    return ("Nos conseillers sont disponibles du dimanche au jeudi de 8h30 à 16h30, et le samedi de 8h30 à 16h30 "
+            "avec une équipe réduite. Nous vous répondrons dès la reprise.")
+
+
+BOT_CATEGORIES = {"moto": "Motos", "appliance": "Électroménager", "furniture": "Meuble"}
+
+
+def bot_category(choice, body):
+    """Catégorie du Call CRM pour le produit choisi (bouton ou mot tapé)."""
+    if choice in BOT_CATEGORIES:
+        return BOT_CATEGORIES[choice]
+    words = set(bot_key(body).split())
+    if words & {"moto", "motos", "motocycle", "motocycles", "quad", "scooter", "دراجة", "دراجات", "كواد"}:
+        return "Motos"
+    if words & {"electromenager", "informatique", "telephonie", "telephone", "pc", "tv", "اجهزة", "هاتف", "كهرومنزلية"}:
+        return "Électroménager"
+    if words & {"meuble", "meubles", "amenagement", "cuisine", "اثاث", "مطبخ", "مطابخ", "تهيئة"}:
+        return "Meuble"
+    return ""
+
+
 def bot_key(value):
     folded = unicodedata.normalize("NFKD", value.casefold())
     return " ".join(re.findall(r"[^\W_]+", "".join(c for c in folded if not unicodedata.combining(c))))
@@ -715,6 +748,13 @@ def bot_step(state, choice, body, config=None):
                 step, lang, prompt, choices = bot_step(("language", ""), detected, "", config)
                 text = answer + "\n\n" + prompt
                 return (step, lang, text, choices) if len(text) <= 1024 else (step, lang, answer, [])
+        auto = False
+        if not lang and state is None:
+            # Premier message : l'écriture arabe ou latine suffit à choisir la langue, sans poser la question.
+            if re.search(r"[\u0600-\u06ff]", body):
+                lang, auto = "ar", True
+            elif re.search(r"[a-zà-ÿ]{2,}", body):
+                lang, auto = "fr", True
         if not lang:
             return ("language", "", texts.get("welcome", "Bonjour • مرحباً بكم في CSM Taksit. Choisissez votre langue / اختاروا اللغة."),
                     [("fr", "Français"), ("ar", "العربية")])
@@ -725,7 +765,10 @@ def bot_step(state, choice, body, config=None):
                     "أثاث / تهيئة / مطابخ مجهزة", "التحدث إلى مستشار") if lang == "ar" else (
             "Quel produit recherchez-vous ?", "Motocycles / Quad", "Électroménager / Matériel informatique / Téléphonie",
             "Meuble / Aménagement / Cuisine équipée", "Parler à un conseiller")
-        return ("product", lang, t.get("product", defaults[0]),
+        prompt = t.get("product", defaults[0])
+        if auto:
+            prompt = ("مرحباً بكم في CSM Taksit." if lang == "ar" else "Bonjour et bienvenue chez CSM Taksit.") + "\n" + prompt
+        return ("product", lang, prompt,
                 [(key, t.get(key, default)) for key, default in zip(("moto", "appliance", "furniture", "agent"), defaults[1:])])
     step, lang = state
     if step == "done":
@@ -795,6 +838,16 @@ def reply_with_bot(phone, num, uid, value, event, choice, crm):
     if reply is None:
         return
     step, lang, text, buttons = reply
+    if step == "waiting_agent" and not business_open():
+        text = text + "\n\n" + closed_notice(lang)
+    previous = state[0] if state else None
+    said = {}
+    if previous == "product" and step == "model":
+        said["category"] = bot_category(choice, event["text"])
+    elif previous == "model" and step == "wilaya":
+        said["model"] = event["text"].strip()[:120]
+    elif previous == "wilaya":
+        said["wilaya"] = event["text"].strip()[:80]
     payload = {"to": num or uid, "type": "text", "text": {"body": text}}
     if len(buttons) > 3:
         payload = {"to": num or uid, "type": "interactive", "interactive": {
@@ -819,6 +872,10 @@ def reply_with_bot(phone, num, uid, value, event, choice, crm):
     crm_post("/inbound", {"wamid": wamid, "wa_id": num, "user_id": uid, "type": "text", "text": readable,
                           "direction": "out", "user": "auto", "ts": int(time.time())})
     hist_append(f"{NC_ROOT}/{phone}/historique.txt", f"[{datetime.now(TZ):%Y-%m-%d %H:%M:%S}] chatbot | {readable}")
+    said = {k: v for k, v in said.items() if v}
+    if said:
+        # Produit, modèle, wilaya : la fiche du Call CRM est complétée et confiée à l'équipe du produit.
+        crm_post("/bot", {"wa_id": num, "user_id": uid, **said})
 
 
 def handle_message(msg, value, direction="in"):
