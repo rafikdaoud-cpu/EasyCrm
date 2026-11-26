@@ -6,10 +6,10 @@ use OCP\IConfig;
 class WaChatbot {
 	private const TEXTS = [
 		'welcome' => 'Bonjour • مرحباً بكم في CSM Taksit. Choisissez votre langue / اختاروا اللغة.',
-		'fr' => ['product'=>'Quel produit recherchez-vous ?', 'moto'=>'Moto', 'appliance'=>'Électroménager','furniture'=>'Meubles / Aménagement',
+		'fr' => ['product'=>'Quel produit recherchez-vous ?', 'moto'=>'Motocycles / Quad', 'appliance'=>'Électroménager / Matériel informatique / Téléphonie','furniture'=>'Meuble / Aménagement / Cuisine équipée',
 			'agent'=>'Parler à un conseiller', 'model'=>'Quel modèle recherchez-vous ?', 'wilaya'=>'Dans quelle wilaya êtes-vous ?',
 			'handoff'=>'Un commercial reprendra votre demande ici. Merci !'],
-		'ar' => ['product'=>'ما المنتج الذي تبحثون عنه؟', 'moto'=>'دراجة نارية', 'appliance'=>'أجهزة منزلية','furniture'=>'أثاث وتجهيز المنزل',
+		'ar' => ['product'=>'ما المنتج الذي تبحثون عنه؟', 'moto'=>'دراجات نارية / كواد', 'appliance'=>'أجهزة كهرومنزلية / الإعلام الآلي / الهواتف','furniture'=>'أثاث / تهيئة / مطابخ مجهزة',
 			'agent'=>'التحدث إلى مستشار', 'model'=>'ما هو الموديل المطلوب؟', 'wilaya'=>'في أي ولاية تقيمون؟',
 			'handoff'=>'سيتابع أحد مستشارينا طلبكم هنا. شكراً لكم.'],
 	];
@@ -44,7 +44,7 @@ class WaChatbot {
 		$clean = ['texts'=>['welcome'=>self::text($texts['welcome'] ?? null,900,'Accueil')]];
 		foreach (['fr','ar'] as $lang) {
 			foreach (array_keys(self::TEXTS[$lang]) as $key) {
-				$limit = in_array($key,['furniture','agent'],true) ? 24 : (in_array($key,['moto','appliance'],true) ? 20 : 900);
+				$limit = $key==='agent' ? 24 : (in_array($key,['moto','appliance','furniture'],true) ? 96 : 900);
 				$clean['texts'][$lang][$key] = self::text($texts[$lang][$key] ?? null,$limit,$lang.' / '.$key);
 			}
 		}

@@ -682,6 +682,20 @@ def bot_service_reply(body, lang, config):
     return next_step, "\n\n".join(answers)[:4096]
 
 
+def list_row(key, label):
+    """WhatsApp limite le titre d'une ligne de liste à 24 caractères : la suite passe en description (72 max)."""
+    row = {"id": "crm_" + key, "title": label[:24]}
+    if len(label) > 24:
+        head, sep, rest = label.partition(" / ")
+        row = {"id": "crm_" + key, "title": head[:24], "description": (rest if sep and len(head) <= 24 else label)[:72]}
+    return row
+
+
+assert list_row("a", "Meuble / Aménagement / Cuisine équipée") == {
+    "id": "crm_a", "title": "Meuble", "description": "Aménagement / Cuisine équipée"}
+assert list_row("m", "Motocycles / Quad") == {"id": "crm_m", "title": "Motocycles / Quad"}
+
+
 def bot_step(state, choice, body, config=None):
     config = config or {}
     texts = config.get("texts", {})
@@ -707,8 +721,10 @@ def bot_step(state, choice, body, config=None):
         t = texts.get(lang, {})
         if lang == "fr" and t.get("agent") == "Un commercial":
             t = {**t, "agent": "Parler à un conseiller"}
-        defaults = ("ما المنتج الذي تبحثون عنه؟", "دراجة نارية", "أجهزة منزلية", "أثاث وتجهيز المنزل", "التحدث إلى مستشار") if lang == "ar" else (
-            "Quel produit recherchez-vous ?", "Moto", "Électroménager", "Meubles / Aménagement", "Parler à un conseiller")
+        defaults = ("ما المنتج الذي تبحثون عنه؟", "دراجات نارية / كواد", "أجهزة كهرومنزلية / الإعلام الآلي / الهواتف",
+                    "أثاث / تهيئة / مطابخ مجهزة", "التحدث إلى مستشار") if lang == "ar" else (
+            "Quel produit recherchez-vous ?", "Motocycles / Quad", "Électroménager / Matériel informatique / Téléphonie",
+            "Meuble / Aménagement / Cuisine équipée", "Parler à un conseiller")
         return ("product", lang, t.get("product", defaults[0]),
                 [(key, t.get(key, default)) for key, default in zip(("moto", "appliance", "furniture", "agent"), defaults[1:])])
     step, lang = state
@@ -752,7 +768,8 @@ def bot_step(state, choice, body, config=None):
     if step == "product":
         if bot_key(choice or body) in {"moto", "appliance", "electromenager", "furniture", "meuble", "meubles",
                                       "amenagement", "meuble amenagement", "meubles amenagement", "دراجة نارية", "اجهزة منزلية", "اثاث",
-                                      "اثاث وتجهيز المنزل"} | {
+                                      "اثاث وتجهيز المنزل", "motocycles", "quad", "informatique", "telephonie", "telephone", "cuisine",
+                                      "cuisine equipee", "كواد"} | {
                 bot_key(t[key]) for key in ("moto", "appliance", "furniture") if t.get(key)
         }:
             return ("model", lang, t.get("model", "ما هو الموديل المطلوب؟" if arabic else "Quel modèle recherchez-vous ?"), [])
@@ -783,7 +800,7 @@ def reply_with_bot(phone, num, uid, value, event, choice, crm):
         payload = {"to": num or uid, "type": "interactive", "interactive": {
             "type": "list", "body": {"text": text}, "action": {
                 "button": "عرض الخيارات" if lang == "ar" else "Voir les choix",
-                "sections": [{"rows": [{"id": "crm_" + key, "title": title} for key, title in buttons]}]}}}
+                "sections": [{"rows": [list_row(key, title) for key, title in buttons]}]}}}
     elif buttons:
         payload = {"to": num or uid, "type": "interactive", "interactive": {
             "type": "button", "body": {"text": text}, "action": {
