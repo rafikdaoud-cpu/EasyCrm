@@ -970,3 +970,31 @@ body[data-themes*="dark"] #callcrm .footer-guide,body[data-theme-dark] #callcrm 
 @media(prefers-color-scheme:dark){body:not([data-themes*="light"]):not([data-theme-light]) .crm-guide-elig[data-ok="1"]{color:#86efac}
  body:not([data-themes*="light"]):not([data-theme-light]) .crm-guide-elig[data-ok="0"]{color:#fca5a5}
  body:not([data-themes*="light"]):not([data-theme-light]) #callcrm .footer-guide{background:#262a4a;color:#c7d2fe}}
+
+/* Qualité : liste des appels à écouter, évaluation, évaluations reçues. */
+#callcrm .crm-q-list{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+#callcrm .crm-q-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 12px;border:1px solid var(--color-border,#dfe4eb);border-radius:10px}
+#callcrm .crm-q-row > div{flex:1;min-width:220px}
+#callcrm .crm-q-score{display:inline-block;padding:2px 10px;border-radius:999px;font-weight:700;font-variant-numeric:tabular-nums}
+#callcrm .crm-q-score[data-level="good"]{background:#dcfce7;color:#166534}
+#callcrm .crm-q-score[data-level="mid"]{background:#fef3c7;color:#92400e}
+#callcrm .crm-q-score[data-level="bad"]{background:#fee2e2;color:#991b1b}
+#callcrm .crm-q-dialog{width:min(680px,100%)}
+#callcrm .crm-q-dialog audio{flex:1;min-width:240px}
+#callcrm .crm-dialog .crm-q-crit{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:6px 0;padding:6px 0;border-bottom:1px solid var(--color-border,#e5e7eb)}
+#callcrm .crm-dialog .crm-q-crit select{width:auto;margin:0}
+#callcrm .crm-dialog .crm-q-elim{justify-content:flex-start;color:#b91c1c}
+#callcrm .crm-dialog .crm-q-elim input{display:inline-block;width:auto;margin:0}
+#callcrm .crm-q-total{font-weight:600;margin:10px 0}
+#callcrm .crm-q-mine{display:block}
+#callcrm .crm-q-mine summary{cursor:pointer}
+#callcrm .crm-q-mine.is-new{border-color:var(--color-primary-element,#283b7e)}
+#callcrm .crm-q-mine audio{display:block;width:100%;margin:8px 0}
+#callcrm .crm-q-comment{white-space:pre-wrap;padding:8px 10px;border-radius:8px;background:color-mix(in srgb,#e2a93b 12%,var(--color-main-background,#fff))}
+#callcrm .crm-q-grid-row input:first-child{flex:1;min-width:220px}
+body[data-themes*="dark"] #callcrm .crm-q-score[data-level="good"],body[data-theme-dark] #callcrm .crm-q-score[data-level="good"]{background:#173a2a;color:#86efac}
+body[data-themes*="dark"] #callcrm .crm-q-score[data-level="mid"],body[data-theme-dark] #callcrm .crm-q-score[data-level="mid"]{background:#3d2c0f;color:#fcd38d}
+body[data-themes*="dark"] #callcrm .crm-q-score[data-level="bad"],body[data-theme-dark] #callcrm .crm-q-score[data-level="bad"]{background:#4c1d1d;color:#fca5a5}
+@media(prefers-color-scheme:dark){body:not([data-themes*="light"]):not([data-theme-light]) #callcrm .crm-q-score[data-level="good"]{background:#173a2a;color:#86efac}
+ body:not([data-themes*="light"]):not([data-theme-light]) #callcrm .crm-q-score[data-level="mid"]{background:#3d2c0f;color:#fcd38d}
+ body:not([data-themes*="light"]):not([data-theme-light]) #callcrm .crm-q-score[data-level="bad"]{background:#4c1d1d;color:#fca5a5}}

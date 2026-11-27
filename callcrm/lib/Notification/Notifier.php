@@ -12,12 +12,19 @@ class Notifier implements INotifier {
 	public function getID(): string { return 'callcrm'; }
 	public function getName(): string { return 'Call CRM'; }
 	public function prepare(INotification $n, string $languageCode): INotification {
-		if ($n->getApp() !== 'callcrm' || !in_array($n->getSubject(), ['documents_started', 'documents_received', 'wa_routed', 'client_message', 'client_document'], true)) {
+		if ($n->getApp() !== 'callcrm' || !in_array($n->getSubject(), ['documents_started', 'documents_received', 'wa_routed', 'client_message', 'client_document', 'quality_eval'], true)) {
 			throw new UnknownNotificationException();
 		}
 		$p = $n->getSubjectParameters();
 		$name = trim((string)($p['name'] ?? '')) ?: 'Un client';
 		$count = (int)($p['count'] ?? 0);
+		if ($n->getSubject() === 'quality_eval') {
+			$n->setParsedSubject('Nouvelle évaluation qualité de votre appel : ' . (!empty($p['eliminated']) ? '0/100 (critère éliminatoire)' : (int)($p['score'] ?? 0) . '/100') . '.');
+			$n->setParsedMessage('Ouvrez « Mes évaluations » pour lire le commentaire et réécouter l’appel.');
+			$n->setLink($this->url->linkToRouteAbsolute('callcrm.page.index') . '#evaluation=' . (int)$n->getObjectId());
+			$n->setIcon($this->url->getAbsoluteURL($this->url->imagePath('core', 'actions/checkmark.svg')));
+			return $n;
+		}
 		if ($n->getSubject() === 'client_message') {
 			$what = ['image' => 'une photo', 'document' => 'une pièce jointe', 'audio' => 'un message vocal', 'video' => 'une vidéo'][$p['kind'] ?? ''] ?? 'un message';
 			$text = trim((string)($p['text'] ?? ''));

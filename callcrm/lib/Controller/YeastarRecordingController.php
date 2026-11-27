@@ -18,6 +18,8 @@ class YeastarRecordingController extends Controller {
         return $p && ($this->manager() || ($this->access->role()==='commercial' && $p['assigned_to']===$this->access->uid()));
     }
     private function allowed(array $r): bool {
+        // Service qualité : écoute tous les appels enregistrés pour les évaluer.
+        if ($this->access->can('quality')) return true;
         return $r['prospect_id'] ? $this->visible((int)$r['prospect_id']) : $this->manager();
     }
     private function recordingList(?int $pid): JSONResponse {

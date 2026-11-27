@@ -59,6 +59,7 @@ class Access {
 		'assign' => ['admin', 'superviseur'], 'create' => ['admin', 'superviseur', 'commercial'], 'call' => ['admin', 'commercial'],
 		'all' => ['admin', 'superviseur', 'lecture'], 'audit' => ['admin', 'superviseur'],
 		'export' => ['admin', 'superviseur', 'commercial', 'lecture'], 'export_phone' => ['admin', 'superviseur'], 'mask' => [],
+		'quality' => ['admin', 'superviseur'],
 	];
 	public function __construct(private IUserSession $us, private IGroupManager $gm) {}
 	public function uid(): string { return $this->us->getUser()->getUID(); }
@@ -100,6 +101,7 @@ class Access {
 		'invite' => ['Inviter les commerciaux', 'Envoi des accès par e-mail.'],
 		'teams' => ['Gérer les groupes', 'Changer un commercial de groupe, groupes des superviseurs, droits des profils.'],
 		'mask' => ['Masquer téléphones et e-mails', 'Restriction : le profil voit les fiches sans coordonnées.'],
+		'quality' => ['Évaluer la qualité des appels', 'Onglet Qualité : écouter les enregistrements de tous les commerciaux et les noter avec la grille.'],
 	];
 
 	/** Droits par défaut, éventuellement remplacés par le réglage « role_rights » (l'administrateur garde toujours tout). */
@@ -107,6 +109,8 @@ class Access {
 		$map = self::CAN;
 		// Un profil créé hérite des droits de son modèle tant qu'aucun réglage ne le précise.
 		foreach (self::customProfiles() as $p) { foreach ($map as $k => $roles) { if (in_array($p['base'], $roles, true)) { $map[$k][] = $p['id']; } } }
+		// Profil « Qualiticien » (ou tout profil dont l'identifiant contient « qualit ») : évaluation qualité par défaut.
+		foreach (self::customProfiles() as $p) { if (str_contains($p['id'], 'qualit')) { $map['quality'][] = $p['id']; } }
 		try { $raw = json_decode((string)\OCP\Server::get(\OCP\IConfig::class)->getAppValue('callcrm', 'role_rights', ''), true); } catch (\Throwable $e) { $raw = null; }
 		if (is_array($raw)) {
 			$editable = array_keys(self::editableProfiles());

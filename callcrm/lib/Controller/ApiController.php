@@ -242,7 +242,7 @@ class ApiController extends Controller {
 	public function me(): JSONResponse {
 		if (!$this->a->can('view')) { return $this->deny(); }
 		$can = [];
-		foreach (['call', 'assign', 'create', 'import', 'invite', 'teams', 'fields', 'labels', 'delete', 'all', 'audit', 'export', 'export_phone', 'mask'] as $k) { $can[$k] = $this->a->can($k); }
+		foreach (['call', 'assign', 'create', 'import', 'invite', 'teams', 'fields', 'labels', 'delete', 'all', 'audit', 'export', 'export_phone', 'mask', 'quality'] as $k) { $can[$k] = $this->a->can($k); }
 		return new JSONResponse(['statuses' => Statuses::all(), 'fields' => Fields::all(), 'role' => $this->a->role(), 'uid' => $this->a->uid(), 'name' => $this->um->get($this->a->uid())?->getDisplayName() ?: $this->a->uid(), 'labels' => $this->getLabels(), 'options' => self::OPT + ['c5' => array_keys(Lookup::WILAYAS)], 'teams' => $this->visibleTeams(), 'groups' => array_values(array_filter(array_map(fn($g, $n) => ['id' => $g, 'name' => $n, 'cats' => array_keys(array_filter(Access::cats(), fn($x) => $x === $g))], array_keys(Access::teams()), array_values(Access::teams())), fn($x) => isset($this->visibleTeams()[$x['id']]))), 'scope_teams' => TeamScope::users() !== null, 'supervisors' => $this->a->can('teams') ? $this->supervisors() : [], 'rights' => $this->a->can('teams') ? $this->rightsMatrix() : null, 'profiles' => $this->a->can('teams') ? $this->profilesList() : null, 'custom_teams' => $this->a->can('teams') ? array_keys(Access::customTeams()) : [], 'commerciaux' => $this->commerciaux(), 'max_callbacks' => $this->maxCallbacks(), 'prefs' => Prefs::all(), 'can' => $can, 'sms' => $this->smsRuntime()]);
 	}
 
