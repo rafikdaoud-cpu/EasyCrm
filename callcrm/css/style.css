@@ -891,3 +891,50 @@ body[data-themes*="dark"] #callcrm.crm-depth,body[data-theme-dark] #callcrm.crm-
 #callcrm.crm-depth .pilotage-metric:hover,#callcrm.crm-depth .crm-kpi:hover,#callcrm.crm-depth .stats-kpi:hover{transform:translateY(-4px);box-shadow:var(--d3-rim),var(--d3-shadow-up)}
 @media (prefers-reduced-motion:reduce){#callcrm.crm-depth button,#callcrm.crm-depth .pilotage-metric,#callcrm.crm-depth .crm-kpi,#callcrm.crm-depth .stats-kpi{transition:none}
  #callcrm.crm-depth button:hover,#callcrm.crm-depth button:active,#callcrm.crm-depth .pilotage-metric:hover,#callcrm.crm-depth .crm-kpi:hover,#callcrm.crm-depth .stats-kpi:hover{transform:none}}
+
+/* Mode sombre : éléments qui gardaient des couleurs claires écrites en dur (cadres de l'administration, dialogues,
+   historique, agenda, barre de la fiche, discussion, étiquettes de source et de présence, état SMS). */
+body[data-themes*="dark"] #callcrm .crm-page .card.crm-admin-panel,body[data-theme-dark] #callcrm .crm-page .card.crm-admin-panel{background:#1d2130;border-color:#343a4a;color:#e5e7eb;--color-main-background:#161a24;--color-text-maxcontrast:#9aa4b2}
+body[data-themes*="dark"] #callcrm .crm-dialog,body[data-theme-dark] #callcrm .crm-dialog{background:#1b1f2a;color:#e5e7eb}
+body[data-themes*="dark"] #callcrm .crm-event,body[data-theme-dark] #callcrm .crm-event{border-left-color:#3a4256}
+body[data-themes*="dark"] #callcrm .crm-event-body,body[data-theme-dark] #callcrm .crm-event-body{background:#232838;border-color:#343a4a;color:#e5e7eb}
+body[data-themes*="dark"] #callcrm .crm-agenda-entry,body[data-themes*="dark"] #callcrm .crm-appointment,body[data-themes*="dark"] #callcrm .crm-client-info,body[data-theme-dark] #callcrm .crm-agenda-entry,body[data-theme-dark] #callcrm .crm-appointment,body[data-theme-dark] #callcrm .crm-client-info{background:#232838!important}
+body[data-themes*="dark"] #callcrm .crm-agenda-call,body[data-themes*="dark"] #callcrm .footer-call,body[data-theme-dark] #callcrm .crm-agenda-call,body[data-theme-dark] #callcrm .footer-call{background:#1e3350;color:#9cc3f5}
+body[data-themes*="dark"] #callcrm .crm-client-footer,body[data-theme-dark] #callcrm .crm-client-footer{background:#161a24;border-top-color:#343a4a}
+body[data-themes*="dark"] #callcrm .footer-wa,body[data-themes*="dark"] #callcrm .crm-sms-state[data-on="1"],body[data-theme-dark] #callcrm .footer-wa,body[data-theme-dark] #callcrm .crm-sms-state[data-on="1"]{background:#173a2a;color:#86efac}
+body[data-themes*="dark"] #callcrm .footer-sms,body[data-theme-dark] #callcrm .footer-sms{background:#3d2c0f;color:#fcd38d}
+body[data-themes*="dark"] #callcrm .crm-sms-state,body[data-theme-dark] #callcrm .crm-sms-state{background:#262b38;color:#c3cad6}
+body[data-themes*="dark"] #callcrm .crm-source,body[data-themes*="dark"] #callcrm .crm-source-import,body[data-themes*="dark"] #callcrm .pilotage-status,body[data-themes*="dark"] .presence-badge.absent,body[data-themes*="dark"] .presence-badge.unknown,body[data-theme-dark] #callcrm .crm-source,body[data-theme-dark] #callcrm .crm-source-import,body[data-theme-dark] #callcrm .pilotage-status,body[data-theme-dark] .presence-badge.absent,body[data-theme-dark] .presence-badge.unknown{background:#2f3542;color:#cbd5e1}
+body[data-themes*="dark"] #callcrm .crm-source-formulaire,body[data-theme-dark] #callcrm .crm-source-formulaire{background:#1e2f55;color:#93c5fd}
+body[data-themes*="dark"] #callcrm .crm-source-whatsapp,body[data-themes*="dark"] .presence-badge.online,body[data-themes*="dark"] #callcrm .pilotage-status.online,body[data-theme-dark] #callcrm .crm-source-whatsapp,body[data-theme-dark] .presence-badge.online,body[data-theme-dark] #callcrm .pilotage-status.online{background:#173a2a;color:#86efac}
+body[data-themes*="dark"] #callcrm .crm-source-appel,body[data-themes*="dark"] #callcrm .crm-flag,body[data-themes*="dark"] .presence-badge.pause,body[data-themes*="dark"] #callcrm .pilotage-status.pause,body[data-themes*="dark"] .crm-short-badge,body[data-theme-dark] #callcrm .crm-source-appel,body[data-theme-dark] #callcrm .crm-flag,body[data-theme-dark] .presence-badge.pause,body[data-theme-dark] #callcrm .pilotage-status.pause,body[data-theme-dark] .crm-short-badge{background:#3d2c0f;color:#fcd38d}
+body[data-themes*="dark"] #callcrm .presence-badge.pause-overdue,body[data-theme-dark] #callcrm .presence-badge.pause-overdue{background:#4c1d1d;color:#fca5a5;outline-color:#7f1d1d}
+body[data-themes*="dark"] #callcrm .presence-badge.pause-tolerance,body[data-themes*="dark"] #callcrm .presence-control .lunch-break-button,body[data-theme-dark] #callcrm .presence-badge.pause-tolerance,body[data-theme-dark] #callcrm .presence-control .lunch-break-button{background:#43260f;color:#fdba74;border-color:#7c3a12}
+body[data-themes*="dark"] .pause-panel button,body[data-theme-dark] .pause-panel button{background:#232838;color:#e5e7eb}
+body[data-themes*="dark"] #callcrm-chat .crm-avatar,body[data-theme-dark] #callcrm-chat .crm-avatar{background:#1e3350;color:#9cc3f5}
+body[data-themes*="dark"] #callcrm-chat .crm-chat-msgs,body[data-theme-dark] #callcrm-chat .crm-chat-msgs{background:#141720}
+body[data-themes*="dark"] #callcrm-chat .crm-chat-msg.mine,body[data-theme-dark] #callcrm-chat .crm-chat-msg.mine{background:#1e3350;border-color:#2b4a75}
+body[data-themes*="dark"] #callcrm .crm-collect-message,body[data-theme-dark] #callcrm .crm-collect-message{background:#1b1f2a}
+@media(prefers-color-scheme:dark){
+body:not([data-themes*="light"]):not([data-theme-light]) #callcrm .crm-page .card.crm-admin-panel{background:#1d2130;border-color:#343a4a;color:#e5e7eb;--color-main-background:#161a24;--color-text-maxcontrast:#9aa4b2}
+body:not([data-themes*="light"]):not([data-theme-light]) #callcrm .crm-dialog{background:#1b1f2a;color:#e5e7eb}
+body:not([data-themes*="light"]):not([data-theme-light]) #callcrm .crm-event{border-left-color:#3a4256}
+body:not([data-themes*="light"]):not([data-theme-light]) #callcrm .crm-event-body{background:#232838;border-color:#343a4a;color:#e5e7eb}
+body:not([data-themes*="light"]):not([data-theme-light]) #callcrm .crm-agenda-entry,body:not([data-themes*="light"]):not([data-theme-light]) #callcrm .crm-appointment,body:not([data-themes*="light"]):not([data-theme-light]) #callcrm .crm-client-info{background:#232838!important}
+body:not([data-themes*="light"]):not([data-theme-light]) #callcrm .crm-agenda-call,body:not([data-themes*="light"]):not([data-theme-light]) #callcrm .footer-call{background:#1e3350;color:#9cc3f5}
+body:not([data-themes*="light"]):not([data-theme-light]) #callcrm .crm-client-footer{background:#161a24;border-top-color:#343a4a}
+body:not([data-themes*="light"]):not([data-theme-light]) #callcrm .footer-wa,body:not([data-themes*="light"]):not([data-theme-light]) #callcrm .crm-sms-state[data-on="1"]{background:#173a2a;color:#86efac}
+body:not([data-themes*="light"]):not([data-theme-light]) #callcrm .footer-sms{background:#3d2c0f;color:#fcd38d}
+body:not([data-themes*="light"]):not([data-theme-light]) #callcrm .crm-sms-state{background:#262b38;color:#c3cad6}
+body:not([data-themes*="light"]):not([data-theme-light]) #callcrm .crm-source,body:not([data-themes*="light"]):not([data-theme-light]) #callcrm .crm-source-import,body:not([data-themes*="light"]):not([data-theme-light]) #callcrm .pilotage-status,body:not([data-themes*="light"]):not([data-theme-light]) .presence-badge.absent,body:not([data-themes*="light"]):not([data-theme-light]) .presence-badge.unknown{background:#2f3542;color:#cbd5e1}
+body:not([data-themes*="light"]):not([data-theme-light]) #callcrm .crm-source-formulaire{background:#1e2f55;color:#93c5fd}
+body:not([data-themes*="light"]):not([data-theme-light]) #callcrm .crm-source-whatsapp,body:not([data-themes*="light"]):not([data-theme-light]) .presence-badge.online,body:not([data-themes*="light"]):not([data-theme-light]) #callcrm .pilotage-status.online{background:#173a2a;color:#86efac}
+body:not([data-themes*="light"]):not([data-theme-light]) #callcrm .crm-source-appel,body:not([data-themes*="light"]):not([data-theme-light]) #callcrm .crm-flag,body:not([data-themes*="light"]):not([data-theme-light]) .presence-badge.pause,body:not([data-themes*="light"]):not([data-theme-light]) #callcrm .pilotage-status.pause,body:not([data-themes*="light"]):not([data-theme-light]) .crm-short-badge{background:#3d2c0f;color:#fcd38d}
+body:not([data-themes*="light"]):not([data-theme-light]) #callcrm .presence-badge.pause-overdue{background:#4c1d1d;color:#fca5a5;outline-color:#7f1d1d}
+body:not([data-themes*="light"]):not([data-theme-light]) #callcrm .presence-badge.pause-tolerance,body:not([data-themes*="light"]):not([data-theme-light]) #callcrm .presence-control .lunch-break-button{background:#43260f;color:#fdba74;border-color:#7c3a12}
+body:not([data-themes*="light"]):not([data-theme-light]) .pause-panel button{background:#232838;color:#e5e7eb}
+body:not([data-themes*="light"]):not([data-theme-light]) #callcrm-chat .crm-avatar{background:#1e3350;color:#9cc3f5}
+body:not([data-themes*="light"]):not([data-theme-light]) #callcrm-chat .crm-chat-msgs{background:#141720}
+body:not([data-themes*="light"]):not([data-theme-light]) #callcrm-chat .crm-chat-msg.mine{background:#1e3350;border-color:#2b4a75}
+body:not([data-themes*="light"]):not([data-theme-light]) #callcrm .crm-collect-message{background:#1b1f2a}
+}
