@@ -3,9 +3,10 @@ namespace OCA\CallCrm\Service;
 
 /** Dates civiles dans le fuseau CRM ; la borne Au inclut toute la journée. */
 class PresenceRange {
- /** Début de semaine : la semaine de travail va du dimanche au jeudi (samedi : brigades), elle commence donc le dimanche. */
- public static function weekStart(\DateTimeInterface $d): \DateTimeImmutable {
-  return \DateTimeImmutable::createFromInterface($d)->setTime(0,0)->modify('-'.((int)$d->format('N') % 7).' days');
+ /** Début de « Cette semaine » : premier jour de la semaine du réglage Schedule (dimanche par défaut). */
+ public static function weekStart(\DateTimeInterface $d, ?int $first = null): \DateTimeImmutable {
+  $first ??= Schedule::current()['week_start'];
+  return \DateTimeImmutable::createFromInterface($d)->setTime(0,0)->modify('-'.(((int)$d->format('N') - $first + 7) % 7).' days');
  }
  public static function resolve(array $filter, \DateTimeZone $zone, int $now): array {
   $today = (new \DateTimeImmutable('@'.$now))->setTimezone($zone)->setTime(0,0);

@@ -6,6 +6,7 @@ namespace OCP\DB\QueryBuilder { interface IQueryBuilder { const PARAM_STR_ARRAY=
 namespace {
 require_once __DIR__.'/../callcrm/lib/Service/YeastarEvents.php';
 require_once __DIR__.'/../callcrm/lib/Service/YeastarRecordings.php';
+require_once __DIR__.'/../callcrm/lib/Service/Schedule.php';
 require_once __DIR__.'/../callcrm/lib/Service/CallDashboard.php';
 use OCA\CallCrm\Service\{YeastarRecordings,CallDashboard};
 $fail=0;$n=0;function ok($c,$m){global $fail,$n;$n++;if(!$c){$fail++;echo "FAIL $m\n";}}

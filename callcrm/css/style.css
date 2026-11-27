@@ -1009,3 +1009,7 @@ body[data-themes*="dark"] #callcrm .crm-q-score[data-level="bad"],body[data-them
 @media(prefers-color-scheme:dark){body:not([data-themes*="light"]):not([data-theme-light]) #callcrm .crm-q-score[data-level="good"]{background:#173a2a;color:#86efac}
  body:not([data-themes*="light"]):not([data-theme-light]) #callcrm .crm-q-score[data-level="mid"]{background:#3d2c0f;color:#fcd38d}
  body:not([data-themes*="light"]):not([data-theme-light]) #callcrm .crm-q-score[data-level="bad"]{background:#4c1d1d;color:#fca5a5}}
+#callcrm .crm-schedule-days{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin:8px 0}
+#callcrm .crm-schedule-days label{display:flex;flex-direction:column;gap:4px}
+#callcrm .crm-schedule-days select{width:100%;margin:0}
+#callcrm .crm-schedule td input[type=checkbox]{width:auto;margin:0}

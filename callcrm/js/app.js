@@ -1890,7 +1890,7 @@ function dashboardPeriodFilter(apply) {
     h('button', {type:'button', onclick:() => {
       if (!from.value || !to.value || from.value > to.value) { error.textContent = 'Choisissez une date de début et une date de fin égale ou postérieure.'; return; }
       error.textContent = ''; apply({period:'custom', from:from.value, to:to.value});
-    }}, 'Appliquer les dates'), h('small', {}, 'Une journée précise : la même date dans Du et Au. Une semaine passée : du dimanche au samedi (travail du dimanche au jeudi, samedi en brigades).'));
+    }}, 'Appliquer les dates'), h('small', {}, 'Une journée précise : la même date dans Du et Au. Une semaine passée : 7 jours depuis le premier jour de la semaine (Administration → Jours et horaires de travail).'));
   const choices = [['day','Aujourd’hui'],['week','Cette semaine'],['month','Ce mois'],['custom','Choisir des dates…']].map(([key,label]) => {
     const button = h('button', {type:'button', 'aria-pressed':String(key === 'day'), onclick:() => {
       select(key); dates.hidden = key !== 'custom'; error.textContent = '';
@@ -3098,7 +3098,7 @@ function admin() {
       }}, 'Réattribuer aux commerciaux actuels')),
     orph,
     h('p', {class:'muted'}, 'Profils : définis par les groupes (AD ou Nextcloud) associés aux rôles administrateur, superviseur, commercial et lecture seule.'));
-  if(me.can.fields)root.querySelector('.crm-page')?.append(yeastarSettingsCard(),yeastarRoutingCard(),smsSettingsCard(),guidesSettingsCard(),qualityGridCard(),documentSettingsCard(),collectSettingsCard(),wallSettingsCard());
+  if(me.can.fields)root.querySelector('.crm-page')?.append(yeastarSettingsCard(),yeastarRoutingCard(),smsSettingsCard(),scheduleSettingsCard(),guidesSettingsCard(),qualityGridCard(),documentSettingsCard(),collectSettingsCard(),wallSettingsCard());
   if(me.can.assign)root.querySelector('.crm-page')?.append(documentsCard(),yeastarRecordingsCard());
   if(me.can.delete)root.querySelector('.crm-page')?.append(duplicatesCard());
   adminPanels();
@@ -3734,6 +3734,31 @@ function outboundGuide(p){return callGuide(p,String(p?.status||'')==='nouveau'?'
 
 
 /** Administration : guides d'appel (étapes FR / AR, questions, étape d'éligibilité, objections). */
+/** Administration : jours et horaires de travail, jours fériés (calcul « hors horaires » du pilotage, objectifs, début de semaine). */
+function scheduleSettingsCard(){
+ const box=h('div',{class:'card crm-schedule'}),out=h('p',{class:'muted',role:'status'}),days=h('div',{class:'crm-schedule-days'}),hol=h('tbody');
+ const open=h('input',{type:'time','aria-label':'Ouverture'}),close=h('input',{type:'time','aria-label':'Fermeture'}),first=h('select',{'aria-label':'Premier jour de la semaine'});
+ const KIND=[['open','Travaillé'],['brigade','Brigade'],['closed','Fermé']];let sel={};
+ const holRow=(x={date:'',label:'',yearly:false})=>{const d=h('input',{type:'date',value:x.date,'aria-label':'Date'}),l=h('input',{value:x.label,maxlength:80,placeholder:'Libellé (ex. Aïd el-Fitr)','aria-label':'Libellé'}),y=h('input',{type:'checkbox',checked:!!x.yearly,'aria-label':'Chaque année'});
+  const r=h('tr',{},h('td',{'data-sort':x.date},d),h('td',{},l),h('td',{},h('label',{},y,' chaque année')),h('td',{},h('button',{type:'button','aria-label':'Retirer ce jour férié',onclick:()=>r.remove()},'✕')));
+  r.read=()=>({date:d.value,label:l.value.trim(),yearly:y.checked});return r;};
+ const fill=s=>{open.value=s.open;close.value=s.close;sel={};
+  days.replaceChildren(...[7,1,2,3,4,5,6].map(n=>{const c=h('select',{'aria-label':s.labels[n]},KIND.map(([v,t])=>h('option',{value:v,selected:s.days[n]===v},t)));sel[n]=c;return h('label',{},h('span',{},s.labels[n]),c);}));
+  first.replaceChildren(...[7,1,2,3,4,5,6].map(n=>h('option',{value:n,selected:Number(s.week_start)===n},s.labels[n])));
+  hol.replaceChildren(...s.holidays.map(holRow));};
+ const fixed=()=>{const y=new Date().getFullYear(),have=new Set([...hol.children].map(r=>r.read().date.slice(5)));
+  [['01-01','Nouvel an'],['01-12','Yennayer'],['05-01','Fête du travail'],['07-05','Fête de l’indépendance'],['11-01','Fête de la révolution']].forEach(([md,l])=>{if(!have.has(md))hol.append(holRow({date:y+'-'+md,label:l,yearly:true}));});};
+ box.append(h('h3',{},'Jours et horaires de travail'),
+  h('p',{class:'muted'},'Utilisés par le pilotage (appels hors horaires), les objectifs sur une période et « Cette semaine ». Brigade : jour ouvert qui ne compte dans l’objectif d’un commercial que s’il a travaillé ce jour-là. Un jour férié est fermé. Les horaires du standard Yeastar se règlent à part, dans Yeastar.'),
+  days,h('div',{class:'bar'},h('label',{},'Ouverture ',open),h('label',{},'Fermeture ',close),h('label',{},'Début de semaine ',first)),
+  h('h4',{},'Jours fériés'),h('div',{class:'crm-table-wrap'},h('table',{class:'t'},h('thead',{},h('tr',{},['Date','Libellé','Répétition',''].map(t=>h('th',{},t)))),hol)),
+  h('div',{class:'bar'},h('button',{type:'button',onclick:()=>hol.append(holRow())},'+ Ajouter un jour férié'),h('button',{type:'button',onclick:fixed},'+ Fériés nationaux fixes'),
+   h('small',{class:'muted'},'Les fêtes religieuses changent de date chaque année : ajoutez-les une à une.')),
+  h('div',{class:'bar crm-sms-actions'},h('button',{class:'primary',onclick:async()=>{out.textContent='Enregistrement…';
+   try{const s=await api('/schedule',{method:'POST',body:{days:Object.fromEntries(Object.entries(sel).map(([n,c])=>[n,c.value])),open:open.value,close:close.value,week_start:Number(first.value),holidays:[...hol.children].map(r=>r.read())}});fill(s);out.textContent='✔ Jours et horaires enregistrés.';}catch(e){out.textContent=e.message;}}},'Enregistrer')),out);
+ api('/schedule').then(fill).catch(e=>{out.textContent=e.message;});
+ return box;
+}
 function guidesSettingsCard(){
  const box=h('div',{class:'card crm-guide-admin'}),body=h('div'),out=h('p',{class:'muted',role:'status','aria-live':'polite'});
  box.append(h('h3',{},'Guides d’appel'),h('p',{class:'muted'},'S’ouvrent tout seuls quand un commercial décroche un appel entrant ou appelle depuis une fiche (aussi par le bouton « 📋 Guide » de la fiche). Variables : {prenom}, {nom}, {commercial}. Étape « Question » : la réponse du client est notée sur la fiche ; « Éligibilité » : âge, salaire et mensualités en cours, contrôlés automatiquement ; * = étape obligatoire.'),body,out);

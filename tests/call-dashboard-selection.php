@@ -3,6 +3,7 @@
 namespace OCP { interface IDBConnection {} }
 namespace OCP\DB\QueryBuilder { interface IQueryBuilder { const PARAM_STR_ARRAY=102; const PARAM_INT=1; const PARAM_INT_ARRAY=101; } }
 namespace {
+require_once __DIR__.'/../callcrm/lib/Service/Schedule.php';
 require_once __DIR__.'/../callcrm/lib/Service/CallDashboard.php';
 $fail=0;$n=0;function ok($c,$m){global $fail,$n;$n++;if(!$c){$fail++;echo "FAIL $m\n";}}
 $d=(new ReflectionClass(OCA\CallCrm\Service\CallDashboard::class))->newInstanceWithoutConstructor();

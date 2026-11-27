@@ -2,7 +2,8 @@
 namespace OCP { interface IConfig {} }
 namespace {
  require __DIR__ . '/announcements.php';
- require __DIR__ . '/../lib/Service/PresenceRange.php';
+ require_once __DIR__.'/../lib/Service/Schedule.php';
+require __DIR__ . '/../lib/Service/PresenceRange.php';
  require __DIR__ . '/../lib/Service/Presence.php';
  require __DIR__ . '/../lib/Service/TeamScope.php';
  require __DIR__ . '/../lib/Controller/PresenceController.php';

@@ -35,6 +35,8 @@ return ['routes' => [
 	['name'=>'chat#people','url'=>'/api/chat/people','verb'=>'GET'],
 	['name'=>'sms#settings','url'=>'/api/sms/settings','verb'=>'GET'],
 	['name'=>'sms#configure','url'=>'/api/sms/settings','verb'=>'POST'],
+	['name'=>'schedule#get','url'=>'/api/schedule','verb'=>'GET'],
+	['name'=>'schedule#save','url'=>'/api/schedule','verb'=>'POST'],
 	['name'=>'script#get','url'=>'/api/scripts','verb'=>'GET'],
 	['name'=>'script#save','url'=>'/api/scripts','verb'=>'POST'],
 	['name'=>'script#reset','url'=>'/api/scripts/reset','verb'=>'POST'],

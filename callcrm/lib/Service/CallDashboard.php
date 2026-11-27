@@ -93,39 +93,37 @@ class CallDashboard {
         return $out;
     }
 
-    /** Jours ouvrés (N ISO) : dimanche au jeudi et samedi (équipe réduite) ; seul le vendredi est fermé. 8 h 30 – 16 h 30. */
-    public const OPEN_DAYS = [7, 1, 2, 3, 4, 6];
-
-    /**
-     * Dernière fermeture : la nuit précédente, ou la fermeture en cours quand le lendemain n'est pas ouvré
-     * (jeudi soir et vendredi → reprise samedi 8 h 30).
-     */
-    /** Nombre de jours de travail entre $from et $to : dimanche au jeudi, et chaque samedi où l'un des horodatages $worked tombe (brigade). */
-    public static function workDays(int $from, int $to, \DateTimeZone $zone, array $worked = []): int {
-        $saturdays = [];
-        foreach ($worked as $t) { $d = (new \DateTimeImmutable('@'.$t))->setTimezone($zone); if ((int)$d->format('N') === 6) $saturdays[$d->format('Y-m-d')] = true; }
+    /** Nombre de jours comptés dans l'objectif entre $from et $to (réglage Schedule) : jours travaillés, et jours de brigade où l'un des horodatages $worked tombe. */
+    public static function workDays(int $from, int $to, \DateTimeZone $zone, array $worked = [], ?array $schedule = null): int {
+        $s = $schedule ?? Schedule::current();
+        $seen = [];
+        foreach ($worked as $t) $seen[(new \DateTimeImmutable('@'.$t))->setTimezone($zone)->format('Y-m-d')] = true;
         $n = 0;
         for ($d = (new \DateTimeImmutable('@'.$from))->setTimezone($zone)->setTime(0,0); $d->getTimestamp() < $to; $d = $d->modify('+1 day')) {
-            $wd = (int)$d->format('N');
-            if ($wd === 7 || $wd <= 4 || ($wd === 6 && isset($saturdays[$d->format('Y-m-d')]))) $n++;
+            if (Schedule::counts($s, $d, isset($seen[$d->format('Y-m-d')]))) $n++;
         }
         return $n;
     }
 
-    public static function closureRange(int $now, \DateTimeZone $zone): array {
+    /**
+     * Dernière fermeture (réglage Schedule : jours, horaires, jours fériés) : la nuit précédente, ou la fermeture en cours
+     * quand le lendemain n'est pas ouvert (par défaut jeudi soir et vendredi → reprise samedi à l'ouverture).
+     */
+    public static function closureRange(int $now, \DateTimeZone $zone, ?array $schedule = null): array {
+        $s = $schedule ?? Schedule::current();
+        [$oh, $om] = array_map('intval', explode(':', $s['open'])); [$ch, $cm] = array_map('intval', explode(':', $s['close']));
         $today = (new \DateTimeImmutable('@'.$now))->setTimezone($zone);
-        $open = fn(\DateTimeImmutable $d) => in_array((int)$d->format('N'), self::OPEN_DAYS, true);
-        $previousOpen = function (\DateTimeImmutable $d) use ($open) { do { $d = $d->modify('-1 day'); } while (!$open($d)); return $d; };
-        $nextOpen = function (\DateTimeImmutable $d) use ($open) { do { $d = $d->modify('+1 day'); } while (!$open($d)); return $d; };
-        $closing = $today->setTime(16, 30);
+        $open = fn(\DateTimeImmutable $d) => Schedule::isOpen($s, $d);
+        $step = function (\DateTimeImmutable $d, string $dir) use ($open) { for ($i = 0; $i < 400; $i++) { $d = $d->modify($dir.'1 day'); if ($open($d)) return $d; } return $d; };
+        $closing = $today->setTime($ch, $cm);
         if (!$open($today) || ($today >= $closing && !$open($today->modify('+1 day')))) {
-            $start = ($open($today) ? $today : $previousOpen($today))->setTime(16, 30);
-            $end = $nextOpen($today)->setTime(8, 30);
+            $start = ($open($today) ? $today : $step($today, '-'))->setTime($ch, $cm);
+            $end = $step($today, '+')->setTime($oh, $om);
         } else {
-            $before = $previousOpen($today);
-            // Nuit ordinaire : 16 h 31 (comme avant) ; après un jour fermé : 16 h 30.
-            $start = $before->setTime(16, $before->format('Y-m-d') === $today->modify('-1 day')->format('Y-m-d') ? 31 : 30);
-            $end = $today->setTime(8, 30);
+            $before = $step($today, '-');
+            // Nuit ordinaire : une minute après la fermeture (comme avant) ; après un jour fermé : à la fermeture.
+            $start = $before->setTime($ch, $cm)->modify($before->format('Y-m-d') === $today->modify('-1 day')->format('Y-m-d') ? '+1 minute' : '+0 minute');
+            $end = $today->setTime($oh, $om);
         }
         return [
             'start'=>$start->getTimestamp(), 'end'=>$end->getTimestamp(),
