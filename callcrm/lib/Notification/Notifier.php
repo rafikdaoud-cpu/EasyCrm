@@ -12,7 +12,7 @@ class Notifier implements INotifier {
 	public function getID(): string { return 'callcrm'; }
 	public function getName(): string { return 'Call CRM'; }
 	public function prepare(INotification $n, string $languageCode): INotification {
-		if ($n->getApp() !== 'callcrm' || !in_array($n->getSubject(), ['documents_started', 'documents_received', 'wa_routed', 'client_message', 'client_document', 'quality_eval'], true)) {
+		if ($n->getApp() !== 'callcrm' || !in_array($n->getSubject(), ['documents_started', 'documents_received', 'wa_routed', 'client_message', 'client_document', 'quality_eval', 'quality_ack'], true)) {
 			throw new UnknownNotificationException();
 		}
 		$p = $n->getSubjectParameters();
@@ -23,6 +23,13 @@ class Notifier implements INotifier {
 			$n->setParsedMessage('Ouvrez « Mes évaluations » pour lire le commentaire et réécouter l’appel.');
 			$n->setLink($this->url->linkToRouteAbsolute('callcrm.page.index') . '#evaluation=' . (int)$n->getObjectId());
 			$n->setIcon($this->url->getAbsoluteURL($this->url->imagePath('core', 'actions/checkmark.svg')));
+			return $n;
+		}
+		if ($n->getSubject() === 'quality_ack') {
+			$text = trim((string)($p['text'] ?? ''));
+			$n->setParsedSubject($name . ((int)($p['state'] ?? 0) === 2 ? ' conteste votre évaluation qualité' . ($text !== '' ? ' : « ' . $text . ' »' : '.') : ' a lu et compris votre évaluation qualité' . ($text !== '' ? ' : « ' . $text . ' »' : '.')));
+			$n->setLink($this->url->linkToRouteAbsolute('callcrm.page.index') . '#qualite=' . (int)$n->getObjectId());
+			$n->setIcon($this->url->getAbsoluteURL($this->url->imagePath('core', 'actions/comment.svg')));
 			return $n;
 		}
 		if ($n->getSubject() === 'client_message') {

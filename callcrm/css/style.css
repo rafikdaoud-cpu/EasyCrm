@@ -992,6 +992,17 @@ body[data-themes*="dark"] #callcrm .footer-guide,body[data-theme-dark] #callcrm 
 #callcrm .crm-q-mine audio{display:block;width:100%;margin:8px 0}
 #callcrm .crm-q-comment{white-space:pre-wrap;padding:8px 10px;border-radius:8px;background:color-mix(in srgb,#e2a93b 12%,var(--color-main-background,#fff))}
 #callcrm .crm-q-grid-row input:first-child{flex:1;min-width:220px}
+#callcrm .crm-q-ack{display:inline-block;padding:2px 8px;border-radius:999px;font-size:.9em}
+#callcrm .crm-q-ack[data-ack="1"]{background:#dcfce7;color:#166534}
+#callcrm .crm-q-ack[data-ack="2"]{background:#fee2e2;color:#991b1b}
+#callcrm .crm-q-ackbox{margin-top:8px}
+#callcrm .crm-q-ackbox textarea{width:100%}
+#callcrm .crm-q-stats summary{cursor:pointer}
+#callcrm .crm-q-bar{display:inline-block;height:10px;border-radius:5px;background:var(--color-primary-element,#283b7e);vertical-align:middle}
+#callcrm .crm-dup-group{align-items:flex-start}
+#callcrm .crm-dup-group table{width:100%;margin:8px 0}
+#callcrm .crm-dup-group input[type=radio]{width:auto;margin:0}
+#callcrm .crm-dups-details summary{cursor:pointer;font-weight:600}
 body[data-themes*="dark"] #callcrm .crm-q-score[data-level="good"],body[data-theme-dark] #callcrm .crm-q-score[data-level="good"]{background:#173a2a;color:#86efac}
 body[data-themes*="dark"] #callcrm .crm-q-score[data-level="mid"],body[data-theme-dark] #callcrm .crm-q-score[data-level="mid"]{background:#3d2c0f;color:#fcd38d}
 body[data-themes*="dark"] #callcrm .crm-q-score[data-level="bad"],body[data-theme-dark] #callcrm .crm-q-score[data-level="bad"]{background:#4c1d1d;color:#fca5a5}

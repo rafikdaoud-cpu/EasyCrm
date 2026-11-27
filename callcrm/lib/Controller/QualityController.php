@@ -40,7 +40,13 @@ class QualityController extends Controller {
 	#[NoAdminRequired]
 	public function show(int $id): JSONResponse {
 		if (!$this->access->can('quality')) return $this->deny();
-		return new JSONResponse(['evaluation' => $this->quality->forRecording($id), 'grid' => $this->quality->grid()]);
+		$rec = $this->quality->recording($id);
+		if ($rec) {
+			$p = $rec['prospect_id'] ? $this->store->get((int)$rec['prospect_id']) : null;
+			$rec = ['id' => (int)$rec['id'], 'phone' => $rec['phone'], 'direction' => $rec['direction'], 'started_at' => $rec['started_at'], 'talk_duration' => $rec['talk_duration'],
+				'firstname' => $p['firstname'] ?? '', 'lastname' => $p['lastname'] ?? '', 'agent_name' => $this->users->getDisplayName((string)$rec['user_id']) ?: (string)$rec['user_id']];
+		}
+		return new JSONResponse(['evaluation' => $this->quality->forRecording($id), 'grid' => $this->quality->grid(), 'recording' => $rec]);
 	}
 
 	#[NoAdminRequired]
@@ -82,5 +88,31 @@ class QualityController extends Controller {
 		catch (\InvalidArgumentException $x) { return new JSONResponse(['error' => $x->getMessage()], 400); }
 		$this->store->audit($this->access->uid(), 'quality_grid', null, count($g['criteria']) . ' critère(s)');
 		return new JSONResponse($g);
+	}
+
+	/** Le commercial répond à son évaluation (compris / contesté) ; l'évaluateur est prévenu. */
+	#[NoAdminRequired]
+	public function ack(int $id): JSONResponse {
+		if (!$this->access->can('view')) return $this->deny();
+		try { $e = $this->quality->ack($id, $this->access->uid(), (int)$this->request->getParam('state', 0), (string)$this->request->getParam('comment', '')); }
+		catch (\InvalidArgumentException $x) { return new JSONResponse(['error' => $x->getMessage()], 400); }
+		if (!$e) return $this->deny();
+		ClientNotify::clear($this->access->uid(), 'quality', (string)$id);
+		$this->store->audit($this->access->uid(), 'quality_ack', null, 'évaluation ' . $id . ' · ' . ((int)$e['ack'] === 2 ? 'contestée' : 'comprise'));
+		ClientNotify::send((string)$e['evaluator_uid'], 'quality_ack', 'quality_ack', (string)$e['recording_id'],
+			['name' => $this->users->getDisplayName($this->access->uid()) ?: $this->access->uid(), 'state' => (int)$e['ack'], 'text' => mb_substr((string)$e['ack_comment'], 0, 200)]);
+		return new JSONResponse(['evaluation' => $e]);
+	}
+
+	/** Tableau de bord qualité (droit « quality ») : période en jours (from / to), commercial facultatif. */
+	#[NoAdminRequired]
+	public function stats(): JSONResponse {
+		if (!$this->access->can('quality')) return $this->deny();
+		$day = fn($k) => preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$this->request->getParam($k, '')) ? strtotime((string)$this->request->getParam($k)) : null;
+		$to = ($day('to') ?? strtotime('today')) + 86399; $from = $day('from') ?? strtotime('today -89 days');
+		$r = $this->quality->stats($from, $to, trim((string)$this->request->getParam('agent', '')));
+		foreach ($r['agents'] as &$a) $a['name'] = $this->users->getDisplayName($a['uid']) ?: $a['uid'];
+		unset($a);
+		return new JSONResponse($r + ['from' => date('Y-m-d', $from), 'to' => date('Y-m-d', $to)]);
 	}
 }

@@ -58,7 +58,7 @@ class Quality {
 	public function calls(array $f, int $offset): array {
 		$q = $this->db->getQueryBuilder();
 		$q->select('r.id', 'r.phone', 'r.user_id', 'r.direction', 'r.call_status', 'r.started_at', 'r.talk_duration', 'r.prospect_id', 'p.firstname', 'p.lastname',
-				'q.score', 'q.eliminated', 'q.evaluator_uid')
+				'q.score', 'q.eliminated', 'q.evaluator_uid', 'q.ack')
 			->selectAlias('q.id', 'eval_id')->selectAlias('q.updated_at', 'evaluated_at')
 			->from('callcrm_pbx_recordings', 'r')
 			->leftJoin('r', 'callcrm_prospects', 'p', $q->expr()->eq('p.id', 'r.prospect_id'))
@@ -131,7 +131,8 @@ class Quality {
 		$score = $elim || !$max ? 0 : (int)round(100 * $total / $max);
 		$now = time(); $old = $this->forRecording($rid);
 		$row = ['agent_uid' => (string)$rec['user_id'], 'evaluator_uid' => $evaluator, 'scores' => json_encode($scores, JSON_UNESCAPED_UNICODE),
-			'score' => $score, 'eliminated' => $elim ? 1 : 0, 'comment' => mb_substr(trim($comment), 0, 4000), 'updated_at' => $now, 'read_at' => 0];
+			'score' => $score, 'eliminated' => $elim ? 1 : 0, 'comment' => mb_substr(trim($comment), 0, 4000), 'updated_at' => $now, 'read_at' => 0,
+			'ack' => 0, 'ack_comment' => '', 'ack_at' => 0];
 		$q = $this->db->getQueryBuilder();
 		if ($old) {
 			$q->update('callcrm_quality');
@@ -150,7 +151,7 @@ class Quality {
 	/** Évaluations d'un commercial (les plus récentes d'abord), avec l'appel concerné. */
 	public function mine(string $uid, int $offset): array {
 		$q = $this->db->getQueryBuilder();
-		$rows = $q->select('q.id', 'q.recording_id', 'q.score', 'q.eliminated', 'q.comment', 'q.scores', 'q.updated_at', 'q.read_at', 'q.evaluator_uid',
+		$rows = $q->select('q.id', 'q.recording_id', 'q.score', 'q.eliminated', 'q.comment', 'q.scores', 'q.updated_at', 'q.read_at', 'q.evaluator_uid', 'q.ack', 'q.ack_comment', 'q.ack_at',
 				'r.phone', 'r.direction', 'r.started_at', 'r.talk_duration', 'p.firstname', 'p.lastname')
 			->from('callcrm_quality', 'q')->innerJoin('q', 'callcrm_pbx_recordings', 'r', $q->expr()->eq('r.id', 'q.recording_id'))
 			->leftJoin('r', 'callcrm_prospects', 'p', $q->expr()->eq('p.id', 'r.prospect_id'))
@@ -164,5 +165,60 @@ class Quality {
 		$q->update('callcrm_quality')->set('read_at', $q->createNamedParameter(time(), IQueryBuilder::PARAM_INT))
 			->where($q->expr()->eq('id', $q->createNamedParameter($id, IQueryBuilder::PARAM_INT)))
 			->andWhere($q->expr()->eq('agent_uid', $q->createNamedParameter($uid)))->executeStatement();
+	}
+
+	/** Réponse du commercial à son évaluation : 1 = compris, 2 = contesté (commentaire obligatoire). Renvoie l'évaluation, ou null si elle n'est pas à lui. */
+	public function ack(int $id, string $uid, int $state, string $comment): ?array {
+		$e = $this->find($id);
+		if (!$e || (string)$e['agent_uid'] !== $uid) return null;
+		if (!in_array($state, [1, 2], true)) throw new \InvalidArgumentException('Réponse invalide.');
+		$comment = mb_substr(trim($comment), 0, 2000);
+		if ($state === 2 && $comment === '') throw new \InvalidArgumentException('Expliquez en quelques mots ce que vous contestez.');
+		$q = $this->db->getQueryBuilder();
+		$q->update('callcrm_quality')->set('ack', $q->createNamedParameter($state, IQueryBuilder::PARAM_INT))->set('ack_comment', $q->createNamedParameter($comment))
+			->set('ack_at', $q->createNamedParameter(time(), IQueryBuilder::PARAM_INT))->set('read_at', $q->createNamedParameter(time(), IQueryBuilder::PARAM_INT))
+			->where($q->expr()->eq('id', $q->createNamedParameter($id, IQueryBuilder::PARAM_INT)))->executeStatement();
+		return $this->find($id);
+	}
+
+	/**
+	 * Tableau de bord : par commercial (nombre, moyenne, éliminatoires, contestations), par critère (taux de points obtenus,
+	 * ou fréquence pour un critère éliminatoire, du plus raté au mieux réussi) et moyenne par semaine. Une note éliminée compte 0.
+	 */
+	public function stats(int $from, int $to, string $agent = ''): array {
+		$q = $this->db->getQueryBuilder();
+		$q->select('agent_uid', 'score', 'eliminated', 'scores', 'ack', 'updated_at')->from('callcrm_quality')
+			->where($q->expr()->gte('updated_at', $q->createNamedParameter($from, IQueryBuilder::PARAM_INT)))
+			->andWhere($q->expr()->lte('updated_at', $q->createNamedParameter($to, IQueryBuilder::PARAM_INT)));
+		if ($agent !== '') $q->andWhere($q->expr()->eq('agent_uid', $q->createNamedParameter($agent)));
+		return self::aggregate($q->executeQuery()->fetchAll());
+	}
+
+	public static function aggregate(array $rows): array {
+		$agents = []; $crit = []; $weeks = []; $sum = 0;
+		foreach ($rows as $r) {
+			$s = (int)$r['eliminated'] ? 0 : (int)$r['score']; $sum += $s;
+			$a = &$agents[(string)$r['agent_uid']];
+			$a ??= ['uid' => (string)$r['agent_uid'], 'count' => 0, 'sum' => 0, 'eliminated' => 0, 'contested' => 0, 'last' => 0];
+			$a['count']++; $a['sum'] += $s; $a['eliminated'] += (int)$r['eliminated'] ? 1 : 0; $a['contested'] += (int)$r['ack'] === 2 ? 1 : 0; $a['last'] = max($a['last'], (int)$r['updated_at']);
+			unset($a);
+			$w = date('o-\SW', (int)$r['updated_at']);
+			$weeks[$w] ??= ['week' => $w, 'count' => 0, 'sum' => 0]; $weeks[$w]['count']++; $weeks[$w]['sum'] += $s;
+			foreach (json_decode((string)($r['scores'] ?? '[]'), true) ?: [] as $c) {
+				$k = (string)($c['label'] ?? ''); if ($k === '') continue;
+				$c2 = &$crit[$k];
+				$c2 ??= ['label' => $k, 'eliminatory' => !empty($c['eliminatory']), 'n' => 0, 'got' => 0, 'max' => 0];
+				$c2['n']++; $c2['got'] += (int)($c['value'] ?? 0); $c2['max'] += (int)($c['max'] ?? 0);
+				unset($c2);
+			}
+		}
+		$agents = array_values(array_map(fn($a) => $a + ['avg' => (int)round($a['sum'] / $a['count'])], $agents));
+		usort($agents, fn($x, $y) => $x['avg'] <=> $y['avg']);
+		// pct : taux de réussite (0-100) ; pour un éliminatoire, pct = % d'appels où il a été relevé.
+		$crit = array_values(array_map(fn($c) => $c + ['pct' => $c['eliminatory'] ? (int)round(100 * $c['got'] / max(1, $c['n'])) : (int)round(100 * $c['got'] / max(1, $c['max']))], $crit));
+		usort($crit, fn($x, $y) => [$x['eliminatory'], $x['pct']] <=> [$y['eliminatory'], $y['pct']]);
+		ksort($weeks);
+		$weeks = array_values(array_map(fn($w) => $w + ['avg' => (int)round($w['sum'] / $w['count'])], array_slice($weeks, -12)));
+		return ['count' => count($rows), 'avg' => $rows ? (int)round($sum / count($rows)) : 0, 'agents' => $agents, 'criteria' => $crit, 'weeks' => $weeks];
 	}
 }

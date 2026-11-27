@@ -3100,6 +3100,7 @@ function admin() {
     h('p', {class:'muted'}, 'Profils : définis par les groupes (AD ou Nextcloud) associés aux rôles administrateur, superviseur, commercial et lecture seule.'));
   if(me.can.fields)root.querySelector('.crm-page')?.append(yeastarSettingsCard(),yeastarRoutingCard(),smsSettingsCard(),guidesSettingsCard(),qualityGridCard(),documentSettingsCard(),collectSettingsCard(),wallSettingsCard());
   if(me.can.assign)root.querySelector('.crm-page')?.append(documentsCard(),yeastarRecordingsCard());
+  if(me.can.delete)root.querySelector('.crm-page')?.append(duplicatesCard());
   adminPanels();
   api('/recordings').then(rows => {
     orph.replaceChildren(...(rows.length ? [h('h3', {}, 'Enregistrements non rattachés à une fiche'),
@@ -3561,7 +3562,7 @@ function crmChat() {
   }
   go(me.role === 'commercial' ? 'journee' : 'dossiers');
   // Lien d'une notification « documents reçus » : #fiche=<id> ouvre directement la fiche du client.
-  const openHash=()=>{const m=/^#(fiche|wa|evaluation)=(\d+)$/.exec(location.hash||'');if(m){m[1]==='evaluation'?(tab='evaluations',myEvaluationsPage(m[2])):m[1]==='wa'?waConv(Number(m[2]),()=>waList(0,{})):detail(Number(m[2]));history.replaceState(null,'',location.pathname+location.search);}};
+  const openHash=()=>{const m=/^#(fiche|wa|evaluation|qualite)=(\d+)$/.exec(location.hash||'');if(m){m[1]==='qualite'?(tab='qualite',qualityPage(m[2])):m[1]==='evaluation'?(tab='evaluations',myEvaluationsPage(m[2])):m[1]==='wa'?waConv(Number(m[2]),()=>waList(0,{})):detail(Number(m[2]));history.replaceState(null,'',location.pathname+location.search);}};
   openHash();window.addEventListener('hashchange',openHash);
   try { crmChat(); } catch (e) {}
   refreshYeastarRuntime().then(pollYeastar);setInterval(pollYeastar,3000);setInterval(refreshYeastarRuntime,30000);
@@ -3762,15 +3763,16 @@ function guidesSettingsCard(){
 /* ---- Qualité : écoute et notation des appels enregistrés (droit « quality »), évaluations reçues par le commercial. ---- */
 const qDur=s=>{s=Number(s)||0;return Math.floor(s/60)+' min '+String(s%60).padStart(2,'0');};
 const qWho=r=>[r.firstname,r.lastname].filter(Boolean).join(' ')||r.phone||'';
+const qAck=a=>Number(a)===2?h('span',{class:'crm-q-ack','data-ack':'2'},'✋ Contestée'):Number(a)===1?h('span',{class:'crm-q-ack','data-ack':'1'},'✔ Comprise'):'';
 const qBadge=(score,elim)=>h('span',{class:'crm-q-score','data-level':elim?'bad':score>=80?'good':score>=60?'mid':'bad'},(elim?'0':score)+'/100');
-function qualityPage(){
+function qualityPage(focus){
  const msg=h('p',{class:'muted',role:'status'}),rows=h('div',{class:'crm-q-list'}),more=h('button',{hidden:true},'Plus');
  const agent=h('select',{'aria-label':'Commercial'},h('option',{value:''},'Tous les commerciaux')),state=h('select',{'aria-label':'État'},h('option',{value:'todo'},'À évaluer'),h('option',{value:'done'},'Évalués'),h('option',{value:''},'Tous'));
  const dir=h('select',{'aria-label':'Sens'},h('option',{value:''},'Entrants et sortants'),h('option',{value:'inbound'},'Entrants'),h('option',{value:'outbound'},'Sortants'));
  const from=h('input',{type:'date','aria-label':'Du'}),to=h('input',{type:'date','aria-label':'Au'}),min=h('select',{'aria-label':'Durée minimale'},h('option',{value:'30'},'30 s et plus'),h('option',{value:'60'},'1 min et plus'),h('option',{value:'0'},'Toutes durées'));
  let offset=0,grid=null,seq=0;
  const line=r=>{const row=h('article',{class:'crm-q-row'},h('div',{},h('strong',{},r.agent_name||'—'),h('span',{class:'muted'},' · '+(r.direction==='inbound'?'Entrant':'Sortant')+' · '+(r.started_at||'')+' · '+qDur(r.talk_duration)),h('div',{},qWho(r))),
-   r.eval_id?qBadge(Number(r.score),Number(r.eliminated)):h('span',{class:'muted'},'À évaluer'),h('button',{class:'primary',onclick:()=>qualityEval(r,grid,()=>load(false))},r.eval_id?'Revoir':'Écouter et noter'));return row;};
+   r.eval_id?qBadge(Number(r.score),Number(r.eliminated)):h('span',{class:'muted'},'À évaluer'),qAck(r.ack),h('button',{class:'primary',onclick:()=>qualityEval(r,grid,()=>load(false))},r.eval_id?'Revoir':'Écouter et noter'));return row;};
  const load=async(append,sample)=>{const mine=++seq;if(!append){offset=0;rows.replaceChildren();}msg.textContent='Chargement…';
   try{const r=await api('/quality/calls?'+new URLSearchParams(sample?{sample}:{agent:agent.value,state:state.value,direction:dir.value,from:from.value,to:to.value,min:min.value,offset}));if(mine!==seq)return;
    grid=r.grid;if(agent.options.length===1)agent.append(...(r.agents||[]).map(a=>h('option',{value:a.uid},a.name)));
@@ -3778,11 +3780,12 @@ function qualityPage(){
    msg.textContent=sample?(r.rows.length+' appel(s) tirés au hasard (jusqu’à '+sample+' par commercial, 7 derniers jours, non évalués).'):(rows.children.length?'':'Aucun appel enregistré ne correspond.');}catch(e){msg.textContent=e.message;}};
  [agent,state,dir,from,to,min].forEach(e=>e.addEventListener('change',()=>load(false)));more.onclick=()=>load(true);
  show(h('h2',{},'Qualité des appels'),h('div',{class:'card'},h('p',{class:'muted'},'Appels enregistrés des commerciaux. Écoutez, notez avec la grille, ajoutez un commentaire : le commercial est prévenu et retrouve l’évaluation dans « Mes évaluations ».'),
-  h('div',{class:'bar'},agent,state,dir,h('label',{},'Du ',from),h('label',{},'Au ',to),min,h('button',{type:'button',onclick:()=>load(false,5)},'🎲 Tirage : 5 par commercial')),msg,rows,more));
- load(false);
+  h('div',{class:'bar'},agent,state,dir,h('label',{},'Du ',from),h('label',{},'Au ',to),min,h('button',{type:'button',onclick:()=>load(false,5)},'🎲 Tirage : 5 par commercial')),msg,rows,more),qualityStatsCard(agent));
+ load(false);if(focus)qualityEval({id:Number(focus)},null,()=>load(false));
 }
 async function qualityEval(r,grid,done){
- let cur=null;try{const x=await api('/quality/'+r.id);cur=x.evaluation;grid=x.grid;}catch(e){}
+ let cur=null;try{const x=await api('/quality/'+r.id);cur=x.evaluation;grid=x.grid;r=Object.assign({},x.recording||{},r);}catch(e){}
+ if(!grid)return;
  const old=cur?Object.fromEntries((cur.scores||[]).map((c,i)=>[c.label,c.value])):{};
  const audio=h('audio',{controls:true,preload:'metadata',src:API+'/yeastar/recordings/'+r.id+'/audio','aria-label':'Enregistrement de l’appel'});
  const speed=h('select',{'aria-label':'Vitesse',onchange:()=>{audio.playbackRate=Number(speed.value);}},['1','1.25','1.5','2'].map(v=>h('option',{value:v},'×'+v)));
@@ -3797,7 +3800,7 @@ async function qualityEval(r,grid,done){
  const close=()=>{audio.pause();dlg.remove();};
  const dlg=h('div',{class:'crm-dialog-bg'},h('section',{class:'crm-dialog crm-q-dialog',role:'dialog','aria-modal':'true','aria-label':'Évaluation qualité'},
   h('h3',{},'Évaluation · '+(r.agent_name||'')),h('p',{class:'muted'},(r.direction==='inbound'?'Appel entrant':'Appel sortant')+' · '+(r.started_at||'')+' · '+qDur(r.talk_duration)+' · '+qWho(r)),
-  h('div',{class:'bar'},audio,speed),...inputs.map(x=>x.el),total,comment,msg,
+  h('div',{class:'bar'},audio,speed),cur&&Number(cur.ack)?h('p',{class:'crm-q-comment'},qAck(cur.ack),' Réponse du commercial le '+fmt(Number(cur.ack_at))+(cur.ack_comment?' : '+cur.ack_comment:'')):'',...inputs.map(x=>x.el),total,comment,msg,
   h('div',{class:'bar'},h('button',{class:'primary',onclick:async()=>{try{await api('/quality/'+r.id,{method:'POST',body:{values:inputs.map(x=>x.get()),comment:comment.value}});close();done&&done();}catch(e){msg.textContent=e.message;}}},'Enregistrer l’évaluation'),h('button',{onclick:close},'Annuler'))));
  root.append(dlg);
 }
@@ -3810,9 +3813,58 @@ function myEvaluationsPage(focus){
     h('summary',{},qBadge(Number(x.score),Number(x.eliminated)),' ',(x.direction==='inbound'?'Appel entrant':'Appel sortant')+' du '+(x.started_at||'')+' · '+qWho(x),Number(x.read_at)?'':h('strong',{class:'crm-q-new'},' · nouveau')),
     h('audio',{controls:true,preload:'none',src:API+'/yeastar/recordings/'+x.recording_id+'/audio'}),
     h('ul',{class:'crm-q-detail'},(x.scores||[]).map(c=>h('li',{},c.eliminatory?(c.value?'⛔ '+c.label:''):c.label+' : '+c.value+' / '+c.max)).filter(li=>li.textContent)),
-    x.comment?h('p',{class:'crm-q-comment'},x.comment):'',h('small',{class:'muted'},'Évalué par '+(x.evaluator_name||'le service qualité')+' le '+fmt(Number(x.updated_at))));
+    x.comment?h('p',{class:'crm-q-comment'},x.comment):'',h('small',{class:'muted'},'Évalué par '+(x.evaluator_name||'le service qualité')+' le '+fmt(Number(x.updated_at))),qAckBox(x));
    det.addEventListener('toggle',()=>{if(det.open&&!Number(x.read_at)){x.read_at=1;det.classList.remove('is-new');det.querySelector('.crm-q-new')?.remove();api('/quality/'+x.id+'/read',{method:'POST'}).catch(()=>{});}});
    if(det.open)det.dispatchEvent(new Event('toggle'));return det;}));}).catch(e=>{msg.textContent=e.message;});
+}
+/** Réponse du commercial à son évaluation : « J'ai compris » ou « Je conteste » (avec explication) ; l'évaluateur est prévenu. */
+function qAckBox(x){
+ const box=h('div',{class:'crm-q-ackbox'});
+ const done=()=>box.replaceChildren(qAck(x.ack),' le '+fmt(Number(x.ack_at)),x.ack_comment?h('p',{class:'muted'},x.ack_comment):'');
+ if(Number(x.ack)){done();return box;}
+ const text=h('textarea',{rows:2,maxlength:2000,placeholder:'Votre réponse (obligatoire pour contester) : ce que vous retenez, ou ce qui vous semble injuste…','aria-label':'Réponse à l’évaluation'}),msg=h('p',{class:'err',role:'status'});
+ const send=async state=>{try{const r=await api('/quality/'+x.id+'/ack',{method:'POST',body:{state,comment:text.value}});Object.assign(x,r.evaluation);done();}catch(e){msg.textContent=e.message;}};
+ box.append(text,h('div',{class:'bar'},h('button',{class:'primary',onclick:()=>send(1)},'✔ J’ai compris'),h('button',{onclick:()=>send(2)},'✋ Je conteste')),msg);
+ return box;
+}
+/** Tableau de bord qualité : moyenne par commercial, critères les plus ratés, évolution par semaine. */
+function qualityStatsCard(agentSel){
+ const d=n=>{const x=new Date();x.setDate(x.getDate()-n);return x.toISOString().slice(0,10);};
+ const from=h('input',{type:'date',value:d(89),'aria-label':'Du'}),to=h('input',{type:'date',value:d(0),'aria-label':'Au'}),out=h('div'),msg=h('p',{class:'muted',role:'status'});
+ const table=(heads,rows)=>h('div',{class:'crm-table-wrap'},h('table',{class:'t'},h('thead',{},h('tr',{},heads.map(t=>h('th',{},t)))),h('tbody',{},rows)));
+ const td=(v,sort)=>h('td',sort===undefined?{}:{'data-sort':sort},v);
+ const load=async()=>{msg.textContent='Chargement…';
+  try{const r=await api('/quality/stats?'+new URLSearchParams({from:from.value,to:to.value,agent:agentSel.value}));
+   msg.replaceChildren(r.count?h('span',{},r.count+' évaluation(s) du '+r.from+' au '+r.to+' · moyenne ',qBadge(r.avg,false)):'Aucune évaluation sur cette période.');
+   if(!r.count){out.replaceChildren();return;}
+   const best=Math.max(...r.weeks.map(w=>w.avg),1);
+   out.replaceChildren(
+    h('h4',{},'Par commercial'),table(['Commercial','Évaluations','Moyenne','Éliminatoires','Contestées','Dernière'],r.agents.map(a=>h('tr',{},td(a.name),td(a.count,a.count),td(qBadge(a.avg,false),a.avg),td(a.eliminated,a.eliminated),td(a.contested,a.contested),td(fmt(a.last),a.last)))),
+    h('h4',{},'Par critère (du plus raté au mieux réussi)'),table(['Critère','Réussite','Évaluations'],r.criteria.map(c=>h('tr',{},td((c.eliminatory?'⛔ ':'')+c.label),td(c.eliminatory?'relevé dans '+c.pct+' % des appels':h('span',{},h('span',{class:'crm-q-bar',style:'width:'+c.pct+'px'}),' '+c.pct+' %'),c.eliminatory?-c.pct:c.pct),td(c.n,c.n)))),
+    h('h4',{},'Moyenne par semaine'),table(['Semaine','Moyenne','Évaluations'],r.weeks.map(w=>h('tr',{},td(w.week),td(h('span',{},h('span',{class:'crm-q-bar',style:'width:'+Math.round(100*w.avg/best)+'px'}),' '+w.avg+'/100'),w.avg),td(w.count,w.count)))));
+  }catch(e){msg.textContent=e.message;}};
+ [from,to].forEach(e=>e.addEventListener('change',load));agentSel.addEventListener('change',load);
+ const det=h('details',{class:'card crm-q-stats'},h('summary',{},h('strong',{},'📊 Tableau de bord qualité')),h('div',{class:'bar'},h('label',{},'Du ',from),h('label',{},'Au ',to)),msg,out);
+ det.addEventListener('toggle',()=>{if(det.open&&!out.childElementCount)load();});
+ return det;
+}
+/** Administration : fiches en double (même nom complet ou même e-mail) — fusionner dans la fiche choisie, ou écarter le groupe. */
+function duplicatesCard(){
+ const box=h('div',{class:'card crm-dups'}),list=h('div'),msg=h('p',{class:'muted',role:'status'});
+ const group=g=>{const pick=h('div');let keep=g.rows.reduce((a,b)=>Number(b.calls)>Number(a.calls)?b:a).id;const m=h('p',{class:'err',role:'status'});
+  const body=h('tbody',{},g.rows.map(r=>{const radio=h('input',{type:'radio',name:'dup-'+g.ids.join('-'),checked:String(r.id)===String(keep),'aria-label':'Garder cette fiche',onchange:()=>{keep=r.id;}});
+   return h('tr',{},h('td',{},radio),h('td',{},h('a',{href:'#fiche='+r.id,onclick:e=>{e.preventDefault();detail(Number(r.id));}},[r.lastname,r.firstname].filter(Boolean).join(' ')||'—')),h('td',{},r.phone||''),h('td',{},r.email||''),h('td',{},r.status||''),h('td',{},r.assigned_name||'—'),h('td',{'data-sort':r.calls},String(r.calls)),h('td',{'data-sort':r.created_at},r.created_at?fmt(Number(r.created_at)):''));}));
+  const card=h('article',{class:'crm-q-row crm-dup-group'},h('div',{},h('strong',{},(g.reason==='email'?'Même e-mail : ':'Même nom : ')+g.key),
+   h('div',{class:'crm-table-wrap'},h('table',{class:'t'},h('thead',{},h('tr',{},['Garder','Nom','Téléphone','E-mail','Statut','Commercial','Appels','Créée'].map(t=>h('th',{},t)))),body)),
+   h('div',{class:'bar'},h('button',{class:'primary',onclick:async()=>{const drop=g.ids.filter(i=>String(i)!==String(keep));if(!confirm('Fusionner '+drop.length+' fiche(s) dans la fiche choisie ? Appels, notes, pièces, WhatsApp et rendez-vous y sont rattachés, l’autre numéro est noté dans le commentaire, puis les autres fiches sont supprimées.'))return;
+     try{await api('/duplicates/merge',{method:'POST',body:{keep,drop}});card.remove();msg.textContent='✔ Fiches fusionnées.';}catch(e){m.textContent=e.message;}}},'Fusionner dans la fiche choisie'),
+    h('button',{onclick:async()=>{try{await api('/duplicates/ignore',{method:'POST',body:{ids:g.ids}});card.remove();}catch(e){m.textContent=e.message;}}},'Ce ne sont pas des doublons')),m));
+  return card;};
+ const load=async()=>{msg.textContent='Recherche…';try{const r=await api('/duplicates');list.replaceChildren(...r.groups.map(group));msg.textContent=r.groups.length?r.groups.length+' groupe(s) de fiches à vérifier.':'Aucune fiche en double.';}catch(e){msg.textContent=e.message;}};
+ const det=h('details',{class:'crm-dups-details'},h('summary',{},'Afficher les doublons'),msg,list);
+ det.addEventListener('toggle',()=>{if(det.open&&!list.childElementCount)load();});
+ box.append(h('h3',{},'Fiches en double'),h('p',{class:'muted'},'Fiches qui ont le même nom complet (même dans un autre ordre) ou le même e-mail, souvent un client saisi avec un autre numéro. Choisissez la fiche à garder : l’historique des autres y est rattaché. Attention aux homonymes : vérifiez avant de fusionner.'),det);
+ return box;
 }
 /** Administration : grille qualité (critères notés de 1 à 10 points, critères éliminatoires). */
 function qualityGridCard(){
