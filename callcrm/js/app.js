@@ -2875,7 +2875,11 @@ function wallSettingsCard() {
 }
 
 function chatbotSettingsCard() {
-  const box=h('details',{class:'card'},h('summary',{},'WhatsApp · Chatbot'));
+  // Même en-tête que les autres cadres de l'administration (+ / −, Agrandir / Réduire, « Tout réduire ») ; contenu chargé à la première ouverture.
+  const chatAction=h('span',{class:'crm-admin-panel-action'}),chatIcon=h('span',{class:'crm-admin-panel-icon','aria-hidden':'true'});
+  const box=h('details',{class:'card crm-admin-panel'},h('summary',{},h('h3',{},'WhatsApp · Chatbot'),h('span',{class:'crm-admin-panel-state'},chatAction,chatIcon)));
+  const chatRefresh=()=>{chatAction.textContent=box.open?'Réduire':'Agrandir';chatIcon.textContent=box.open?'−':'+';};chatRefresh();
+  box.addEventListener('toggle',chatRefresh);box.crmSetOpen=open=>{box.open=open;chatRefresh();};
   const form=h('div'), preview=h('div'), message=h('p',{role:'status',class:'muted'});
   const keys={
     listing:['supplier','brand','family','reference','designation','m12','m24','m36','m48','m60'],
@@ -3726,7 +3730,7 @@ function outboundGuide(p){return callGuide(p,String(p?.status||'')==='nouveau'?'
 
 /** Administration : guides d'appel (étapes FR / AR, questions, étape d'éligibilité, objections). */
 function guidesSettingsCard(){
- const box=h('div',{class:'card crm-admin-panel crm-guide-admin'}),body=h('div'),out=h('p',{class:'muted',role:'status','aria-live':'polite'});
+ const box=h('div',{class:'card crm-guide-admin'}),body=h('div'),out=h('p',{class:'muted',role:'status','aria-live':'polite'});
  box.append(h('h3',{},'Guides d’appel'),h('p',{class:'muted'},'S’ouvrent tout seuls quand un commercial décroche un appel entrant ou appelle depuis une fiche (aussi par le bouton « 📋 Guide » de la fiche). Variables : {prenom}, {nom}, {commercial}. Étape « Question » : la réponse du client est notée sur la fiche ; « Éligibilité » : âge, salaire et mensualités en cours, contrôlés automatiquement ; * = étape obligatoire.'),body,out);
  const TYPES=[['text','Phrase à dire'],['ask','Question (réponse notée)'],['eligibility','Éligibilité']];
  const area=(v,label,ar)=>h('textarea',{rows:2,maxlength:1000,'aria-label':label,placeholder:label,dir:ar?'rtl':'auto'},v||'');
