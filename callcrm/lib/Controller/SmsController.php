@@ -27,7 +27,7 @@ class SmsController extends Controller {
 	public function configure(): JSONResponse {
 		if (!$this->admin()) return $this->error('Accès refusé', 403);
 		$in = [];
-		foreach (['enabled', 'url', 'username', 'password', 'clear_password', 'sender', 'dlr', 'max_bulk', 'commercial_send', 'templates'] as $k) {
+		foreach (['enabled', 'url', 'username', 'password', 'clear_password', 'sender', 'dlr', 'max_bulk', 'commercial_send', 'templates', 'auto'] as $k) {
 			$v = $this->request->getParam($k);
 			if ($v !== null) $in[$k] = $v;
 		}

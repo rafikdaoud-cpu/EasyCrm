@@ -20,7 +20,7 @@ class MissedCalls {
     /** Seuls les appels manqués des 4 dernières heures sont confiés automatiquement à un commercial en poste. */
     public const AUTO_WINDOW = 14400;
     public function __construct(private IDBConnection $db, private IConfig $config, private IGroupManager $groups,
-        private IUserManager $users, private Presence $presence, private ILockingProvider $locks) {}
+        private IUserManager $users, private Presence $presence, private ILockingProvider $locks, private AutoSms $autoSms) {}
 
     /** 0770… / +213770… / 00213770… / 213770… → 0770… ; autre format : chiffres seuls. */
     public static function phone(string $raw): string {
@@ -74,11 +74,14 @@ class MissedCalls {
             uasort($calls, fn($a, $b) => $a['at'] <=> $b['at']);
             $evidence = (new InboundOutcome($this->db))->events(array_column($calls,'call_id'));
             [$legs, $owners] = CallDashboard::journal(array_column($calls,'call_id'));
+            $replies = [];
             foreach ($calls as $c) {
                 if (strlen($c['phone']) < 6) continue;
                 if ($c['direction'] === 'inbound') {
                     $result = YeastarCdr::classify($legs[$c['call_id']] ?? [],$closed,$owners)
                         ?? InboundOutcome::classify($evidence[$c['call_id']] ?? [],$c['phone'],$c['answered'],$c['closed']&&!$c['agent']);
+                    if (in_array($result['kind'],['closed','missed','lost'],true))
+                        $replies[] = ['kind' => $result['kind'] === 'closed' ? 'closed' : 'missed', 'phone' => $c['phone'], 'pid' => $c['pid'], 'at' => $c['at']];
                     if (in_array($result['kind'],['lost','menu','unknown','closed'],true)) continue;
                     $c['answered'] = $result['kind'] === 'answered';
                 }
@@ -90,6 +93,8 @@ class MissedCalls {
         } finally {
             $this->locks->releaseLock('callcrm/missed-sync', ILockingProvider::LOCK_EXCLUSIVE);
         }
+        // Hors du verrou : l'envoi passe par le réseau. Un souci d'envoi ne bloque jamais le suivi des appels manqués.
+        if (!empty($replies)) { try { $this->autoSms->reply($replies, $now); } catch (\Throwable $e) {} }
     }
 
     private function open(string $phone): ?array {

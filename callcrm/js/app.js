@@ -432,10 +432,14 @@ function smsSettingsCard(){
    const upd=()=>{const c=smsCount(text.value);cnt.textContent=c.chars+' caractères · '+c.segments+' SMS'+(c.unicode?' (Unicode)':'');};text.addEventListener('input',upd);upd();
    const row=h('div',{class:'crm-sms-template'},h('div',{class:'bar'},name,h('button',{type:'button','aria-label':'Supprimer ce modèle',onclick:()=>row.remove()},'✕')),text,cnt);return row;};
   (s.templates||[]).forEach(t=>list.append(line(t)));
+  // SMS automatiques aux appelants : un modèle par cas (vide = désactivé) ; la liste suit les modèles saisis ci-dessus.
+  const autoPick=(kind)=>{const sel=h('select',{'aria-label':kind});const fill=()=>{const cur=sel.value||(s.auto||{})[kind]||'';sel.replaceChildren(h('option',{value:''},'Désactivé'),...[...list.children].map(r=>r.querySelector('input').value.trim()).filter(Boolean).map(n=>h('option',{value:n,selected:n===cur},n)));};fill();sel.addEventListener('focus',fill);sel.addEventListener('mousedown',fill);return sel;};
+  const autoClosed=autoPick('closed'),autoMissed=autoPick('missed');
   const status=h('p',{class:'crm-sms-state'});const paint=v=>{status.textContent=v?'✔ Option activée : les boutons SMS sont visibles.':'Option désactivée : aucun bouton SMS n’est affiché dans le CRM.';status.dataset.on=v?'1':'0';};paint(s.enabled);
   const save=async()=>{out.textContent='Enregistrement…';
    try{const r=await api('/sms/settings',{method:'POST',body:{enabled:enabled.checked,url:url.value.trim(),username:user.value.trim(),password:pass.value,sender:sender.value.trim(),max_bulk:Number(max.value),commercial_send:comm.checked,dlr:dlr.checked,
-    templates:[...list.children].map(r=>({name:r.querySelector('input').value.trim(),text:r.querySelector('textarea').value.trim()})).filter(t=>t.name||t.text)}});
+    templates:[...list.children].map(r=>({name:r.querySelector('input').value.trim(),text:r.querySelector('textarea').value.trim()})).filter(t=>t.name||t.text),
+    auto:{closed:autoClosed.value,missed:autoMissed.value}}});
     pass.value='';pass.placeholder=r.has_password?'•••••••• (enregistré, laisser vide pour garder)':'';paint(r.enabled);out.textContent='Réglages enregistrés. Rechargez la page pour voir les boutons à jour.';}
    catch(e){out.textContent=e.message;}};
   const testPhone=h('input',{type:'tel',inputmode:'tel',placeholder:'0550 12 34 56…',autocomplete:'off','aria-label':'Numéro de test',style:'width:11em'});
@@ -448,6 +452,10 @@ function smsSettingsCard(){
    h('label',{class:'crm-sms-field crm-sms-inline'},h('span',{},'Envoi groupé : '),max,h('span',{},' clients au maximum par envoi (administrateurs et superviseurs)')),
    h('h4',{},'Modèles de messages'),h('p',{class:'muted'},'Proposés lors de la rédaction. Variables : {prenom}, {nom}, {commercial}.'),list,
    h('button',{type:'button',onclick:()=>{list.append(line());list.lastChild.querySelector('input').focus();}},'+ Ajouter un modèle'),
+   h('h4',{},'SMS automatiques aux appelants'),
+   h('p',{class:'muted'},'Envoyés tout seuls au client qui a appelé, avec le modèle choisi. Un seul SMS par numéro et par 24 h ; mobiles algériens uniquement. Nécessite l’envoi de SMS activé ci-dessus. Pour un appelant sans fiche, {prenom} et {nom} restent vides et {commercial} devient « CSM Taksit ».'),
+   h('div',{class:'crm-sms-grid'},field('Appel hors des horaires de travail',autoClosed,'Le client est tombé sur le message de fermeture.'),
+    field('Appel manqué ou perdu',autoMissed,'Personne n’a décroché, ou le client a raccroché avant d’être servi.')),
    h('div',{class:'bar crm-sms-actions'},h('button',{class:'primary',onclick:save},'Enregistrer'),
     h('button',{onclick:async()=>{out.textContent='Lecture du crédit…';try{const r=await api('/sms/credit');out.textContent='Crédit restant : '+r.credit+' DA';}catch(e){out.textContent=e.message;}}},'Vérifier le crédit'),
     testPhone,h('button',{onclick:async()=>{if(!testPhone.value.trim()){out.textContent='Saisissez un numéro pour le test.';return;}out.textContent='Envoi du SMS de test…';try{await api('/sms/test',{method:'POST',body:{phone:testPhone.value}});out.textContent='✔ SMS de test envoyé au '+testPhone.value+'.';}catch(e){out.textContent=e.message;}}},'Envoyer un SMS de test')));

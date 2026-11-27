@@ -50,6 +50,8 @@ class Sms {
 			'max_bulk' => (int)($s['max_bulk'] ?? 300),
 			'commercial_send' => ($s['commercial_send'] ?? true) === true,
 			'templates' => array_values($s['templates'] ?? []),
+			// SMS automatiques aux appelants : nom du modèle par cas, vide = désactivé.
+			'auto' => array_combine(AutoSms::KINDS, array_map(fn($k) => (string)(($s['auto'] ?? [])[$k] ?? ''), AutoSms::KINDS)),
 		];
 	}
 
@@ -111,6 +113,17 @@ class Sms {
 			}
 			if (count($t) > self::MAX_TEMPLATES) throw new \InvalidArgumentException(self::MAX_TEMPLATES . ' modèles au maximum.');
 			$s['templates'] = $t;
+		}
+		if (array_key_exists('auto', $in)) {
+			$auto = is_array($in['auto']) ? $in['auto'] : [];
+			$names = array_column($s['templates'] ?? [], 'name');
+			$chosen = [];
+			foreach (AutoSms::KINDS as $k) {
+				$name = trim((string)($auto[$k] ?? ''));
+				if ($name !== '' && !in_array($name, $names, true)) throw new \InvalidArgumentException('Modèle « ' . $name . ' » introuvable pour les SMS automatiques.');
+				$chosen[$k] = $name;
+			}
+			$s['auto'] = $chosen;
 		}
 		if (($s['enabled'] ?? false) === true && !(($s['url'] ?? self::DEFAULT_URL) !== '' && !empty($s['username']) && !empty($s['password']) && !empty($s['sender']))) {
 			throw new \InvalidArgumentException('Pour activer l’envoi, renseignez l’adresse, l’identifiant, le mot de passe et l’expéditeur ICOSNET.');

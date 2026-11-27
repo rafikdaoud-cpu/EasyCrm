@@ -61,3 +61,15 @@ Le taux de réponse de Pilotage inclut les appels perdus dans son dénominateur 
 ## Call CRM 0.57.30 · Classement par le journal du standard
 
 Le classement s’appuie d’abord sur le journal complet du standard (durée de sonnerie de la file et des postes). Un appel qui raccroche dans le message d’accueil devient un « Abandon au menu d’accueil » et n’ouvre pas de rappel. Les appels hors horaires (message de fermeture, de 16 h 30 à 8 h 30) restent à part. Pilotage indique pour chaque appel manqué ou perdu s’il a été rappelé (appel sortant vers le numéro ensuite). Voir `docs/AI_HANDOFF.md`, section 0.57.30.
+
+## SMS automatique aux appelants (0.58.20)
+
+Administration → SMS · ICOSNET → « SMS automatiques aux appelants » : un modèle par cas, « Désactivé » par défaut.
+
+- **Appel hors des horaires de travail** : le client est tombé sur le message de fermeture (`closed`).
+- **Appel manqué ou perdu** : personne n'a décroché, ou le client a raccroché avant d'être servi (`missed`, `lost`).
+
+Envoyé par la synchronisation des appels manqués (tâche de fond, chaque minute), hors du verrou. Un seul SMS par numéro et
+par 24 h (`sms_auto_sent`), mobiles algériens uniquement, appels de plus de 2 h ignorés. Chaque envoi est noté dans le
+journal (`sms_auto`) et dans l'historique de la fiche quand l'appelant en a une. Variables : `{prenom}`, `{nom}`,
+`{commercial}` (« CSM Taksit » pour un appelant sans fiche). Code : `lib/Service/AutoSms.php`.
