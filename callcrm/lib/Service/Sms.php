@@ -52,6 +52,7 @@ class Sms {
 			'templates' => array_values($s['templates'] ?? []),
 			// SMS automatiques aux appelants : nom du modèle par cas, vide = désactivé.
 			'auto' => array_combine(AutoSms::KINDS, array_map(fn($k) => (string)(($s['auto'] ?? [])[$k] ?? ''), AutoSms::KINDS)),
+			'auto_wa' => array_combine(AutoSms::KINDS, array_map(fn($k) => (string)(($s['auto_wa'] ?? [])[$k] ?? ''), AutoSms::KINDS)),
 		];
 	}
 
@@ -124,6 +125,17 @@ class Sms {
 				$chosen[$k] = $name;
 			}
 			$s['auto'] = $chosen;
+		}
+		if (array_key_exists('auto_wa', $in)) {
+			// Modèle WhatsApp approuvé par Meta, « nom|langue » ; vide = désactivé.
+			$auto = is_array($in['auto_wa']) ? $in['auto_wa'] : [];
+			$chosen = [];
+			foreach (AutoSms::KINDS as $k) {
+				$v = trim((string)($auto[$k] ?? ''));
+				if ($v !== '' && !preg_match('/^[a-z0-9_]{1,512}\|[A-Za-z_]{2,10}$/D', $v)) throw new \InvalidArgumentException('Modèle WhatsApp invalide.');
+				$chosen[$k] = $v;
+			}
+			$s['auto_wa'] = $chosen;
 		}
 		if (($s['enabled'] ?? false) === true && !(($s['url'] ?? self::DEFAULT_URL) !== '' && !empty($s['username']) && !empty($s['password']) && !empty($s['sender']))) {
 			throw new \InvalidArgumentException('Pour activer l’envoi, renseignez l’adresse, l’identifiant, le mot de passe et l’expéditeur ICOSNET.');

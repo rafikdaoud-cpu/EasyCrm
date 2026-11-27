@@ -73,3 +73,10 @@ Envoyé par la synchronisation des appels manqués (tâche de fond, chaque minut
 par 24 h (`sms_auto_sent`), mobiles algériens uniquement, appels de plus de 2 h ignorés. Chaque envoi est noté dans le
 journal (`sms_auto`) et dans l'historique de la fiche quand l'appelant en a une. Variables : `{prenom}`, `{nom}`,
 `{commercial}` (« CSM Taksit » pour un appelant sans fiche). Code : `lib/Service/AutoSms.php`.
+
+### WhatsApp automatique aux appelants (0.58.21)
+
+Même cadre, deux choix de plus : modèle WhatsApp approuvé par Meta et sans variable (`auto_wa`, « nom|langue »), envoyé
+par le service wa-nextcloud (`/send`), noté dans la conversation WhatsApp et dans le journal (`wa_auto`). Un message par
+numéro et par 24 h (`wa_auto_sent`), indépendant du SMS. Modèles soumis le 27/11/2026 : `csm_appel_hors_horaires` (fr),
+`csm_appel_manque` (fr), `csm_documents_a_fournir` (fr et ar, envoyé depuis la fiche par le commercial).
