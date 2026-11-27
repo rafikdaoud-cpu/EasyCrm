@@ -37,7 +37,8 @@ class DocumentMailbox {
      $body=imap_fetchbody($c,$uid,$part['part'],FT_UID|FT_PEEK);if($body===false)throw new \RuntimeException('Téléchargement d’une pièce joint impossible.');
      $body=match($part['encoding']){3=>base64_decode($body,true),4=>quoted_printable_decode($body),default=>$body};if($body===false)throw new \RuntimeException('Encodage de pièce joint invalide.');
      if($body==='')continue;
-     $this->documents->receive($pid,'email',$key,$part['name'],$body,$sender,$subject);
+     // Pièce ni PDF ni photo, ou bloquée par l'antivirus : ignorée, le reste du message est traité.
+     try{$this->documents->receive($pid,'email',$key,$part['name'],$body,$sender,$subject);}catch(\InvalidArgumentException $e){continue;}
     }
     $last=(int)$uid;$this->documents->setConfig('mail_uid',(string)$last);$this->documents->setConfig('mail_validity',$marker);
    }

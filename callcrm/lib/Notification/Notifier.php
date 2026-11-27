@@ -12,12 +12,26 @@ class Notifier implements INotifier {
 	public function getID(): string { return 'callcrm'; }
 	public function getName(): string { return 'Call CRM'; }
 	public function prepare(INotification $n, string $languageCode): INotification {
-		if ($n->getApp() !== 'callcrm' || !in_array($n->getSubject(), ['documents_started', 'documents_received', 'wa_routed'], true)) {
+		if ($n->getApp() !== 'callcrm' || !in_array($n->getSubject(), ['documents_started', 'documents_received', 'wa_routed', 'client_message', 'client_document'], true)) {
 			throw new UnknownNotificationException();
 		}
 		$p = $n->getSubjectParameters();
 		$name = trim((string)($p['name'] ?? '')) ?: 'Un client';
 		$count = (int)($p['count'] ?? 0);
+		if ($n->getSubject() === 'client_message') {
+			$what = ['image' => 'une photo', 'document' => 'une pièce jointe', 'audio' => 'un message vocal', 'video' => 'une vidéo'][$p['kind'] ?? ''] ?? 'un message';
+			$text = trim((string)($p['text'] ?? ''));
+			$n->setParsedSubject($name . (($p['kind'] ?? 'text') === 'text' && $text !== '' ? ' vous a écrit sur WhatsApp : « ' . $text . ' »' : ' vous a envoyé ' . $what . ' sur WhatsApp'));
+			$n->setLink($this->url->linkToRouteAbsolute('callcrm.page.index') . '#wa=' . (int)$n->getObjectId());
+			$n->setIcon($this->url->getAbsoluteURL($this->url->imagePath('core', 'actions/comment.svg')));
+			return $n;
+		}
+		if ($n->getSubject() === 'client_document') {
+			$n->setParsedSubject($name . ' a envoyé une pièce par e-mail' . (($p['file'] ?? '') !== '' ? ' : ' . $p['file'] : '') . '.');
+			$n->setLink($this->url->linkToRouteAbsolute('callcrm.page.index') . '#fiche=' . (int)$n->getObjectId());
+			$n->setIcon($this->url->getAbsoluteURL($this->url->imagePath('core', 'actions/download.svg')));
+			return $n;
+		}
 		if ($n->getSubject() === 'wa_routed') {
 			$n->setParsedSubject($name . ' vous attend sur WhatsApp' . (($p['category'] ?? '') !== '' ? ' (' . $p['category'] . ')' : '') . '.');
 			$n->setParsedMessage('Le chatbot vous a confié ce client : répondez-lui dans l’onglet WhatsApp.');

@@ -285,6 +285,7 @@ class ApiController extends Controller {
 		$f['attrib'] = $this->a->can('all') && in_array($attrib, ['yes', 'no', 'released'], true) ? $attrib : '';
 		$f['cat'] = $selected['cat'];
 		$f['src'] = array_values(array_intersect(array_filter(explode('|', (string)$this->request->getParam('src', ''))), \OCA\CallCrm\Service\ClientActivity::SOURCES));
+		$f['has'] = array_values(array_intersect(explode('|', (string)$this->request->getParam('has', '')), ['pj', 'wa']));
 		$f['sort'] = (string)$this->request->getParam('sort', ''); $f['dir'] = (string)$this->request->getParam('dir', '');
 		if ($this->a->can('mask')) { $f['nophone'] = true; }
 		return $f;

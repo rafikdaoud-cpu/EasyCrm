@@ -323,7 +323,7 @@ function documentsCard(pid=null){
  };
  async function load(append=false){const request=++sequence;if(!append)offset=0;more.disabled=true;try{const r=await api(pid===null?'/documents/inbox?offset='+offset:'/prospects/'+pid+'/documents?offset='+offset);if(request!==sequence||!box.isConnected)return;if(!append)rows.replaceChildren();rows.append(...r.rows.map(render));offset=r.next_offset;more.hidden=!r.has_more;msg.textContent=rows.children.length?'Les originaux sont conservés. Conversion traitée par les tâches de fond Nextcloud.':'Aucune pièce pour le moment.';}catch(e){if(request===sequence)msg.textContent=e.message;}finally{more.disabled=false;}}
  box.append(h('h3',{},pid===null?'Pièces reçues · À rattacher':'Pièces jointes du client'),h('button',{onclick:()=>load()},'Actualiser'),msg,rows,more);
- if(pid!==null&&(me.can.call||me.can.assign)){const file=h('input',{type:'file','aria-label':'Ajouter une pièce au dossier'}),upload=h('button',{onclick:async()=>{if(!file.files.length){msg.textContent='Choisissez un fichier.';return;}if(file.files[0].size>25*1024*1024){msg.textContent='Fichier limité à 25 Mo.';return;}const fd=new FormData();fd.append('file',file.files[0]);upload.disabled=true;try{await api('/prospects/'+pid+'/documents',{method:'POST',body:fd});file.value='';load();}catch(e){msg.textContent=e.message;}finally{upload.disabled=false;}}},'Ajouter au dossier');box.append(h('div',{class:'bar'},file,upload));watchEdits('document-upload','Pièce jointe sélectionnée mais non envoyée',()=>box.isConnected&&file.files.length>0);}
+ if(pid!==null&&(me.can.call||me.can.assign)){const file=h('input',{type:'file',accept:'application/pdf,image/jpeg,image/png,image/webp,image/gif','aria-label':'Ajouter une pièce au dossier'}),upload=h('button',{onclick:async()=>{if(!file.files.length){msg.textContent='Choisissez un fichier.';return;}if(file.files[0].size>25*1024*1024){msg.textContent='Fichier limité à 25 Mo.';return;}const fd=new FormData();fd.append('file',file.files[0]);upload.disabled=true;try{await api('/prospects/'+pid+'/documents',{method:'POST',body:fd});file.value='';load();}catch(e){msg.textContent=e.message;}finally{upload.disabled=false;}}},'Ajouter au dossier');box.append(h('div',{class:'bar'},file,upload));watchEdits('document-upload','Pièce jointe sélectionnée mais non envoyée',()=>box.isConnected&&file.files.length>0);}
  setTimeout(()=>load(),0);return box;
 }
 /** Lien de dépôt de documents envoyé au client : création (liste et durée réglables), suivi, annulation. */
@@ -911,6 +911,8 @@ async function list(k) {
   bar.append(category.el);
   const origin = multi('Sources', Object.entries(SOURCES).map(([v, t]) => ({v, t})), (filt.src || '').split('|'));
   bar.append(origin.el);
+  const content = multi('Contenu', [{v:'pj', t:'Avec pièces jointes'}, {v:'wa', t:'Avec messages WhatsApp'}], (filt.has || '').split('|'));
+  bar.append(content.el);
   let page = 1;
   const SORTS = [['', 'Tri par défaut'], ['nom', 'Nom'], ['date', 'Date d’enregistrement'], ['modif', 'Dernière modification'], ['statut', 'Statut'], ['wilaya', 'Wilaya'], ['categorie', 'Catégorie'], ['source', 'Source'], ['appel', 'Dernier appel'], ['rappel', 'Date de rappel']];
   const so = h('select', {title:'Trier par'}, SORTS.map(([v, l]) => h('option', {value:v, selected: sortBy.k === v}, l)));
@@ -965,8 +967,8 @@ async function list(k) {
   const load = async (keep) => {
     if (keep !== true) { page = 1; sel.clear(); }
     lastQuery = null;
-    filt = {q:q.value, status: s ? s.value : '', attrib: attrib ? attrib.value : '', user:a ? a.values().join('|') : '', group:g ? g.values().join('|') : '', cat:category.values().join('|'), src:origin.values().join('|')};
-    const p = new URLSearchParams({q:filt.q, status: K.status || filt.status, attrib:filt.attrib, user:filt.user, group:filt.group, cat:filt.cat, src:filt.src, rappels: K.rappels ? 1 : '', asc: K.asc ? 1 : '',
+    filt = {q:q.value, status: s ? s.value : '', attrib: attrib ? attrib.value : '', user:a ? a.values().join('|') : '', group:g ? g.values().join('|') : '', cat:category.values().join('|'), src:origin.values().join('|'), has:content.values().join('|')};
+    const p = new URLSearchParams({q:filt.q, status: K.status || filt.status, attrib:filt.attrib, user:filt.user, group:filt.group, cat:filt.cat, src:filt.src, has:filt.has, rappels: K.rappels ? 1 : '', asc: K.asc ? 1 : '',
       reg_from: dts(rf.value, 0), reg_to: dts(rt.value, 86400), proc_from: dts(pf.value, 0), proc_to: dts(pt.value, 86400),
       sort:sortBy.k, dir:sortBy.d, paged:1, limit:pageSize, offset:(page - 1) * pageSize});
     lastQuery = Object.fromEntries([...p].filter(([k]) => !['paged','limit','offset','sort','dir'].includes(k)));
@@ -988,7 +990,7 @@ async function list(k) {
       pager.replaceChildren(...mk()); pagerB.replaceChildren(...mk());
     } catch (e) { box.replaceChildren(h('p', {class:'err'}, e.message)); }
   };
-  [q, s, attrib, a?.el, g?.el, category.el, origin.el, rf, rt, pf, pt].forEach(e => e && e.addEventListener('change', () => load()));
+  [q, s, attrib, a?.el, g?.el, category.el, origin.el, content.el, rf, rt, pf, pt].forEach(e => e && e.addEventListener('change', () => load()));
   bar.classList.add('crm-filters');
   const head = h('div', {class:'crm-page-head'}, h('div', {}, h('h2', {}, K.t), h('p', {class:'muted'}, K.asc ? 'Du plus ancien au plus récent.' : 'Cliquez sur un client pour ouvrir sa fiche.')),
     (me.can.create || me.sms?.bulk) ? h('div', {class:'crm-page-actions'}, me.sms?.bulk ? h('button', {onclick: bulkSms}, '✉ SMS à la sélection') : '', me.can.create ? h('button', {class:'primary', onclick: () => addForm()}, '+ Nouveau client') : '') : '');
@@ -3180,7 +3182,7 @@ async function waConv(id, back) {
   const c0 = d.conv;
   // ---- réponse ----
   const txt = h('textarea', {rows:3, placeholder:'Votre réponse…'});
-  const file = h('input', {type:'file', accept:'image/jpeg,image/png,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt'});
+  const file = h('input', {type:'file', accept:'application/pdf,image/jpeg,image/png,image/webp,image/gif'});
   const msg = h('div', {class:'err'});
   const sendBtn = h('button', {class:'primary', onclick: async () => {
     msg.className = 'err'; msg.textContent = '';
@@ -3194,7 +3196,7 @@ async function waConv(id, back) {
   txt.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) sendBtn.click(); });
   const reply = !d.can.reply ? h('p', {class:'muted'}, 'Consultation seule.')
     : (me.role === 'commercial' && c0.owner !== me.uid) ? h('p', {class:'muted'}, 'Conversation d’un autre commercial.')
-    : c0.window_open ? h('div', {class:'card'}, txt, h('div', {class:'bar', style:'margin-top:6px;align-items:center'}, file, sendBtn), h('div', {class:'muted'}, 'Ctrl+Entrée pour envoyer · photos JPG/PNG et documents (PDF, Word, Excel) · 50 Mo max.'), msg)
+    : c0.window_open ? h('div', {class:'card'}, txt, h('div', {class:'bar', style:'margin-top:6px;align-items:center'}, file, sendBtn), h('div', {class:'muted'}, 'Ctrl+Entrée pour envoyer · PDF ou photo uniquement · 50 Mo max.'), msg)
     : h('div', {class:'card'}, h('p', {}, 'Le client n’a pas écrit depuis plus de 24 h : réponse libre impossible, mais vous pouvez envoyer un modèle approuvé.'),
         waComposer({windowOpen:false, clientName: c0.prospect_name || c0.name || '', send: body => api('/wa/' + id + '/send', {method:'POST', body}), done: async () => { paint(await api('/wa/' + id)); }}),
         c0.phone ? h('a', {class:'big', href:'tel:' + c0.phone}, '📞 Appeler ' + c0.phone) : '',
@@ -3548,7 +3550,7 @@ function crmChat() {
   }
   go(me.role === 'commercial' ? 'journee' : 'dossiers');
   // Lien d'une notification « documents reçus » : #fiche=<id> ouvre directement la fiche du client.
-  const openHash=()=>{const m=/^#fiche=(\d+)$/.exec(location.hash||'');if(m){detail(Number(m[1]));history.replaceState(null,'',location.pathname+location.search);}};
+  const openHash=()=>{const m=/^#(fiche|wa)=(\d+)$/.exec(location.hash||'');if(m){m[1]==='wa'?waConv(Number(m[2]),()=>waList(0,{})):detail(Number(m[2]));history.replaceState(null,'',location.pathname+location.search);}};
   openHash();window.addEventListener('hashchange',openHash);
   try { crmChat(); } catch (e) {}
   refreshYeastarRuntime().then(pollYeastar);setInterval(pollYeastar,3000);setInterval(refreshYeastarRuntime,30000);

@@ -96,6 +96,11 @@ class WaController extends Controller {
 		if ($r['created'] && ($ev['direction'] ?? 'in') === 'in') {
 			$c = $this->wa->conv($r['conv']);
 			$this->s->audit(null, 'wa_in', $c && $c['linked'] ? (int)$c['prospect_id'] : null, ($c['wa_id'] ?? '') . ' → ' . ($c && $c['owner'] ? $c['owner'] : 'file d’attente'));
+			if ($c && $c['owner']) {
+				$who = ($c['linked'] ? trim(($c['p_firstname'] ?? '') . ' ' . ($c['p_lastname'] ?? '')) : '') ?: ((string)($c['name'] ?? '') ?: (string)($c['wa_id'] ?? ''));
+				\OCA\CallCrm\Service\ClientNotify::send((string)$c['owner'], 'client_message', 'wa', (string)$c['id'],
+					['name' => $who, 'kind' => (string)($ev['type'] ?? 'text'), 'text' => mb_substr(trim((string)($ev['text'] ?? '')), 0, 120)]);
+			}
 		}
 		$data = ['ok'=>true, 'routed'=>$route !== null,
 			'recent_reply'=>!empty($c['last_out_at']) && (int)$c['last_out_at'] > time()-Wa::WINDOW] + $r;
@@ -224,6 +229,7 @@ class WaController extends Controller {
 		$me = $this->a->uid();
 		// marquer comme lu : le commercial propriétaire, ou un superviseur pour une conversation en file d'attente
 		if ((int)$c['unread'] > 0 && ($c['owner'] === $me || ($c['owner'] === null && $this->canAssign()))) { $this->wa->updateConv($id, ['unread' => 0]); $c['unread'] = 0; }
+		\OCA\CallCrm\Service\ClientNotify::clear($me, 'wa', (string)$id);  // conversation ouverte : notification lue
 		$msgs = array_map(function ($m) {
 			return ['id' => (int)$m['id'], 'dir' => $m['direction'], 'type' => $m['type'], 'body' => $m['body'], 'file' => $m['file_path'] ? true : false,
 				'file_name' => $m['file_name'] ?: ($m['file_path'] ? basename((string)$m['file_path']) : null), 'mime' => $m['mime'], 'user' => $m['user_id'], 'user_name' => $this->name($m['user_id'] && !in_array($m['user_id'], ['auto', 'app'], true) ? $m['user_id'] : null) ?: ($m['user_id'] === 'auto' ? 'Réponse automatique' : ($m['user_id'] === 'app' ? 'Appli WhatsApp' : '')),
@@ -375,7 +381,9 @@ class WaController extends Controller {
 		$file = null;
 		if ($f && !empty($f['tmp_name']) && is_uploaded_file($f['tmp_name'])) {
 			if ((int)$f['size'] > 50 * 1024 * 1024) { return $this->err('Fichier trop volumineux (50 Mo maximum)'); }
-			$file = ['name' => basename((string)$f['name']), 'mime' => (string)($f['type'] ?: 'application/octet-stream'), 'b64' => base64_encode((string)file_get_contents($f['tmp_name']))];
+			$bytes = (string)file_get_contents($f['tmp_name']);
+			try { $mime = \OCA\CallCrm\Service\Antivirus::vet($bytes, (string)$f['name']); } catch (\InvalidArgumentException $e) { return $this->err($e->getMessage()); }
+			$file = ['name' => basename((string)$f['name']), 'mime' => $mime, 'b64' => base64_encode($bytes)];
 		}
 		if ($text === '' && !$file) { return $this->err('Message vide'); }
 		if (mb_strlen($text) > 4000) { return $this->err('Message trop long (4000 caractères maximum)'); }

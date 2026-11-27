@@ -55,6 +55,11 @@ class Store {
 		elseif (($f['attrib'] ?? '') === 'yes') { $qb->andWhere($qb->expr()->isNotNull('assigned_to'), $qb->expr()->neq('assigned_to', $qb->createNamedParameter(''))); }
 		if (!empty($f['cat'])) { $qb->andWhere($qb->expr()->in('c2', $qb->createNamedParameter((array)$f['cat'], IQueryBuilder::PARAM_STR_ARRAY))); }
 		if (!empty($f['src'])) { $qb->andWhere($qb->expr()->in('source', $qb->createNamedParameter((array)$f['src'], IQueryBuilder::PARAM_STR_ARRAY))); }
+		// Contenu : fiches avec pièces jointes (hors pièces refusées) et/ou messages WhatsApp reçus ; les deux cochés = l'un ou l'autre.
+		$has = [];
+		if (in_array('pj', (array)($f['has'] ?? []), true)) $has[] = "EXISTS (SELECT 1 FROM *PREFIX*callcrm_documents d WHERE d.prospect_id = p.id AND d.state <> 'failed')";
+		if (in_array('wa', (array)($f['has'] ?? []), true)) $has[] = 'EXISTS (SELECT 1 FROM *PREFIX*callcrm_wa_conv wc WHERE wc.prospect_id = p.id AND wc.last_in_at IS NOT NULL)';
+		if ($has) { $qb->andWhere('(' . implode(' OR ', $has) . ')'); }
 		if (isset($f['users']) && is_array($f['users'])) { $qb->andWhere($qb->expr()->in('assigned_to', $qb->createNamedParameter($f['users'] ?: ['-'], IQueryBuilder::PARAM_STR_ARRAY))); }
 		if (!empty($f['rappels'])) {
 			$qb->andWhere($qb->expr()->isNotNull('callback_at'));
@@ -460,7 +465,7 @@ class Store {
 	}
 	public function statusCounts(?string $uid, array $f = []): array {
 		$qb = $this->db->getQueryBuilder();
-		$qb->select('status')->selectAlias($qb->func()->count('*'), 'n')->from('callcrm_prospects')->groupBy('status');
+		$qb->select('status')->selectAlias($qb->func()->count('*'), 'n')->from('callcrm_prospects', 'p')->groupBy('status');
 		$this->where($qb, $uid, $f);
 		if (!empty($f['from'])) { $qb->andWhere($qb->expr()->gte('last_call_at', $qb->createNamedParameter((int)$f['from'], IQueryBuilder::PARAM_INT))); }
 		if (!empty($f['to'])) { $qb->andWhere($qb->expr()->lt('last_call_at', $qb->createNamedParameter((int)$f['to'], IQueryBuilder::PARAM_INT))); }

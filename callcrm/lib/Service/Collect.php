@@ -180,7 +180,7 @@ class Collect {
   $docs=$this->docs($link);
   if(!isset($docs[$index]))throw new \OutOfBoundsException('Document inconnu.');
   if($bytes===''||strlen($bytes)>self::MAX_FILE)throw new \InvalidArgumentException('Fichier vide ou supérieur à 20 Mo.');
-  $mime=self::detect($bytes);if(!$mime)throw new \InvalidArgumentException('Format refusé : envoyez un PDF ou une photo (JPEG, PNG).');
+  $mime=self::detect($bytes);if(!$mime)throw new \InvalidArgumentException('Format refusé : envoyez un PDF ou une photo (JPEG, PNG).');Antivirus::scan($bytes,'collecte');
   $files=$this->files((int)$link['id']);$total=strlen($bytes);foreach($files as $i=>$f)if($i!==$index)$total+=(int)$f['size'];
   if($total>self::MAX_TOTAL)throw new \InvalidArgumentException('Taille totale maximale atteinte (150 Mo).');
   $folder=$this->ownerFolder($link,$prospect,$owner);
