@@ -52,6 +52,7 @@ return ['routes' => [
 	['name'=>'document#test','url'=>'/api/documents/test','verb'=>'POST'],
 	['name'=>'document#attach','url'=>'/api/documents/{id}/attach','verb'=>'POST'],
 	['name'=>'document#retry','url'=>'/api/documents/{id}/retry','verb'=>'POST'],
+	['name'=>'document#remove','url'=>'/api/documents/{id}/delete','verb'=>'POST'],
 	['name'=>'document#download','url'=>'/api/documents/{id}/download','verb'=>'GET'],
 	['name'=>'activity#search','url'=>'/api/search','verb'=>'GET'],
 	['name'=>'activity#neglected','url'=>'/api/neglected','verb'=>'GET'],

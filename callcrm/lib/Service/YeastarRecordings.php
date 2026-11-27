@@ -95,6 +95,8 @@ class YeastarRecordings {
     public function list(?int $pid, int $offset=0): array {
         $q=$this->db->getQueryBuilder();$q->select('*')->from('callcrm_pbx_recordings');
         $q->where($pid===null ? $q->expr()->isNull('prospect_id') : $q->expr()->eq('prospect_id',$q->createNamedParameter($pid)));
+        // À rattacher : seulement les appels dont l'enregistrement audio est disponible (sans audio, rien à écouter ni à classer).
+        if($pid===null)$q->andWhere($q->expr()->eq('state',$q->createNamedParameter('ready')));
         $rows=$q->orderBy('id','DESC')->setFirstResult(max(0,$offset))->setMaxResults(51)->executeQuery()->fetchAll();
         return ['rows'=>array_map(fn($r)=>array_intersect_key($r,array_flip(['id','phone','extension','user_id','direction','call_status','started_at','talk_duration','state','error','size','created_at','call_duration'])),array_slice($rows,0,50)), 'has_more'=>count($rows)>50];
     }
