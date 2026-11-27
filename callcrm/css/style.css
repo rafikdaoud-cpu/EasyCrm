@@ -938,3 +938,35 @@ body:not([data-themes*="light"]):not([data-theme-light]) #callcrm-chat .crm-chat
 body:not([data-themes*="light"]):not([data-theme-light]) #callcrm-chat .crm-chat-msg.mine{background:#1e3350;border-color:#2b4a75}
 body:not([data-themes*="light"]):not([data-theme-light]) #callcrm .crm-collect-message{background:#1b1f2a}
 }
+
+/* Guide d'appel : panneau à droite (plein écran sur téléphone), suit le thème de Nextcloud. */
+.crm-guide{position:fixed;top:60px;right:16px;bottom:16px;width:min(400px,calc(100vw - 32px));box-sizing:border-box;z-index:9000;display:flex;flex-direction:column;gap:8px;padding:12px 14px;overflow-y:auto;
+ background:var(--color-main-background,#fff);color:var(--color-main-text,#1f2937);border:1px solid var(--color-border,#dfe4eb);border-radius:14px;box-shadow:0 18px 50px -12px rgba(15,23,42,.45)}
+.crm-guide-head{display:flex;align-items:center;gap:6px;flex-wrap:wrap;position:sticky;top:-12px;padding:6px 0;background:inherit;z-index:1}
+.crm-guide-head strong{flex:1;font-size:16px}
+.crm-guide-head select{max-width:150px}
+.crm-guide-who{margin:0}
+.crm-guide-body{display:flex;flex-direction:column;gap:8px}
+.crm-guide-step{border:1px solid var(--color-border,#dfe4eb);border-radius:10px;padding:8px 10px;background:var(--color-background-hover,#f5f7fb)}
+.crm-guide-step.is-done{opacity:.6}
+.crm-guide-step p{margin:6px 0;line-height:1.45;font-size:15px}
+.crm-guide-title{display:flex;align-items:center;gap:8px;cursor:pointer}
+.crm-guide-step textarea,.crm-guide-fields input{width:100%;box-sizing:border-box}
+.crm-guide-fields{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.crm-guide-fields input:last-of-type{grid-column:1/-1}
+.crm-guide-elig{grid-column:1/-1;margin:0;font-weight:600}
+.crm-guide-elig[data-ok="1"]{color:#15803d}.crm-guide-elig[data-ok="0"]{color:#b91c1c}
+.crm-guide-objections{display:flex;flex-wrap:wrap;gap:6px}
+.crm-guide-objections button{border-radius:999px}
+.crm-guide-answer{margin:0;padding:10px 12px;border-radius:10px;background:color-mix(in srgb,#e2a93b 16%,var(--color-main-background,#fff));border:1px solid color-mix(in srgb,#e2a93b 40%,transparent);line-height:1.45}
+.crm-guide-edit{border:1px solid var(--color-border,#dfe4eb);border-radius:10px;padding:8px 10px;margin:8px 0}
+.crm-guide-edit summary{cursor:pointer;font-weight:600}
+.crm-guide-edit-step{border-left:3px solid var(--color-border,#dfe4eb);padding:6px 0 6px 10px;margin:8px 0;display:flex;flex-direction:column;gap:4px}
+.crm-guide-edit-step textarea{width:100%;box-sizing:border-box}
+@media(max-width:760px){.crm-guide{top:0;right:0;bottom:0;width:100vw;border-radius:0}#callcrm .footer-guide{background:#eef2ff;color:#3730a3;border:0}}
+body[data-themes*="dark"] .crm-guide-elig[data-ok="1"],body[data-theme-dark] .crm-guide-elig[data-ok="1"]{color:#86efac}
+body[data-themes*="dark"] .crm-guide-elig[data-ok="0"],body[data-theme-dark] .crm-guide-elig[data-ok="0"]{color:#fca5a5}
+body[data-themes*="dark"] #callcrm .footer-guide,body[data-theme-dark] #callcrm .footer-guide{background:#262a4a;color:#c7d2fe}
+@media(prefers-color-scheme:dark){body:not([data-themes*="light"]):not([data-theme-light]) .crm-guide-elig[data-ok="1"]{color:#86efac}
+ body:not([data-themes*="light"]):not([data-theme-light]) .crm-guide-elig[data-ok="0"]{color:#fca5a5}
+ body:not([data-themes*="light"]):not([data-theme-light]) #callcrm .footer-guide{background:#262a4a;color:#c7d2fe}}

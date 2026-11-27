@@ -235,7 +235,7 @@ function clientWorkspace(p,info,form,note,reason,cb,getResult,saveCall){
  info.addEventListener('crm-saved',saved);
  const wrap=h('details',{class:'card crm-client-info'},h('summary',{},'Informations du client'));info.classList.remove('card');info.replaceWith(wrap);wrap.append(info);if(window.innerWidth>760)wrap.open=true;
  const columns=root.querySelector('.cols');if(columns){columns.classList.add('crm-client-columns');columns.children[1].append(collectCard(p),documentsCard(p.id));}
- const footer=h('div',{class:'crm-client-footer'},p.phone&&me.can.call?h('a',{class:'footer-call',href:'tel:'+p.phone},'☎ Appeler'):'',p.phone&&me.can.call?h('a',{class:'footer-wa',href:'https://wa.me/'+waOf(p),target:'_blank',rel:'noopener noreferrer'},'WhatsApp'):'',p.phone&&me.sms?.enabled?h('button',{class:'footer-sms',onclick:()=>clientSms(p)},'✉ SMS'):'',me.can.call?h('button',{class:'primary',onclick:()=>{if(getResult())saveCall();else{wrap.open=true;info.querySelector('button')?.click();}}},'Enregistrer'):'');root.querySelector('.crm-page')?.append(footer);
+ const footer=h('div',{class:'crm-client-footer'},p.phone&&me.can.call?h('a',{class:'footer-call',href:'tel:'+p.phone},'☎ Appeler'):'',p.phone&&me.can.call?h('a',{class:'footer-wa',href:'https://wa.me/'+waOf(p),target:'_blank',rel:'noopener noreferrer'},'WhatsApp'):'',p.phone&&me.sms?.enabled?h('button',{class:'footer-sms',onclick:()=>clientSms(p)},'✉ SMS'):'',me.can.call?h('button',{class:'footer-guide',onclick:()=>outboundGuide(p)},'📋 Guide'):'',me.can.call?h('button',{class:'primary',onclick:()=>{if(getResult())saveCall();else{wrap.open=true;info.querySelector('button')?.click();}}},'Enregistrer'):'');root.querySelector('.crm-page')?.append(footer);
 }
 function agenda(){
  let period='today',offset=0,sequence=0;const box=h('div'),rows=h('div'),counts=h('div',{class:'team-kpis'}),msg=h('p',{class:'muted'}),search=h('input',{type:'search',placeholder:'Rechercher un client…','aria-label':'Rechercher un client'}),type=h('select',{'aria-label':'Type'},h('option',{value:'all'},'Tous les types'),h('option',{value:'callback'},'Rappels'),h('option',{value:'appointment'},'Rendez-vous'));
@@ -511,6 +511,7 @@ root.addEventListener('click',async e=>{
   if(a.dataset.dialing)return;a.dataset.dialing='1';
   const r=await api('/yeastar/dial',{method:'POST',body:{phone:decodeURIComponent(a.getAttribute('href').slice(4))}});
   if(r.call_id&&r.prospect_id)callBusy={pid:String(r.prospect_id),callId:r.call_id,until:Date.now()+20*60000};
+  if(r.prospect_id)api('/prospects/'+r.prospect_id).then(d=>outboundGuide(d.prospect)).catch(()=>{});
   const notice=h('div',{class:'crm-yeastar-toast',role:'status'},r.message||'Appel demandé. Répondez dans Linkus Web.');document.querySelector('.crm-yeastar-toast')?.remove();document.body.append(notice);setTimeout(()=>notice.remove(),4500);
  }catch(error){alert(error.message);}finally{delete a.dataset.dialing;}
 });
@@ -535,6 +536,7 @@ async function pollYeastar(){
 }
 /** Appel entrant décroché : ouvre la fiche connue, ou propose la création d’une fiche pour un nouveau numéro. */
 function answeredInbound(row){
+ if(row.prospect_id)api('/prospects/'+row.prospect_id).then(d=>callGuide(d.prospect,'inbound')).catch(()=>{});else callGuide(null,'inbound');
  // Ne jamais faire perdre une saisie en cours : la notification garde alors son bouton « Ouvrir la fiche ».
  if([...dirtyChecks.values()].some(v=>v.check())||root.querySelector('.crm-new-client'))return;
  if(row.prospect_id){callBusy={pid:String(row.prospect_id),callId:row.call_id,until:Date.now()+20*60000};detail(row.prospect_id);}
@@ -3088,7 +3090,7 @@ function admin() {
       }}, 'Réattribuer aux commerciaux actuels')),
     orph,
     h('p', {class:'muted'}, 'Profils : définis par les groupes (AD ou Nextcloud) associés aux rôles administrateur, superviseur, commercial et lecture seule.'));
-  if(me.can.fields)root.querySelector('.crm-page')?.append(yeastarSettingsCard(),yeastarRoutingCard(),smsSettingsCard(),documentSettingsCard(),collectSettingsCard(),wallSettingsCard());
+  if(me.can.fields)root.querySelector('.crm-page')?.append(yeastarSettingsCard(),yeastarRoutingCard(),smsSettingsCard(),guidesSettingsCard(),documentSettingsCard(),collectSettingsCard(),wallSettingsCard());
   if(me.can.assign)root.querySelector('.crm-page')?.append(documentsCard(),yeastarRecordingsCard());
   adminPanels();
   api('/recordings').then(rows => {
@@ -3670,5 +3672,82 @@ new MutationObserver(records => {
   }
   for (const record of records) forTables(record.addedNodes, table => { try { enhanceTable(table); } catch (e) {} });
 }).observe(root, {childList:true, subtree:true});
+
+
+/* ---- Guide d'appel : étapes à suivre pendant un appel (entrant, premier contact, relance), FR / AR. ---- */
+let guideData=null;
+async function guideScripts(){if(!guideData)guideData=await api('/scripts');return guideData;}
+/** kind : inbound | outbound_new | outbound ; p : fiche (peut être vide pour un appelant inconnu). */
+async function callGuide(p,kind){
+ let data;try{data=await guideScripts();}catch(e){return;}
+ if(!data.guides?.length)return;
+ document.querySelector('.crm-guide')?.remove();
+ const vars=t=>String(t||'').replace(/\{prenom\}/g,(p?.firstname||'').trim()).replace(/\{nom\}/g,(p?.lastname||'').trim()).replace(/\{commercial\}/g,me.name||'').replace(/[ \t]{2,}/g,' ').trim();
+ let lang=(()=>{try{return localStorage.getItem('callcrm_guide_lang')||'fr';}catch(e){return 'fr';}})();
+ let guide=data.guides.find(g=>g.kind===kind)||data.guides[0];
+ const box=h('aside',{class:'crm-guide',role:'complementary','aria-label':'Guide d’appel'}),body=h('div',{class:'crm-guide-body'}),answer=h('p',{class:'crm-guide-answer',hidden:true}),msg=h('p',{class:'err',role:'status'});
+ const pick=h('select',{'aria-label':'Guide'},data.guides.map((g,i)=>h('option',{value:i,selected:g===guide},g.name)));
+ const langBtn=h('button',{type:'button','aria-label':'Changer de langue'});
+ const state=new Map();  // index d'étape → {done, value, age, salary, debts}
+ const paintLang=()=>{langBtn.textContent=lang==='ar'?'Français':'العربية';body.dir=answer.dir=lang==='ar'?'rtl':'ltr';};
+ const say=s=>vars(lang==='ar'?(s.ar||s.fr):(s.fr||s.ar));
+ const eligibility=(st)=>{const out=h('p',{class:'crm-guide-elig'});const upd=()=>{const age=Number(st.age||0),sal=Number(st.salary||0),debt=Number(st.debts||0);
+   if(!age||!sal){out.textContent='';out.dataset.ok='';return;}
+   const why=[];if(age<19||age>75)why.push('âge hors 19–75 ans');if(sal<25000)why.push('salaire inférieur à 25 000 DA');
+   const room=Math.max(0,Math.floor(sal*0.3-debt));out.dataset.ok=why.length?'0':'1';
+   out.textContent=why.length?'✖ Non éligible : '+why.join(', ')+'.':'✔ Éligible a priori · mensualité possible jusqu’à '+room.toLocaleString('fr-FR')+' DA (30 % du salaire'+(debt?' moins les mensualités en cours':'')+').';};
+  const num=(k,label)=>{const i=h('input',{type:'number',min:0,inputmode:'numeric',placeholder:label,'aria-label':label,value:st[k]||''});i.addEventListener('input',()=>{st[k]=i.value;upd();});return i;};
+  upd();return h('div',{class:'crm-guide-fields'},num('age','Âge'),num('salary','Salaire net (DA)'),num('debts','Mensualités en cours (DA)'),out);};
+ const paint=()=>{paintLang();body.replaceChildren(...guide.steps.map((s,i)=>{const st=state.get(i)||{};state.set(i,st);
+   const done=h('input',{type:'checkbox',checked:!!st.done,'aria-label':'Étape faite'});done.addEventListener('change',()=>{st.done=done.checked;row.classList.toggle('is-done',done.checked);});
+   const row=h('section',{class:'crm-guide-step'+(st.done?' is-done':'')},h('label',{class:'crm-guide-title'},done,h('strong',{},(i+1)+'. '+s.title+(s.required?' *':''))),h('p',{},say(s)));
+   if(s.type==='ask'){const t=h('textarea',{rows:2,placeholder:'Réponse du client…','aria-label':'Réponse : '+s.title},st.value||'');t.addEventListener('input',()=>{st.value=t.value;if(t.value.trim()&&!done.checked){done.checked=true;st.done=true;row.classList.add('is-done');}});row.append(t);}
+   if(s.type==='eligibility')row.append(eligibility(st));
+   return row;}));};
+ pick.addEventListener('change',()=>{guide=data.guides[pick.value];state.clear();paint();});
+ langBtn.addEventListener('click',()=>{lang=lang==='ar'?'fr':'ar';try{localStorage.setItem('callcrm_guide_lang',lang);}catch(e){}paint();answer.hidden=true;});
+ const objections=h('div',{class:'crm-guide-objections'},...(data.objections||[]).map(o=>h('button',{type:'button',onclick:()=>{answer.hidden=false;answer.textContent=vars(lang==='ar'?(o.ar||o.fr):(o.fr||o.ar));}},o.label)));
+ const notes=()=>{const lines=[];guide.steps.forEach((s,i)=>{const st=state.get(i)||{};if(s.type==='ask'&&(st.value||'').trim())lines.push(s.title+' : '+st.value.trim());
+   if(s.type==='eligibility'&&st.age&&st.salary)lines.push('Éligibilité : '+st.age+' ans, salaire '+st.salary+' DA'+(st.debts?', mensualités en cours '+st.debts+' DA':''));});return lines;};
+ const close=()=>{const missing=guide.steps.filter((s,i)=>s.required&&!state.get(i)?.done).map(s=>s.title);
+   if(missing.length&&!confirm('Étapes obligatoires non cochées : '+missing.join(', ')+'.\nFermer quand même le guide ?'))return;
+   if(p?.id&&notes().length&&!box.dataset.saved&&!confirm('Les réponses du client ne sont pas enregistrées sur la fiche. Fermer sans les enregistrer ?'))return;box.remove();};
+ const save=h('button',{type:'button',class:'primary',onclick:async()=>{const lines=notes();if(!p?.id){msg.textContent='Enregistrez d’abord la fiche du client, puis rouvrez le guide depuis la fiche.';return;}
+   if(!lines.length){msg.textContent='Aucune réponse à enregistrer.';return;}
+   try{await api('/prospects/'+p.id+'/notes',{method:'POST',body:{note:'Guide « '+guide.name+' »\n'+lines.join('\n')}});box.dataset.saved='1';msg.className='muted';msg.textContent='✔ Réponses enregistrées dans l’historique de la fiche.';}catch(e){msg.className='err';msg.textContent=e.message;}}},'Enregistrer sur la fiche');
+ box.append(h('header',{class:'crm-guide-head'},h('strong',{},'📋 Guide d’appel'),pick,langBtn,h('button',{type:'button','aria-label':'Fermer le guide',onclick:close},'✕')),
+  p?.id?h('p',{class:'muted crm-guide-who'},[p.firstname,p.lastname].filter(Boolean).join(' ')+(p.phone?' · '+p.phone:'')):h('p',{class:'muted crm-guide-who'},'Appelant sans fiche'),
+  body,h('h4',{},'Objections'),objections,answer,h('div',{class:'bar'},save),msg);
+ paint();document.body.append(box);
+}
+/** Choix du guide selon la fiche : nouvelle fiche → premier contact, sinon relance. */
+function outboundGuide(p){return callGuide(p,String(p?.status||'')==='nouveau'?'outbound_new':'outbound');}
+
+
+/** Administration : guides d'appel (étapes FR / AR, questions, étape d'éligibilité, objections). */
+function guidesSettingsCard(){
+ const box=h('div',{class:'card crm-admin-panel crm-guide-admin'}),body=h('div'),out=h('p',{class:'muted',role:'status','aria-live':'polite'});
+ box.append(h('h3',{},'Guides d’appel'),h('p',{class:'muted'},'S’ouvrent tout seuls quand un commercial décroche un appel entrant ou appelle depuis une fiche (aussi par le bouton « 📋 Guide » de la fiche). Variables : {prenom}, {nom}, {commercial}. Étape « Question » : la réponse du client est notée sur la fiche ; « Éligibilité » : âge, salaire et mensualités en cours, contrôlés automatiquement ; * = étape obligatoire.'),body,out);
+ const TYPES=[['text','Phrase à dire'],['ask','Question (réponse notée)'],['eligibility','Éligibilité']];
+ const area=(v,label,ar)=>h('textarea',{rows:2,maxlength:1000,'aria-label':label,placeholder:label,dir:ar?'rtl':'auto'},v||'');
+ const stepRow=(st={title:'',fr:'',ar:'',type:'text',required:false})=>{const title=h('input',{value:st.title,maxlength:80,placeholder:'Titre de l’étape','aria-label':'Titre de l’étape'}),type=h('select',{'aria-label':'Type d’étape'},TYPES.map(([v,t])=>h('option',{value:v,selected:v===st.type},t))),req=h('input',{type:'checkbox',checked:!!st.required});
+  const row=h('div',{class:'crm-guide-edit-step'},h('div',{class:'bar'},title,type,h('label',{},req,' Obligatoire'),h('button',{type:'button','aria-label':'Supprimer l’étape',onclick:()=>row.remove()},'✕')),area(st.fr,'Texte en français'),area(st.ar,'النص بالعربية',true));
+  row.read=()=>({title:title.value.trim(),type:type.value,required:req.checked,fr:row.querySelectorAll('textarea')[0].value.trim(),ar:row.querySelectorAll('textarea')[1].value.trim()});return row;};
+ const guideBlock=(g,kinds)=>{const name=h('input',{value:g.name,maxlength:80,'aria-label':'Nom du guide',placeholder:'Nom du guide'}),kind=h('select',{'aria-label':'Type d’appel'},Object.entries(kinds).map(([v,t])=>h('option',{value:v,selected:v===g.kind},t))),steps=h('div');
+  (g.steps||[]).forEach(st=>steps.append(stepRow(st)));
+  const blk=h('details',{class:'crm-guide-edit'},h('summary',{},g.name||'Nouveau guide'),h('div',{class:'bar'},name,kind,h('button',{type:'button',onclick:()=>{if(confirm('Supprimer ce guide ?'))blk.remove();}},'Supprimer le guide')),steps,
+   h('button',{type:'button',onclick:()=>steps.append(stepRow())},'+ Ajouter une étape'));
+  blk.read=()=>({name:name.value.trim(),kind:kind.value,steps:[...steps.children].map(r=>r.read())});return blk;};
+ const objRow=(o={label:'',fr:'',ar:''})=>{const label=h('input',{value:o.label,maxlength:60,placeholder:'Objection (ex. C’est cher)','aria-label':'Objection'});
+  const row=h('div',{class:'crm-guide-edit-step'},h('div',{class:'bar'},label,h('button',{type:'button','aria-label':'Supprimer l’objection',onclick:()=>row.remove()},'✕')),area(o.fr,'Réponse en français'),area(o.ar,'الجواب بالعربية',true));
+  row.read=()=>({label:label.value.trim(),fr:row.querySelectorAll('textarea')[0].value.trim(),ar:row.querySelectorAll('textarea')[1].value.trim()});return row;};
+ const render=d=>{const guides=h('div'),objs=h('div');(d.guides||[]).forEach(g=>guides.append(guideBlock(g,d.kinds)));(d.objections||[]).forEach(o=>objs.append(objRow(o)));
+  const save=async()=>{out.textContent='Enregistrement…';try{const r=await api('/scripts',{method:'POST',body:{guides:[...guides.children].map(b=>b.read()),objections:[...objs.children].map(r=>r.read())}});guideData=null;render(r);out.textContent='✔ Guides enregistrés.';}catch(e){out.textContent=e.message;}};
+  body.replaceChildren(guides,h('button',{type:'button',onclick:()=>{const b=guideBlock({name:'',kind:'inbound',steps:[]},d.kinds);b.open=true;guides.append(b);}},'+ Ajouter un guide'),
+   h('h4',{},'Objections (communes à tous les guides)'),objs,h('button',{type:'button',onclick:()=>objs.append(objRow())},'+ Ajouter une objection'),
+   h('div',{class:'bar crm-sms-actions'},h('button',{class:'primary',onclick:save},'Enregistrer'),h('button',{onclick:async()=>{if(!confirm('Remettre les guides à la première rédaction ? Vos modifications seront perdues.'))return;try{const r=await api('/scripts/reset',{method:'POST'});guideData=null;render(r);out.textContent='Guides remis à la première rédaction.';}catch(e){out.textContent=e.message;}}},'Revenir à la première rédaction')));};
+ api('/scripts').then(render).catch(e=>{out.textContent=e.message;});
+ return box;
+}
 
 })();
