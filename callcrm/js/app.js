@@ -1890,7 +1890,7 @@ function dashboardPeriodFilter(apply) {
     h('button', {type:'button', onclick:() => {
       if (!from.value || !to.value || from.value > to.value) { error.textContent = 'Choisissez une date de début et une date de fin égale ou postérieure.'; return; }
       error.textContent = ''; apply({period:'custom', from:from.value, to:to.value});
-    }}, 'Appliquer les dates'), h('small', {}, 'Une journée précise : la même date dans Du et Au. Une semaine passée : du lundi au dimanche.'));
+    }}, 'Appliquer les dates'), h('small', {}, 'Une journée précise : la même date dans Du et Au. Une semaine passée : du dimanche au samedi (travail du dimanche au jeudi, samedi en brigades).'));
   const choices = [['day','Aujourd’hui'],['week','Cette semaine'],['month','Ce mois'],['custom','Choisir des dates…']].map(([key,label]) => {
     const button = h('button', {type:'button', 'aria-pressed':String(key === 'day'), onclick:() => {
       select(key); dates.hidden = key !== 'custom'; error.textContent = '';

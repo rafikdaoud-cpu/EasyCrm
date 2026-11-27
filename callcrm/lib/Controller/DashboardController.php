@@ -150,7 +150,7 @@ class DashboardController extends Controller {
         $rows = [];
         foreach ($selected as $uid=>$name) {
             $g = Prefs::goalFor((string)$uid);
-            $goal += $range['period']==='week' && $g['week']>0 ? $g['week'] : $g['day']*$activity['days'];
+            $goal += $range['period']==='week' && $g['week']>0 ? $g['week'] : $g['day']*$this->workDays((string)$uid,$range['start'],min($now+1,$range['end']),$zone);
             $rows[] = ['uid'=>(string)$uid,'name'=>$name,'status'=>$presence[$uid]['status'],
                 'processed'=>$presence[$uid]['processed'],'pending'=>$load[$uid]['pending']??0,'late'=>$load[$uid]['late']??0]
                 + $activity['agents'][$uid];
@@ -283,6 +283,16 @@ class DashboardController extends Controller {
         return $rows;
     }
 
+    /** Jours de travail d'un commercial sur la période : dimanche au jeudi, plus les samedis où il a saisi des appels (brigade du samedi) ; vendredi exclu. */
+    private function workDays(string $uid, int $from, int $to, \DateTimeZone $zone): int {
+        if ($from >= $to) return 0;
+        $q = $this->db->getQueryBuilder();
+        $at = $q->select('created_at')->from('callcrm_calls')->where($q->expr()->eq('user_id',$q->createNamedParameter($uid)))
+            ->andWhere($q->expr()->gte('created_at',$q->createNamedParameter($from)))->andWhere($q->expr()->lt('created_at',$q->createNamedParameter($to)))
+            ->executeQuery()->fetchAll(\PDO::FETCH_COLUMN);
+        return CallDashboard::workDays($from, $to, $zone, array_map('intval', $at));
+    }
+
     private function loggedCalls(array $uids, int $from, int $to): int {
         if (!$uids || $from >= $to) return 0;
         $q = $this->db->getQueryBuilder();
@@ -312,7 +322,7 @@ class DashboardController extends Controller {
     #[NoAdminRequired]
     public function goals(): JSONResponse {
         if (!$this->manager()) return new JSONResponse(['error'=>'Accès refusé'],403);
-        $tz=new \DateTimeZone(Prefs::all()['tz']);$d=(new \DateTime('now',$tz))->setTime(0,0,0);$w=(clone $d)->modify('monday this week');
+        $tz=new \DateTimeZone(Prefs::all()['tz']);$d=(new \DateTime('now',$tz))->setTime(0,0,0);$w=\OCA\CallCrm\Service\PresenceRange::weekStart($d);
         $out=[];
         foreach ($this->gm->get(Access::groups()['commercial'])?->getUsers()??[] as $u) {
             $uid=$u->getUID();if(!\OCA\CallCrm\Service\TeamScope::canTarget($uid))continue;$g=Prefs::goalFor($uid);

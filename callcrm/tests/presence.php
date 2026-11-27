@@ -61,7 +61,7 @@ namespace {
  $presence->touch('timeline', null, $t+120);
  $r = $presence->report(['timeline'], $t+150)['rows']['timeline'];
  check($r['totals']['day'] === ['online'=>30,'pause'=>60,'lunch'=>0], 'day totals split work and pause at midnight');
- check($r['totals']['week'] === ['online'=>30,'pause'=>60,'lunch'=>0], 'new Monday week excludes Sunday work');
+ check($r['totals']['week'] === ['online'=>90,'pause'=>60,'lunch'=>0], 'week starts on Sunday: Sunday work counts in the new week');
  check($r['totals']['month'] === ['online'=>90,'pause'=>60,'lunch'=>0], 'month includes Sunday work');
  $r = $presence->report(['timeline'], $t+1000)['rows']['timeline'];
  check($r['status'] === 'absent' && $r['totals']['day']['pause'] === 150, 'absence caps accumulated pause at last signal plus timeout');
@@ -77,7 +77,7 @@ namespace {
  check($db->pdo->query('SELECT count(*) FROM callcrm_presence_log')->fetchColumn() === $before, 'repeated resume does not split or duplicate interval');
  $r = $presence->report(['never'], $t+1090)['rows']['never'];
  check($r['totals']['month'] === ['online'=>0,'pause'=>0,'lunch'=>0], 'no history is shown as zero, not invented');
- $old = $stamp('2026-10-31 23:59:30');
+ $old = $stamp('2026-11-30 23:59:30'); // lundi soir : le mois change mardi, la semaine (depuis dimanche) continue
  $presence->touch('boundary', false, $old); $presence->touch('boundary', null, $old+60);
  $r = $presence->report(['boundary'], $old+90)['rows']['boundary'];
  check($r['totals']['month']['online'] === 60 && $r['totals']['week']['online'] === 90, 'month and week boundaries are clipped independently');

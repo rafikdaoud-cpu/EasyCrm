@@ -429,7 +429,7 @@ class ApiController extends Controller {
 		$out = ['overdue' => $this->s->overdueCount($sc, time()), 'today' => null, 'goal' => $p['goal']];
 		if ($this->a->role() === 'commercial') {
 			$uid = $this->a->uid(); $g = Prefs::goalFor($uid);
-			$w = (clone $d)->modify('monday this week');
+			$w = \OCA\CallCrm\Service\PresenceRange::weekStart($d);
 			$out = ['overdue' => $out['overdue'], 'today' => $this->s->callsSince($uid, $d->getTimestamp())[$uid] ?? 0, 'goal' => $g['day'],
 				'week' => $this->s->callsSince($uid, $w->getTimestamp())[$uid] ?? 0, 'week_goal' => $g['week']];
 		}

@@ -20,7 +20,8 @@ class Collect {
   ['label'=>'Carte d’identité (recto)','required'=>true],['label'=>'Carte d’identité (verso)','required'=>true],
   ['label'=>'Extrait de naissance','required'=>true],['label'=>'Fiche familiale','required'=>false],
   ['label'=>'Certificat de résidence','required'=>true],['label'=>'Attestation de travail','required'=>true],
-  ['label'=>'Fiches de paie (3 derniers mois)','required'=>true],['label'=>'Relevé bancaire / chèque barré','required'=>true],
+  ['label'=>'Fiches de paie (3 derniers mois)','required'=>true],['label'=>'Relevé de compte CCP ou bancaire (6 derniers mois)','required'=>true],['label'=>'Chèque CCP ou bancaire barré','required'=>true],
+  ['label'=>'Carte Chifa ou affiliation CNAS (salariés, retraités civils)','required'=>false],['label'=>'Carte d’assurance et attestation de présence au corps (militaires)','required'=>false],
   ['label'=>'Facture proforma','required'=>false],['label'=>'Photo d’identité','required'=>false],
  ];
  const ACCEPTED=['application/pdf'=>'pdf','image/jpeg'=>'jpg','image/png'=>'png'];

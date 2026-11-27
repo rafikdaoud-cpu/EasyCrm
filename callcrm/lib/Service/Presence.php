@@ -113,7 +113,7 @@ class Presence {
   try { $zone = new \DateTimeZone($tz); } catch (\Throwable $e) { $tz = 'Africa/Algiers'; $zone = new \DateTimeZone($tz); }
   $date = (new \DateTimeImmutable('@'.$now))->setTimezone($zone);
   $day = $date->setTime(0,0);
-  $starts = ['day'=>$day->getTimestamp(), 'week'=>$day->modify('-'.((int)$day->format('N')-1).' days')->getTimestamp(), 'month'=>$day->modify('first day of this month')->getTimestamp()];
+  $starts = ['day'=>$day->getTimestamp(), 'week'=>PresenceRange::weekStart($day)->getTimestamp(), 'month'=>$day->modify('first day of this month')->getTimestamp()];
   $range = PresenceRange::resolve($filter,$zone,$now);
   $starts['selected'] = $range['start'];
   $rows = []; $periods = [];

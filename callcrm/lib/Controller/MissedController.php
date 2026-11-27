@@ -18,7 +18,7 @@ class MissedController extends Controller {
     private function since(string $period): int {
         $d = new \DateTime('now', new \DateTimeZone(Prefs::all()['tz']));
         $d->setTime(0, 0, 0);
-        if ($period === 'week') $d->modify('monday this week');
+        if ($period === 'week') return \OCA\CallCrm\Service\PresenceRange::weekStart($d)->getTimestamp();
         elseif ($period === 'month') $d->modify('first day of this month');
         return $d->getTimestamp();
     }

@@ -3,6 +3,10 @@ namespace OCA\CallCrm\Service;
 
 /** Dates civiles dans le fuseau CRM ; la borne Au inclut toute la journée. */
 class PresenceRange {
+ /** Début de semaine : la semaine de travail va du dimanche au jeudi (samedi : brigades), elle commence donc le dimanche. */
+ public static function weekStart(\DateTimeInterface $d): \DateTimeImmutable {
+  return \DateTimeImmutable::createFromInterface($d)->setTime(0,0)->modify('-'.((int)$d->format('N') % 7).' days');
+ }
  public static function resolve(array $filter, \DateTimeZone $zone, int $now): array {
   $today = (new \DateTimeImmutable('@'.$now))->setTimezone($zone)->setTime(0,0);
   $preset = $filter['period'] ?? 'day';
@@ -18,7 +22,7 @@ class PresenceRange {
    if ($start > $last) { throw new \InvalidArgumentException('La date Du doit précéder ou être égale à la date Au.'); }
   } else {
    $start = match ($preset) {
-    'week' => $today->modify('-'.((int)$today->format('N')-1).' days'),
+    'week' => self::weekStart($today),
     'month' => $today->modify('first day of this month'),
     default => $today,
    };

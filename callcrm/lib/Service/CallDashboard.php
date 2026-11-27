@@ -100,6 +100,18 @@ class CallDashboard {
      * Dernière fermeture : la nuit précédente, ou la fermeture en cours quand le lendemain n'est pas ouvré
      * (jeudi soir et vendredi → reprise samedi 8 h 30).
      */
+    /** Nombre de jours de travail entre $from et $to : dimanche au jeudi, et chaque samedi où l'un des horodatages $worked tombe (brigade). */
+    public static function workDays(int $from, int $to, \DateTimeZone $zone, array $worked = []): int {
+        $saturdays = [];
+        foreach ($worked as $t) { $d = (new \DateTimeImmutable('@'.$t))->setTimezone($zone); if ((int)$d->format('N') === 6) $saturdays[$d->format('Y-m-d')] = true; }
+        $n = 0;
+        for ($d = (new \DateTimeImmutable('@'.$from))->setTimezone($zone)->setTime(0,0); $d->getTimestamp() < $to; $d = $d->modify('+1 day')) {
+            $wd = (int)$d->format('N');
+            if ($wd === 7 || $wd <= 4 || ($wd === 6 && isset($saturdays[$d->format('Y-m-d')]))) $n++;
+        }
+        return $n;
+    }
+
     public static function closureRange(int $now, \DateTimeZone $zone): array {
         $today = (new \DateTimeImmutable('@'.$now))->setTimezone($zone);
         $open = fn(\DateTimeImmutable $d) => in_array((int)$d->format('N'), self::OPEN_DAYS, true);

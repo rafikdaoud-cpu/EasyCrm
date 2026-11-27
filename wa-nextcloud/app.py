@@ -589,7 +589,7 @@ def bot_dossier_documents(lang, role):
         "• نسختان من شهادة الميلاد.\n"
         "• نسختان من شهادة إقامة سارية المفعول لا يتعدى تاريخها 3 أشهر.\n"
         "• شهادة عائلية للمتزوجين.\n"
-        "• كشف حساب بريدي أو بنكي لآخر 3 أشهر.\n"
+        "• كشف حساب بريدي أو بنكي لآخر 6 أشهر.\n"
         "• صك بريدي أو بنكي مشطوب.\n"
         "• صورتان شمسيتان."
     ) if arabic else (
@@ -598,18 +598,23 @@ def bot_dossier_documents(lang, role):
         "• Deux copies de l’acte de naissance.\n"
         "• Deux copies du certificat de résidence valide, daté de 3 mois au plus.\n"
         "• Une fiche familiale pour les personnes mariées.\n"
-        "• Un relevé de compte postal ou bancaire des 3 derniers mois.\n"
+        "• Un relevé de compte CCP ou bancaire des 6 derniers mois.\n"
         "• Un chèque postal ou bancaire barré.\n"
         "• Deux photos d’identité."
     )
     extra = {
         "employee": ("• Attestation de travail de moins d’un mois indiquant un contrat à durée indéterminée et la titularisation au poste.\n"
-                     "• Bulletins de salaire des 3 derniers mois.",
+                     "• Bulletins de salaire des 3 derniers mois.\n"
+                     "• Carte Chifa ou attestation d’affiliation à la CNAS.",
                      "• شهادة عمل حديثة أقل من شهر توضح أن عقد العمل غير محدد المدة وأن العامل مرسم في منصبه.\n"
-                     "• كشوف الراتب لآخر 3 أشهر."),
-        "retired": ("• Attestation de revenus de la Caisse nationale des retraites (CNR).",
-                    "• شهادة الدخل من الصندوق الوطني للتقاعد (CNR)."),
-        "military": ("• Attestation de salaire.", "• شهادة كشف الراتب."),
+                     "• كشوف الراتب لآخر 3 أشهر.\n"
+                     "• بطاقة الشفاء أو شهادة الانتساب إلى الصندوق الوطني للتأمينات الاجتماعية (CNAS)."),
+        "retired": ("• Attestation de revenus de la Caisse nationale des retraites (CNR).\n"
+                    "• Carte Chifa ou attestation d’affiliation à la CNAS.",
+                    "• شهادة الدخل من الصندوق الوطني للتقاعد (CNR).\n"
+                    "• بطاقة الشفاء أو شهادة الانتساب إلى الصندوق الوطني للتأمينات الاجتماعية (CNAS)."),
+        "military": ("• Attestation de salaire.\n• Carte d’assurance.\n• Attestation de présence au corps.",
+                     "• شهادة كشف الراتب.\n• بطاقة التأمين.\n• شهادة الحضور في السلك."),
         "military_retired": ("• Avis de radiation.\n• Attestation de salaire.", "• إشعار بالشطب.\n• شهادة كشف الراتب."),
     }
     return common + ("\n\nإضافةً إلى ذلك:\n" if arabic else "\n\nEn plus :\n") + extra[role][int(arabic)]

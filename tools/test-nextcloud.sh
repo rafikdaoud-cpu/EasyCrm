@@ -46,5 +46,6 @@ node --check callcrm/js/docscan.js
 node --check callcrm/js/docscan-worker.js
 node --check callcrm/js/scanpdf.js
 "$PHP_BIN" tests/quality-duplicates.php
+"$PHP_BIN" tests/work-week.php
 "$PHP_BIN" tests/migrations.php
 git diff --check

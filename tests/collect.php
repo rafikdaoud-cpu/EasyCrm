@@ -43,7 +43,7 @@ $PDF="%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n";$JPEG="\xFF\xD8\xFF\xE0
 $tokenOf=fn($url)=>substr($url,strrpos($url,'/')+1);
 
 // Réglages
-$s=$collect->settings();ok(count($s['documents'])===10&&$s['days']===3,'default list of 10 documents and 3-day validity');
+$s=$collect->settings();ok(count($s['documents'])===13&&$s['days']===3,'default list of 13 documents and 3-day validity');
 foreach([[[],3],[[['label'=>'A'],['label'=>'a']],3],[array_fill(0,31,['label'=>'x']),3],[[['label'=>'A']],0],[[['label'=>'A']],31],[[['label'=>str_repeat('x',121)]],3]] as [$docs,$days]){try{$collect->configure($docs,$days);throw new LogicException('accepted');}catch(InvalidArgumentException $e){}}
 ok($collect->settings()['days']===3,'invalid lists and durations rejected (empty, duplicate, >30, 0 or 31 days, long label)');
 $collect->configure([['label'=>'CNI recto','required'=>true],['label'=>'CNI verso','required'=>true],['label'=>'Fiche de paie','required'=>false]],5);
